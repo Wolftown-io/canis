@@ -9,7 +9,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::AppState;
-use crate::db::{find_user_by_id, models::User};
+use crate::db::{find_user_by_id, User};
 
 use super::error::AuthError;
 use super::jwt::validate_access_token;
@@ -111,14 +111,23 @@ where
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        parts
-            .extensions
-            .get::<AuthUser>()
-            .cloned()
-            .ok_or(AuthError::MissingAuthHeader)
+    fn from_request_parts<'life0, 'life1, 'async_trait>(
+        parts: &'life0 mut axum::http::request::Parts,
+        _state: &'life1 S,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self, Self::Rejection>> + Send + 'async_trait>,
+    >
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        Box::pin(async move {
+            parts
+                .extensions
+                .get::<AuthUser>()
+                .cloned()
+                .ok_or(AuthError::MissingAuthHeader)
+        })
     }
 }

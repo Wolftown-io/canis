@@ -4,7 +4,7 @@
 
 mod error;
 mod handlers;
-mod jwt;
+pub mod jwt;
 mod middleware;
 mod oidc;
 mod password;
