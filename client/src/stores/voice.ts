@@ -9,6 +9,12 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { createVoiceAdapter, type VoiceError } from "@/lib/webrtc";
 import type { VoiceParticipant } from "@/lib/types";
 
+// Detect if running in Tauri
+const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
+
+// Type for unlisten function
+type UnlistenFn = () => void;
+
 // Voice connection state
 type VoiceState = "disconnected" | "connecting" | "connected";
 
@@ -47,6 +53,14 @@ let unlisteners: UnlistenFn[] = [];
 export async function initVoice(): Promise<void> {
   // Clean up existing listeners
   await cleanupVoice();
+
+  // Voice requires Tauri - in browser mode, voice is not supported
+  if (!isTauri) {
+    console.warn("Voice chat requires the native Tauri app");
+    return;
+  }
+
+  const { listen } = await import("@tauri-apps/api/event");
 
   // Voice user events
   unlisteners.push(
