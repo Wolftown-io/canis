@@ -9,6 +9,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/server.Dockerfile
+      args:
+        - VITE_SERVER_URL=${SERVER_URL}
     image: voicechat/server:latest
     container_name: voicechat-server
     restart: unless-stopped

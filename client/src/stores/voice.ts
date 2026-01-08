@@ -5,7 +5,6 @@
  */
 
 import { createStore, produce } from "solid-js/store";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { createVoiceAdapter, type VoiceError } from "@/lib/webrtc";
 import type { VoiceParticipant } from "@/lib/types";
 
@@ -14,6 +13,28 @@ const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
 
 // Type for unlisten function
 type UnlistenFn = () => void;
+
+// Helper to get error message from VoiceError
+function getErrorMessage(error: VoiceError): string {
+  switch (error.type) {
+    case "permission_denied":
+    case "device_not_found":
+    case "device_in_use":
+    case "ice_failed":
+    case "unknown":
+      return error.message;
+    case "server_rejected":
+      return `Server rejected: ${error.message} (${error.code})`;
+    case "connection_failed":
+      return `Connection failed: ${error.reason}`;
+    case "timeout":
+      return `Timeout during ${error.operation}`;
+    case "already_connected":
+      return `Already connected to channel ${error.channelId}`;
+    case "not_connected":
+      return "Not connected to voice channel";
+  }
+}
 
 // Voice connection state
 type VoiceState = "disconnected" | "connecting" | "connected";
@@ -170,7 +191,7 @@ export async function joinVoice(channelId: string): Promise<void> {
   const result = await adapter.join(channelId);
   if (!result.ok) {
     setVoiceState({ state: "disconnected", channelId: null, error: result.error });
-    throw new Error(result.error.message || "Failed to join voice channel");
+    throw new Error(getErrorMessage(result.error));
   }
 }
 

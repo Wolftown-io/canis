@@ -1,5 +1,5 @@
-import { Component, For, Show } from "solid-js";
-import { ChevronDown, Plus } from "lucide-solid";
+import { Component, For, Show, createSignal } from "solid-js";
+import { ChevronDown, Plus, Mic } from "lucide-solid";
 import {
   channelsState,
   textChannels,
@@ -9,8 +9,12 @@ import {
 } from "@/stores/channels";
 import { joinVoice, leaveVoice, isInChannel } from "@/stores/voice";
 import ChannelItem from "./ChannelItem";
+import MicrophoneTest from "../voice/MicrophoneTest";
+import VoiceParticipants from "../voice/VoiceParticipants";
 
 const ChannelList: Component = () => {
+  const [showMicTest, setShowMicTest] = createSignal(false);
+
   const handleVoiceChannelClick = async (channelId: string) => {
     if (isInChannel(channelId)) {
       // Already in this channel, leave it
@@ -81,22 +85,34 @@ const ChannelList: Component = () => {
               Voice Channels
             </span>
           </div>
-          <button
-            class="p-0.5 text-text-muted hover:text-text-primary rounded transition-colors"
-            title="Create Voice Channel"
-            onClick={() => handleCreateChannel("voice")}
-          >
-            <Plus class="w-4 h-4" />
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              class="p-0.5 text-text-muted hover:text-text-primary rounded transition-colors"
+              title="Test Microphone"
+              onClick={() => setShowMicTest(true)}
+            >
+              <Mic class="w-4 h-4" />
+            </button>
+            <button
+              class="p-0.5 text-text-muted hover:text-text-primary rounded transition-colors"
+              title="Create Voice Channel"
+              onClick={() => handleCreateChannel("voice")}
+            >
+              <Plus class="w-4 h-4" />
+            </button>
+          </div>
         </div>
         <div class="space-y-0.5">
           <For each={voiceChannels()}>
             {(channel) => (
-              <ChannelItem
-                channel={channel}
-                isSelected={false}
-                onClick={() => handleVoiceChannelClick(channel.id)}
-              />
+              <div>
+                <ChannelItem
+                  channel={channel}
+                  isSelected={false}
+                  onClick={() => handleVoiceChannelClick(channel.id)}
+                />
+                <VoiceParticipants channelId={channel.id} />
+              </div>
             )}
           </For>
         </div>
@@ -120,6 +136,11 @@ const ChannelList: Component = () => {
         <div class="px-2 py-4 text-center text-danger text-sm">
           {channelsState.error}
         </div>
+      </Show>
+
+      {/* Microphone Test Modal */}
+      <Show when={showMicTest()}>
+        <MicrophoneTest onClose={() => setShowMicTest(false)} />
       </Show>
     </nav>
   );

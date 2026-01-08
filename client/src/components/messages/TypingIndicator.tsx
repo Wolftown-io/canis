@@ -1,5 +1,5 @@
 import { Component, Show, createMemo } from "solid-js";
-import { getTypingUsers, typingState } from "@/stores/websocket";
+import { typingState } from "@/stores/websocket";
 
 interface TypingIndicatorProps {
   channelId: string;

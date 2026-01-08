@@ -24,7 +24,7 @@ const MessageItem: Component<MessageItemProps> = (props) => {
         <Show when={!props.compact}>
           <Avatar
             src={author().avatar_url}
-            name={author().display_name}
+            alt={author().display_name}
             status={author().status}
             size="md"
           />

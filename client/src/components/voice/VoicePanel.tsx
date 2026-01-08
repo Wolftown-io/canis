@@ -3,7 +3,6 @@ import { PhoneOff, Signal } from "lucide-solid";
 import { voiceState, leaveVoice, getParticipants } from "@/stores/voice";
 import { getChannel } from "@/stores/channels";
 import VoiceControls from "./VoiceControls";
-import Avatar from "@/components/ui/Avatar";
 
 /**
  * Voice panel shown when connected to a voice channel.

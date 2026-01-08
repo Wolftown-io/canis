@@ -35,7 +35,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
   // Selected devices
   private inputDeviceId: string | null = null;
-  private outputDeviceId: string | null = null;
+  // private _outputDeviceId: string | null = null; // TODO: Implement output device selection
 
   constructor() {
     console.log("[BrowserVoiceAdapter] Initialized");
@@ -389,7 +389,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
   async setOutputDevice(deviceId: string): Promise<VoiceResult<void>> {
     console.log(`[BrowserVoiceAdapter] Setting output device: ${deviceId}`);
-    this.outputDeviceId = deviceId;
+    // this._outputDeviceId = deviceId; // TODO: Store selected output device
 
     // Set output device for all remote streams
     // Note: This requires the experimental setSinkId API

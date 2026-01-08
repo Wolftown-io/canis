@@ -33,6 +33,12 @@ const DEFAULT_MAX_PARTICIPANTS: usize = 25;
 pub struct ParticipantInfo {
     /// User ID.
     pub user_id: Uuid,
+    /// Username.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    /// Display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     /// Whether the user is muted.
     pub muted: bool,
 }

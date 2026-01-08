@@ -4,7 +4,9 @@ import { login, authState, clearError } from "@/stores/auth";
 
 const Login: Component = () => {
   const navigate = useNavigate();
-  const [serverUrl, setServerUrl] = createSignal("");
+  // Use environment variable for default server URL
+  const defaultServerUrl = import.meta.env.VITE_SERVER_URL || "";
+  const [serverUrl, setServerUrl] = createSignal(defaultServerUrl);
   const [username, setUsername] = createSignal("");
   const [password, setPassword] = createSignal("");
   const [localError, setLocalError] = createSignal("");

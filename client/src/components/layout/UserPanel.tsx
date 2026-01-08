@@ -1,14 +1,10 @@
 import { Component, Show } from "solid-js";
 import { Settings, Mic, Headphones } from "lucide-solid";
-import { authState, logout } from "@/stores/auth";
+import { authState } from "@/stores/auth";
 import Avatar from "@/components/ui/Avatar";
 
 const UserPanel: Component = () => {
   const user = () => authState.user;
-
-  const handleLogout = async () => {
-    await logout();
-  };
 
   return (
     <div class="p-2 bg-background-primary/50">

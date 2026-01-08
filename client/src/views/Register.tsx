@@ -4,7 +4,9 @@ import { register, authState, clearError } from "@/stores/auth";
 
 const Register: Component = () => {
   const navigate = useNavigate();
-  const [serverUrl, setServerUrl] = createSignal("");
+  // Use environment variable for default server URL
+  const defaultServerUrl = import.meta.env.VITE_SERVER_URL || "";
+  const [serverUrl, setServerUrl] = createSignal(defaultServerUrl);
   const [username, setUsername] = createSignal("");
   const [email, setEmail] = createSignal("");
   const [displayName, setDisplayName] = createSignal("");

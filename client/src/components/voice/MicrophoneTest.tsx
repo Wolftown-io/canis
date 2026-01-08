@@ -11,7 +11,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function MicrophoneTest(props: Props) {
+function MicrophoneTest(props: Props) {
   const [inputDevices, setInputDevices] = createSignal<AudioDevice[]>([]);
   const [outputDevices, setOutputDevices] = createSignal<AudioDevice[]>([]);
   const [selectedInput, setSelectedInput] = createSignal<string>("");
@@ -112,8 +112,19 @@ export function MicrophoneTest(props: Props) {
         return "No microphone found. Please connect a microphone.";
       case "device_in_use":
         return "Microphone is being used by another app.";
-      default:
-        return error.message || "An error occurred";
+      case "ice_failed":
+      case "unknown":
+        return error.message;
+      case "server_rejected":
+        return `Server rejected: ${error.message} (${error.code})`;
+      case "connection_failed":
+        return `Connection failed: ${error.reason}`;
+      case "timeout":
+        return `Timeout during ${error.operation}`;
+      case "already_connected":
+        return `Already connected to channel ${error.channelId}`;
+      case "not_connected":
+        return "Not connected to voice channel";
     }
   };
 
@@ -235,3 +246,5 @@ export function MicrophoneTest(props: Props) {
     </div>
   );
 }
+
+export default MicrophoneTest;
