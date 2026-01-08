@@ -51,8 +51,11 @@ async fn handle_join(
     user_id: Uuid,
     channel_id: Uuid,
     tx: &mpsc::Sender<ServerEvent>,
-) -> Result<(), VoiceError> {
+)  -> Result<(), VoiceError> {
     info!(user_id = %user_id, channel_id = %channel_id, "User joining voice channel");
+
+    // Rate limit check (max 1 join per second per user)
+    sfu.check_rate_limit(user_id).await?;
 
     // Fetch user info from database
     let user = sqlx::query!(
@@ -274,4 +277,8 @@ async fn handle_mute(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
+
 

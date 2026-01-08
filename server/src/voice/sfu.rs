@@ -21,6 +21,7 @@ use webrtc::{
 
 use super::error::VoiceError;
 use super::peer::Peer;
+use super::rate_limit::VoiceRateLimiter;
 use super::track::{spawn_rtp_forwarder, TrackRouter};
 use crate::config::Config;
 use crate::ws::ServerEvent;
@@ -175,6 +176,8 @@ pub struct SfuServer {
     api: Arc<API>,
     /// Server configuration.
     config: Arc<Config>,
+    /// Rate limiter for voice operations.
+    rate_limiter: Arc<VoiceRateLimiter>,
 }
 
 impl SfuServer {
@@ -218,6 +221,7 @@ impl SfuServer {
             rooms: Arc::new(RwLock::new(HashMap::new())),
             api: Arc::new(api),
             config,
+            rate_limiter: Arc::new(VoiceRateLimiter::default()),
         })
     }
 
@@ -442,6 +446,11 @@ impl SfuServer {
             .await?;
 
         Ok(())
+    }
+
+    /// Check if a user can join voice (rate limit check).
+    pub async fn check_rate_limit(&self, user_id: Uuid) -> Result<(), VoiceError> {
+        self.rate_limiter.check_join(user_id).await
     }
 
     /// Get active room count.

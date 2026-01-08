@@ -82,11 +82,22 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
     info!(address = %config.bind_address, "Server listening");
 
+    // Graceful shutdown handler
+    let shutdown_signal = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C signal handler");
+        info!("Received shutdown signal, cleaning up...");
+    };
+
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal)
     .await?;
+
+    info!("Server shutdown complete");
 
     Ok(())
 }

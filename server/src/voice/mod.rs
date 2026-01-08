@@ -11,6 +11,7 @@
 pub mod error;
 mod handlers;
 mod peer;
+mod rate_limit;
 pub mod sfu;
 mod signaling;
 mod track;

@@ -117,4 +117,28 @@ impl Config {
     pub fn has_turn(&self) -> bool {
         self.turn_server.is_some()
     }
+
+    /// Create a default configuration for testing.
+    #[cfg(test)]
+    pub fn default_for_test() -> Self {
+        Self {
+            bind_address: "127.0.0.1:8080".parse().unwrap(),
+            database_url: "postgresql://localhost/test".into(),
+            redis_url: "redis://localhost:6379".into(),
+            jwt_secret: "test-secret".into(),
+            s3_endpoint: None,
+            s3_region: "us-east-1".into(),
+            s3_bucket: "test-bucket".into(),
+            s3_access_key: None,
+            s3_secret_key: None,
+            max_upload_size: 50 * 1024 * 1024,
+            oidc_issuer_url: None,
+            oidc_client_id: None,
+            oidc_client_secret: None,
+            stun_server: "stun:stun.l.google.com:19302".into(),
+            turn_server: None,
+            turn_username: None,
+            turn_credential: None,
+        }
+    }
 }
