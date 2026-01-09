@@ -18,7 +18,7 @@ use webrtc::{
         ice_server::RTCIceServer,
     },
     interceptor::registry::Registry,
-    media::track::track_local::{track_local_static_rtp::TrackLocalStaticRTP, TrackLocal},
+    track::track_local::{track_local_static_rtp::TrackLocalStaticRTP, TrackLocal},
     peer_connection::{
         configuration::RTCConfiguration, peer_connection_state::RTCPeerConnectionState,
         sdp::session_description::RTCSessionDescription, RTCPeerConnection,
@@ -388,7 +388,7 @@ impl WebRtcClient {
 
     /// Get the local track for sending audio
     pub async fn get_local_track(&self) -> Option<Arc<TrackLocalStaticRTP>> {
-        self.local_track.read().await.clone()
+        (*self.local_track.read().await).clone()
     }
 
     /// Disconnect and clean up

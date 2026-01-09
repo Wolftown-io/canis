@@ -14,6 +14,9 @@ mod db;
 mod voice;
 mod ws;
 
+#[cfg(test)]
+mod redis_tests;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize rustls crypto provider (required for WebRTC)

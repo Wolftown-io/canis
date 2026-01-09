@@ -311,5 +311,5 @@ fn get_refresh_token(server_url: &str) -> Result<String, keyring::Error> {
 
 fn clear_refresh_token(server_url: &str) -> Result<(), keyring::Error> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_user(server_url))?;
-    entry.delete_credential()
+    entry.delete_password()
 }

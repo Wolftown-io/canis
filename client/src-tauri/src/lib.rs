@@ -8,7 +8,7 @@ mod crypto;
 mod network;
 mod webrtc;
 
-use audio::AudioPipeline;
+use audio::AudioHandle;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -116,8 +116,8 @@ pub struct AuthState {
 pub struct VoiceState {
     /// WebRTC client for peer connection.
     pub webrtc: WebRtcClient,
-    /// Audio pipeline for capture/playback.
-    pub audio: AudioPipeline,
+    /// Audio handle for capture/playback (Send + Sync).
+    pub audio: AudioHandle,
     /// Current channel ID if connected.
     pub channel_id: Option<String>,
     /// Sender for encoded audio to WebRTC.
@@ -127,7 +127,7 @@ pub struct VoiceState {
 impl VoiceState {
     fn new() -> Result<Self, String> {
         let webrtc = WebRtcClient::new().map_err(|e| e.to_string())?;
-        let audio = AudioPipeline::new().map_err(|e| e.to_string())?;
+        let audio = AudioHandle::new().map_err(|e| e.to_string())?;
         Ok(Self {
             webrtc,
             audio,

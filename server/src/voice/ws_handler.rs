@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -58,16 +58,16 @@ async fn handle_join(
     sfu.check_rate_limit(user_id).await?;
 
     // Fetch user info from database
-    let user = sqlx::query!(
-        "SELECT username, display_name FROM users WHERE id = $1",
-        user_id
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| VoiceError::Signaling(format!("Failed to fetch user info: {}", e)))?;
+    let user = sqlx::query("SELECT username, display_name FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| VoiceError::Signaling(format!("Failed to fetch user info: {}", e)))?;
 
-    let username = user.username;
-    let display_name = user.display_name;
+    let username: String = user.try_get("username")
+        .map_err(|e| VoiceError::Signaling(format!("Failed to get username: {}", e)))?;
+    let display_name: String = user.try_get("display_name")
+        .map_err(|e| VoiceError::Signaling(format!("Failed to get display_name: {}", e)))?;
 
     // Get or create the room
     let room = sfu.get_or_create_room(channel_id).await;
@@ -279,6 +279,7 @@ async fn handle_mute(
 }
 
 #[cfg(test)]
-mod tests;
+#[path = "ws_handler_test.rs"]
+mod ws_handler_test;
 
 

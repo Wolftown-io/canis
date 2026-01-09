@@ -1,0 +1,44 @@
+# VoiceChat Development Docker Compose
+# Usage: docker compose -f docker-compose.dev.yml up -d
+#
+# This starts PostgreSQL and Redis for local development and testing.
+
+services:
+  # PostgreSQL Database for development
+  postgres:
+    image: postgres:16-alpine
+    container_name: voicechat-postgres-dev
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=voicechat
+      - POSTGRES_PASSWORD=voicechat_dev_pass
+      - POSTGRES_DB=voicechat
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voicechat"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis for development
+  redis:
+    image: redis:7-alpine
+    container_name: voicechat-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:

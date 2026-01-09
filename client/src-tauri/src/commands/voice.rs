@@ -2,12 +2,22 @@
 //!
 //! Tauri commands for voice chat functionality.
 
-use crate::audio::{AudioDevice, AudioDeviceList};
+use crate::audio::{AudioDevice, AudioDeviceList, FRAME_SIZE_MS, SAMPLE_RATE};
 use crate::network::ClientEvent;
 use crate::webrtc::IceServerConfig;
 use crate::AppState;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, AtomicU32, Ordering};
 use tauri::{command, AppHandle, Emitter, State};
-use tracing::{debug, error, info};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
+use webrtc::{
+    rtp::packet::Packet as RtpPacket,
+    track::track_local::{
+        track_local_static_rtp::TrackLocalStaticRTP,
+        TrackLocalWriter,
+    },
+};
 
 /// Join a voice channel.
 ///
@@ -151,6 +161,7 @@ pub async fn handle_voice_offer(
     voice_state
         .audio
         .start_capture(audio_tx.clone())
+        .await
         .map_err(|e| e.to_string())?;
 
     // Start audio playback
@@ -158,6 +169,7 @@ pub async fn handle_voice_offer(
     voice_state
         .audio
         .start_playback(playback_rx)
+        .await
         .map_err(|e| e.to_string())?;
 
     voice_state.audio_tx = Some(audio_tx);
@@ -166,16 +178,10 @@ pub async fn handle_voice_offer(
     let local_track = voice_state.webrtc.get_local_track().await;
     if let Some(track) = local_track {
         tokio::spawn(async move {
-            let mut rx = audio_rx;
-            while let Some(encoded) = rx.recv().await {
-                // Send to WebRTC track as RTP
-                // Note: In a real implementation, we'd need to packetize the opus data as RTP
-                // For now, this shows the structure
-                if let Err(e) = track.write(&encoded).await {
-                    error!("Failed to write to local track: {}", e);
-                }
-            }
+            send_audio_to_track(track, audio_rx).await;
         });
+    } else {
+        error!("No local track available for audio sending");
     }
 
     info!("Voice answer sent, audio started");
@@ -224,7 +230,7 @@ pub async fn leave_voice(state: State<'_, AppState>) -> Result<(), String> {
     let channel_id = voice_state.channel_id.take();
 
     // Stop audio
-    voice_state.audio.stop_all();
+    voice_state.audio.stop_all().await;
     voice_state.audio_tx = None;
 
     // Disconnect WebRTC
@@ -306,7 +312,8 @@ pub async fn start_mic_test(
 
     voice_state
         .audio
-        .start_mic_test(device_id.as_deref())
+        .start_mic_test(device_id)
+        .await
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -319,7 +326,7 @@ pub async fn stop_mic_test(state: State<'_, AppState>) -> Result<(), String> {
 
     let mut voice = state.voice.write().await;
     if let Some(voice_state) = voice.as_mut() {
-        voice_state.audio.stop_mic_test();
+        voice_state.audio.stop_mic_test().await;
     }
 
     Ok(())
@@ -365,8 +372,7 @@ pub async fn set_input_device(
 
     voice_state
         .audio
-        .set_input_device(device_id.as_deref())
-        .map_err(|e| e.to_string())?;
+        .set_input_device(device_id);
 
     Ok(())
 }
@@ -386,8 +392,7 @@ pub async fn set_output_device(
 
     voice_state
         .audio
-        .set_output_device(device_id.as_deref())
-        .map_err(|e| e.to_string())?;
+        .set_output_device(device_id);
 
     Ok(())
 }
@@ -412,4 +417,64 @@ pub async fn get_voice_channel(state: State<'_, AppState>) -> Result<Option<Stri
     } else {
         Ok(None)
     }
+}
+
+/// Send captured audio to WebRTC track with RTP packetization.
+///
+/// This function runs in a background task and:
+/// 1. Receives Opus-encoded audio frames from the capture task
+/// 2. Creates RTP packets with proper headers (sequence number, timestamp, SSRC)
+/// 3. Writes the RTP packets to the WebRTC track for transmission
+async fn send_audio_to_track(
+    track: Arc<TrackLocalStaticRTP>,
+    mut audio_rx: mpsc::Receiver<Vec<u8>>,
+) {
+    // RTP state - using atomics for simplicity
+    static SEQUENCE_NUMBER: AtomicU16 = AtomicU16::new(0);
+    static TIMESTAMP: AtomicU32 = AtomicU32::new(0);
+
+    // Calculate samples per frame (20ms at 48kHz)
+    const SAMPLES_PER_FRAME: u32 = (SAMPLE_RATE / 1000 * FRAME_SIZE_MS as u32) as u32;
+
+    // RTP payload type for Opus (as configured in webrtc/mod.rs)
+    const OPUS_PAYLOAD_TYPE: u8 = 111;
+
+    // Generate SSRC (Synchronization Source identifier) from timestamp
+    // This provides a unique value per stream session
+    let ssrc: u32 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
+
+    info!("Starting RTP audio sender task (SSRC: {})", ssrc);
+
+    while let Some(opus_data) = audio_rx.recv().await {
+        // Get current sequence number and timestamp
+        let seq = SEQUENCE_NUMBER.fetch_add(1, Ordering::Relaxed);
+        let ts = TIMESTAMP.fetch_add(SAMPLES_PER_FRAME, Ordering::Relaxed);
+
+        // Create RTP packet
+        let rtp_packet = RtpPacket {
+            header: webrtc::rtp::header::Header {
+                version: 2,
+                padding: false,
+                extension: false,
+                marker: false,
+                payload_type: OPUS_PAYLOAD_TYPE,
+                sequence_number: seq,
+                timestamp: ts,
+                ssrc,
+                ..Default::default()
+            },
+            payload: opus_data.into(),
+        };
+
+        // Write packet to track
+        if let Err(e) = track.write_rtp(&rtp_packet).await {
+            warn!("Failed to write RTP packet: {}", e);
+            // Don't break - connection might recover
+        }
+    }
+
+    info!("RTP audio sender task ended");
 }

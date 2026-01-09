@@ -5,6 +5,9 @@
 mod models;
 mod queries;
 
+#[cfg(test)]
+mod tests;
+
 use anyhow::Result;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tracing::info;

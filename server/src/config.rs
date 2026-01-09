@@ -122,15 +122,16 @@ impl Config {
     #[cfg(test)]
     pub fn default_for_test() -> Self {
         Self {
-            bind_address: "127.0.0.1:8080".parse().unwrap(),
+            bind_address: "127.0.0.1:8080".into(),
             database_url: "postgresql://localhost/test".into(),
             redis_url: "redis://localhost:6379".into(),
             jwt_secret: "test-secret".into(),
+            jwt_access_expiry: 900,
+            jwt_refresh_expiry: 604800,
             s3_endpoint: None,
-            s3_region: "us-east-1".into(),
             s3_bucket: "test-bucket".into(),
-            s3_access_key: None,
-            s3_secret_key: None,
+            s3_presign_expiry: 3600,
+            allowed_mime_types: None,
             max_upload_size: 50 * 1024 * 1024,
             oidc_issuer_url: None,
             oidc_client_id: None,

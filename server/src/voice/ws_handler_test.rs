@@ -5,7 +5,7 @@ mod tests {
     use crate::config::Config;
     use crate::voice::{error, sfu, ws_handler};
     use crate::ws::{ClientEvent, ServerEvent};
-    use sqlx::PgPool;
+    use sqlx::{PgPool, Row};
     use std::sync::Arc;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -18,36 +18,28 @@ mod tests {
     ) -> Result<Uuid, sqlx::Error> {
         let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$test$test"; // Dummy hash
 
-        let row = sqlx::query!(
-            r#"
-            INSERT INTO users (username, display_name, password_hash)
-            VALUES ($1, $2, $3)
-            RETURNING id
-            "#,
-            username,
-            display_name,
-            password_hash
+        let row = sqlx::query(
+            "INSERT INTO users (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id"
         )
+        .bind(username)
+        .bind(display_name)
+        .bind(password_hash)
         .fetch_one(pool)
         .await?;
 
-        Ok(row.id)
+        Ok(row.try_get("id")?)
     }
 
     /// Helper to create test channel in database.
     async fn create_test_channel(pool: &PgPool, name: &str) -> Result<Uuid, sqlx::Error> {
-        let row = sqlx::query!(
-            r#"
-            INSERT INTO channels (name, channel_type, position)
-            VALUES ($1, 'voice', 0)
-            RETURNING id
-            "#,
-            name
+        let row = sqlx::query(
+            "INSERT INTO channels (name, channel_type, position) VALUES ($1, 'voice', 0) RETURNING id"
         )
+        .bind(name)
         .fetch_one(pool)
         .await?;
 
-        Ok(row.id)
+        Ok(row.try_get("id")?)
     }
 
     #[sqlx::test]
