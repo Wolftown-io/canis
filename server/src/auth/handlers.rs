@@ -121,12 +121,19 @@ fn hash_token(token: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Extract User-Agent from headers.
+/// Extract User-Agent from headers (truncated to 512 chars for DB storage).
 fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
     headers
         .get(USER_AGENT)
         .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string())
+        .map(|s| {
+            // Truncate to 512 chars to prevent DoS and match DB constraint
+            if s.len() > 512 {
+                s.chars().take(512).collect()
+            } else {
+                s.to_string()
+            }
+        })
 }
 
 // ============================================================================

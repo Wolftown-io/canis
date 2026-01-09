@@ -23,7 +23,7 @@ pub struct User {
 }
 
 /// Authentication method.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "auth_method", rename_all = "lowercase")]
 pub enum AuthMethod {
     Local,
@@ -31,7 +31,7 @@ pub enum AuthMethod {
 }
 
 /// User online status.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "user_status", rename_all = "lowercase")]
 pub enum UserStatus {
     Online,

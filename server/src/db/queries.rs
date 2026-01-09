@@ -47,6 +47,18 @@ pub async fn find_user_by_email(pool: &PgPool, email: &str) -> sqlx::Result<Opti
         .await
 }
 
+/// Find multiple users by IDs (bulk lookup to avoid N+1 queries).
+pub async fn find_users_by_ids(pool: &PgPool, ids: &[Uuid]) -> sqlx::Result<Vec<User>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ANY($1)")
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+}
+
 /// Check if username exists.
 pub async fn username_exists(pool: &PgPool, username: &str) -> sqlx::Result<bool> {
     let result: (bool,) = sqlx::query_as(

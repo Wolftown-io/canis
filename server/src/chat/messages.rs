@@ -67,6 +67,18 @@ pub struct AuthorProfile {
     pub status: String,
 }
 
+impl From<db::User> for AuthorProfile {
+    fn from(user: db::User) -> Self {
+        Self {
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: user.avatar_url,
+            status: format!("{:?}", user.status).to_lowercase(),
+        }
+    }
+}
+
 /// Full message response with author info (matches client Message type).
 #[derive(Debug, Serialize)]
 pub struct MessageResponse {
@@ -129,38 +141,42 @@ pub async fn list(
 
     let messages = db::list_messages(&state.db, channel_id, query.before, limit).await?;
 
-    // Build response with author info
-    let mut response = Vec::with_capacity(messages.len());
-    for msg in messages {
-        let author = db::find_user_by_id(&state.db, msg.user_id)
-            .await?
-            .map(|u| AuthorProfile {
-                id: u.id,
-                username: u.username,
-                display_name: u.display_name,
-                avatar_url: u.avatar_url,
-                status: format!("{:?}", u.status).to_lowercase(),
-            })
-            .unwrap_or_else(|| AuthorProfile {
-                id: msg.user_id,
-                username: "deleted".to_string(),
-                display_name: "Deleted User".to_string(),
-                avatar_url: None,
-                status: "offline".to_string(),
-            });
+    // Bulk fetch all user IDs to avoid N+1 query
+    let user_ids: Vec<Uuid> = messages.iter().map(|m| m.user_id).collect();
+    let users = db::find_users_by_ids(&state.db, &user_ids).await?;
 
-        response.push(MessageResponse {
-            id: msg.id,
-            channel_id: msg.channel_id,
-            author,
-            content: msg.content,
-            encrypted: msg.encrypted,
-            attachments: vec![],
-            reply_to: msg.reply_to,
-            edited_at: msg.edited_at,
-            created_at: msg.created_at,
-        });
-    }
+    // Create lookup map for O(1) access
+    let user_map: std::collections::HashMap<Uuid, db::User> =
+        users.into_iter().map(|u| (u.id, u)).collect();
+
+    // Build response with author info
+    let response: Vec<MessageResponse> = messages
+        .into_iter()
+        .map(|msg| {
+            let author = user_map
+                .get(&msg.user_id)
+                .map(|u| AuthorProfile::from(u.clone()))
+                .unwrap_or_else(|| AuthorProfile {
+                    id: msg.user_id,
+                    username: "deleted".to_string(),
+                    display_name: "Deleted User".to_string(),
+                    avatar_url: None,
+                    status: "offline".to_string(),
+                });
+
+            MessageResponse {
+                id: msg.id,
+                channel_id: msg.channel_id,
+                author,
+                content: msg.content,
+                encrypted: msg.encrypted,
+                attachments: vec![],
+                reply_to: msg.reply_to,
+                edited_at: msg.edited_at,
+                created_at: msg.created_at,
+            }
+        })
+        .collect();
 
     Ok(Json(response))
 }
@@ -211,13 +227,7 @@ pub async fn create(
     // Get author profile for response
     let author = db::find_user_by_id(&state.db, auth_user.id)
         .await?
-        .map(|u| AuthorProfile {
-            id: u.id,
-            username: u.username,
-            display_name: u.display_name,
-            avatar_url: u.avatar_url,
-            status: format!("{:?}", u.status).to_lowercase(),
-        })
+        .map(AuthorProfile::from)
         .unwrap_or_else(|| AuthorProfile {
             id: auth_user.id,
             username: "unknown".to_string(),
@@ -273,13 +283,7 @@ pub async fn update(
     // Get author profile for response
     let author = db::find_user_by_id(&state.db, auth_user.id)
         .await?
-        .map(|u| AuthorProfile {
-            id: u.id,
-            username: u.username,
-            display_name: u.display_name,
-            avatar_url: u.avatar_url,
-            status: format!("{:?}", u.status).to_lowercase(),
-        })
+        .map(AuthorProfile::from)
         .unwrap_or_else(|| AuthorProfile {
             id: auth_user.id,
             username: "unknown".to_string(),

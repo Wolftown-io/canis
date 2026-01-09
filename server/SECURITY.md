@@ -1,0 +1,469 @@
+# Security Implementation Guide
+
+This document outlines critical security requirements and implementation guidelines for the VoiceChat server.
+
+## Overview
+
+The VoiceChat platform implements multiple layers of security:
+- **Authentication**: JWT-based with refresh token rotation
+- **Password Storage**: Argon2id hashing
+- **Text E2EE**: Olm/Megolm (vodozemac)
+- **Voice Security**: DTLS-SRTP (server-trusted), with future MLS support
+- **Session Management**: Token hashing, expiration, cleanup
+
+## Critical: Encryption at Rest Requirements
+
+⚠️ **IMPORTANT**: The following sensitive data fields **MUST** be encrypted before storing in the database.
+
+### 1. MFA Secrets (`users.mfa_secret`)
+
+**Risk**: Database breach exposes all MFA secrets, allowing complete MFA bypass.
+
+**Status**: 🔴 **NOT YET IMPLEMENTED** - Currently stored in plaintext!
+
+**Implementation Required**:
+
+```rust
+// Before INSERT/UPDATE
+let encrypted_mfa_secret = encrypt_mfa_secret(&mfa_secret, &server_key)?;
+db::update_user_mfa_secret(&pool, user_id, &encrypted_mfa_secret).await?;
+
+// When reading
+let encrypted_secret = user.mfa_secret.ok_or(Error::NoMfaSecret)?;
+let mfa_secret = decrypt_mfa_secret(&encrypted_secret, &server_key)?;
+```
+
+**Recommended Approach**:
+- Use **AES-256-GCM** for encryption
+- Store server-side master key in environment variable (`MFA_ENCRYPTION_KEY`)
+- Consider envelope encryption with per-user keys for defense in depth
+- Rotate keys periodically (implement key versioning)
+
+**Key Management**:
+```bash
+# Generate a secure 256-bit key
+openssl rand -hex 32 > /etc/voicechat/mfa_key.txt
+export MFA_ENCRYPTION_KEY=$(cat /etc/voicechat/mfa_key.txt)
+```
+
+**Migration Path**:
+1. Deploy encryption code with feature flag disabled
+2. Create migration to encrypt existing plaintext MFA secrets
+3. Enable encryption for new MFA setups
+4. Run batch migration for existing users
+5. Add database constraint to reject unencrypted format (if detectable)
+
+### 2. Megolm Session Data (`megolm_sessions.session_data`)
+
+**Risk**: All "encrypted" messages can be decrypted if database is breached.
+
+**Status**: 🔴 **NOT YET IMPLEMENTED** - Currently stored in plaintext!
+
+**Implementation Required**:
+
+```rust
+// Before INSERT
+let encrypted_session_data = encrypt_megolm_session(
+    &session_data,
+    &channel_key,
+    channel_id
+)?;
+db::create_megolm_session(&pool, channel_id, &encrypted_session_data).await?;
+
+// When loading
+let encrypted = megolm_session.session_data;
+let session_data = decrypt_megolm_session(&encrypted, &channel_key, channel_id)?;
+```
+
+**Recommended Approach**:
+- Use **AES-256-GCM** with channel-specific keys
+- Derive channel keys from master key + channel_id (HKDF)
+- Store master key in environment variable (`MEGOLM_ENCRYPTION_KEY`)
+- Rotate session keys when membership changes (forward secrecy)
+
+**Key Derivation**:
+```rust
+use hkdf::Hkdf;
+use sha2::Sha256;
+
+fn derive_channel_key(master_key: &[u8], channel_id: Uuid) -> Result<[u8; 32]> {
+    let hk = Hkdf::<Sha256>::new(None, master_key);
+    let mut okm = [0u8; 32];
+    hk.expand(channel_id.as_bytes(), &mut okm)?;
+    Ok(okm)
+}
+```
+
+**Important**: Megolm session rotation on user leave:
+```rust
+// When user leaves channel
+async fn on_user_leave_channel(channel_id: Uuid, user_id: Uuid) {
+    // Invalidate old session
+    db::expire_megolm_sessions(&pool, channel_id).await?;
+
+    // Broadcast session rotation event
+    broadcast_session_rotation(channel_id).await?;
+}
+```
+
+### 3. One-Time Keys Array Limit (`user_keys.one_time_keys`)
+
+**Risk**: Unbounded JSONB array can grow to gigabytes, causing DoS.
+
+**Status**: 🟡 **Enforced at application layer**
+
+**Implementation**:
+
+```rust
+const MAX_ONE_TIME_KEYS: usize = 100;
+
+async fn add_one_time_key(
+    pool: &PgPool,
+    user_id: Uuid,
+    new_key: &str
+) -> Result<()> {
+    let mut keys: Vec<String> = db::get_user_one_time_keys(pool, user_id).await?;
+
+    // Prune old keys if at limit
+    if keys.len() >= MAX_ONE_TIME_KEYS {
+        keys.drain(0..keys.len() - MAX_ONE_TIME_KEYS + 1);
+    }
+
+    keys.push(new_key.to_string());
+    db::update_user_one_time_keys(pool, user_id, &keys).await?;
+    Ok(())
+}
+```
+
+**Automatic Pruning**: Implement background job to remove keys older than 30 days.
+
+## Security Constraints Enforced
+
+### Database Level (Migration 20240102000000)
+
+✅ **Encrypted messages must have nonce**
+```sql
+CONSTRAINT encrypted_requires_nonce CHECK (
+    encrypted = FALSE OR nonce IS NOT NULL
+)
+```
+
+✅ **Message content length limited to 4000 chars**
+```sql
+CONSTRAINT message_length CHECK (LENGTH(content) <= 4000)
+```
+
+✅ **File size limited to 100MB**
+```sql
+CONSTRAINT valid_file_size CHECK (
+    size_bytes > 0 AND size_bytes <= 104857600
+)
+```
+
+✅ **Session expiration is in the future**
+```sql
+CONSTRAINT valid_expiration CHECK (expires_at > created_at)
+```
+
+✅ **Email format validation**
+```sql
+CONSTRAINT email_format CHECK (
+    email IS NULL OR
+    email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+)
+```
+
+✅ **Role color hex format**
+```sql
+CONSTRAINT valid_color CHECK (
+    color IS NULL OR color ~ '^#[0-9A-Fa-f]{6}$'
+)
+```
+
+✅ **Non-negative position values**
+```sql
+CONSTRAINT valid_position CHECK (position >= 0)
+```
+
+### Application Level
+
+✅ **Message content validation** (`src/chat/messages.rs:97`)
+- Length: 1-4000 characters
+- Encrypted messages require nonce
+
+✅ **File upload validation** (`src/chat/uploads.rs:235-292`)
+- Size limit: Configurable (default 50MB, max 100MB)
+- MIME type whitelist
+- Filename sanitization
+
+✅ **User agent truncation** (`src/auth/handlers.rs:124-137`)
+- Truncated to 512 characters to prevent DoS
+
+✅ **Username format validation** (`src/auth/handlers.rs:110`)
+- Regex: `^[a-z0-9_]{3,32}$`
+- Matches database constraint
+
+✅ **Password requirements** (`src/auth/handlers.rs:40`)
+- Length: 8-128 characters
+- Hashed with Argon2id before storage
+
+## Deleted Messages and GDPR Compliance
+
+**Current Implementation**: Soft delete (sets `deleted_at` timestamp)
+
+**Issue**: Message content remains in database after "deletion", violating GDPR right to erasure.
+
+**Options**:
+
+### Option 1: Clear Content on Delete (Recommended)
+```rust
+// In db/queries.rs
+pub async fn delete_message(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<bool> {
+    let result = sqlx::query(
+        "UPDATE messages
+         SET deleted_at = NOW(),
+             content = '[deleted]',
+             nonce = NULL
+         WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL"
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+```
+
+**Pros**: Preserves message IDs for threading, keeps message count accurate
+**Cons**: Can't restore accidentally deleted messages
+
+### Option 2: Hard Delete
+```rust
+pub async fn delete_message(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<bool> {
+    let result = sqlx::query(
+        "DELETE FROM messages WHERE id = $1 AND user_id = $2"
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+```
+
+**Pros**: True deletion, GDPR compliant
+**Cons**: Breaks reply chains, message IDs become invalid
+
+**Recommendation**: Implement Option 1 (clear content) for better UX while remaining GDPR compliant.
+
+## Rate Limiting
+
+### Current Implementation
+
+✅ **Voice channel joins** (`src/voice/rate_limit.rs`)
+- Redis-based sliding window
+- Configurable per-user limits
+
+### Missing Implementation
+
+🔴 **Authentication endpoints** - No rate limiting
+- Risk: Brute force attacks on login
+- Recommendation: 5 attempts per 15 minutes per IP
+
+🔴 **Message creation** - No rate limiting
+- Risk: Spam flooding
+- Recommendation: 10 messages per 10 seconds per user
+
+🔴 **File uploads** - No rate limiting
+- Risk: Storage exhaustion
+- Recommendation: 5 uploads per minute per user
+
+**Implementation Pattern**:
+```rust
+use crate::voice::rate_limit::RateLimiter;
+
+// In handlers
+let rate_limiter = RateLimiter::new(
+    state.redis.clone(),
+    "login".to_string(),
+    5,  // max attempts
+    900 // window in seconds (15 min)
+);
+
+if !rate_limiter.check_rate_limit(&username).await? {
+    return Err(AuthError::RateLimited);
+}
+```
+
+## Session Security
+
+### Current Implementation
+
+✅ **Token hashing**: Refresh tokens hashed with SHA256 before storage
+✅ **Token rotation**: Old refresh token invalidated when refreshing
+✅ **Expiration**: Automatic cleanup of expired sessions
+✅ **Performance**: Index on `token_hash` for fast lookups
+
+### Best Practices
+
+**Session Cleanup**:
+```rust
+// Run daily
+async fn cleanup_expired_sessions(pool: &PgPool) -> Result<u64> {
+    let result = sqlx::query(
+        "DELETE FROM sessions WHERE expires_at < NOW()"
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
+}
+```
+
+**Logout all devices**:
+```rust
+pub async fn logout_all_sessions(pool: &PgPool, user_id: Uuid) -> Result<()> {
+    sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+```
+
+## Monitoring and Logging
+
+### Security Events to Log
+
+✅ **User registration** (`auth/handlers.rs:201`)
+✅ **User login** (`auth/handlers.rs:270`)
+✅ **Token refresh** (`auth/handlers.rs:338`)
+✅ **User logout** (`auth/handlers.rs:361`)
+✅ **File upload** (`chat/uploads.rs:335-341`)
+
+### Missing Security Logs
+
+🔴 **Failed login attempts** - Not logged
+🔴 **MFA setup/disable** - Not implemented yet
+🔴 **Password changes** - Not implemented yet
+🔴 **Permission changes** - Not logged
+🔴 **Admin actions** (message delete, user ban) - Not logged
+
+**Recommendation**: Create audit log table:
+```sql
+CREATE TABLE audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    action VARCHAR(64) NOT NULL,
+    resource_type VARCHAR(64),
+    resource_id UUID,
+    ip_address INET,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_user ON audit_log(user_id);
+CREATE INDEX idx_audit_action ON audit_log(action);
+CREATE INDEX idx_audit_created ON audit_log(created_at DESC);
+```
+
+## Dependency Security
+
+### Current Approach
+
+✅ **License compliance**: `cargo-deny` configured
+✅ **Forbidden licenses**: GPL, AGPL, LGPL blocked
+✅ **Allowed licenses**: MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0
+
+### Recommended Additions
+
+**Audit dependencies regularly**:
+```bash
+# Check for known vulnerabilities
+cargo audit
+
+# Update dependencies
+cargo update
+
+# Review new dependencies
+cargo deny check
+```
+
+**CI/CD Integration**:
+```yaml
+# .github/workflows/security.yml
+- name: Security Audit
+  run: |
+    cargo audit
+    cargo deny check licenses
+    cargo deny check advisories
+```
+
+## Backup and Disaster Recovery
+
+### Encryption Key Backup
+
+**CRITICAL**: If MFA/Megolm encryption keys are lost, data is unrecoverable!
+
+**Backup Strategy**:
+1. Store keys in secure vault (HashiCorp Vault, AWS Secrets Manager)
+2. Keep encrypted offline backup
+3. Document key rotation procedure
+4. Test recovery process regularly
+
+**Key Rotation**:
+```bash
+# 1. Generate new key
+NEW_KEY=$(openssl rand -hex 32)
+
+# 2. Deploy code that can decrypt with both old and new key
+# 3. Re-encrypt all data with new key
+# 4. Remove old key from code
+# 5. Archive old key securely for 90 days
+```
+
+## Penetration Testing Checklist
+
+- [ ] SQL injection (SQLx prepared statements protect against this)
+- [ ] XSS in message content (client-side sanitization required)
+- [ ] CSRF (SameSite cookies + token validation)
+- [ ] Session fixation (token rotation implemented)
+- [ ] Brute force login (rate limiting needed)
+- [ ] File upload vulnerabilities (MIME type validation, size limits)
+- [ ] Path traversal (filename sanitization implemented)
+- [ ] Timing attacks on password verification (Argon2 constant-time)
+- [ ] JWT vulnerabilities (HS256 with strong secret, exp validation)
+- [ ] WebSocket hijacking (JWT in upgrade request)
+- [ ] Voice signaling attacks (channel membership verification)
+
+## Security Roadmap
+
+### Phase 1 (Critical - Next Sprint)
+- [ ] Implement MFA secret encryption
+- [ ] Implement Megolm session data encryption
+- [ ] Add rate limiting for auth endpoints
+- [ ] Clear message content on delete (GDPR)
+- [ ] Add failed login tracking
+
+### Phase 2 (High Priority)
+- [ ] Implement audit logging
+- [ ] Add rate limiting for messages and uploads
+- [ ] Implement MFA verification (TOTP)
+- [ ] Add password reset flow
+- [ ] Implement account lockout after failed attempts
+
+### Phase 3 (Future)
+- [ ] Implement E2EE voice (MLS)
+- [ ] Add device fingerprinting
+- [ ] Implement Content Security Policy headers
+- [ ] Add security headers (HSTS, X-Frame-Options, etc.)
+- [ ] Implement anomaly detection for suspicious activity
+
+## Contact
+
+For security issues, please email: security@voicechat.example.com
+
+**Do not open public issues for security vulnerabilities!**
