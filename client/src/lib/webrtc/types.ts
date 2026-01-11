@@ -55,6 +55,7 @@ export interface VoiceAdapterEvents {
   onRemoteTrack: (track: RemoteTrack) => void;
   onRemoteTrackRemoved: (userId: string) => void;
   onLocalMuteChange: (muted: boolean) => void;
+  onSpeakingChange: (speaking: boolean) => void;
   onIceCandidate: (candidate: string) => void;
 }
 

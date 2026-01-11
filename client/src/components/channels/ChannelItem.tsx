@@ -1,7 +1,17 @@
-import { Component, Show } from "solid-js";
+/**
+ * ChannelItem - Individual Channel in the Sidebar
+ *
+ * Displays a single text or voice channel with:
+ * - Appropriate icon (# for text, 🔊 for voice)
+ * - Selection state highlighting
+ * - Voice connection indicator
+ * - Smooth hover transitions
+ */
+
+import { Component, Show, createSignal, createMemo } from "solid-js";
 import { Hash, Volume2 } from "lucide-solid";
 import type { Channel } from "@/lib/types";
-import { isInChannel } from "@/stores/voice";
+import { isInChannel, getParticipants, voiceState } from "@/stores/voice";
 
 interface ChannelItemProps {
   channel: Channel;
@@ -12,31 +22,124 @@ interface ChannelItemProps {
 const ChannelItem: Component<ChannelItemProps> = (props) => {
   const isVoice = () => props.channel.channel_type === "voice";
   const isConnected = () => isInChannel(props.channel.id);
+  // Also show as "active" when connecting to this channel
+  const isConnecting = () => voiceState.state === "connecting" && voiceState.channelId === props.channel.id;
+  const isActive = () => isConnected() || isConnecting();
+  const [showTooltip, setShowTooltip] = createSignal(false);
+
+  // Get participants for voice channels (remote participants)
+  const participants = () => {
+    if (!isVoice()) return [];
+    return getParticipants().filter(() => {
+      // In a real implementation, we'd check participant.channelId === props.channel.id
+      // For now, return all participants if this is the connected channel
+      return isConnected();
+    });
+  };
+
+  // Total count includes local user when connected
+  const participantCount = () => {
+    const remoteCount = participants().length;
+    // Add 1 for local user when connected to this channel
+    return isActive() ? remoteCount + 1 : remoteCount;
+  };
+
+  // Check if anyone is speaking in this channel (including local user)
+  // Use createMemo for proper reactivity tracking
+  const hasSpeakingParticipants = createMemo(() => {
+    // Only check speaking when connected (not just connecting)
+    if (!isConnected()) return false;
+    // Access voiceState.speaking explicitly for reactivity
+    const localSpeaking = voiceState.speaking;
+    const remoteSpeaking = participants().some(p => p.speaking);
+    return localSpeaking || remoteSpeaking;
+  });
 
   return (
-    <button
-      class={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
-        isConnected()
-          ? "bg-success/20 text-success border border-success/50"
-          : props.isSelected
-          ? "bg-background-tertiary/50 text-text-primary"
-          : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary/30"
-      }`}
-      onClick={props.onClick}
-      title={isConnected() ? "Click to disconnect" : isVoice() ? "Click to join voice" : ""}
-    >
-      {isVoice() ? (
-        <Volume2 class={`w-4 h-4 shrink-0 ${isConnected() ? "text-success animate-pulse" : ""}`} />
-      ) : (
-        <Hash class="w-4 h-4 shrink-0" />
-      )}
-      <span class={`truncate ${isConnected() ? "font-semibold" : ""}`}>
+    <div class="relative">
+      <button
+        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-sm transition-all duration-200 group"
+        classList={{
+          // Voice connected/connecting state (green glow)
+          "bg-accent-primary/10 text-accent-primary border border-accent-primary/30": isActive(),
+          // Pulsing border while connecting
+          "animate-pulse": isConnecting(),
+          // Text channel selected state
+          "bg-surface-highlight text-text-primary font-medium": !isActive() && props.isSelected,
+          // Default state
+          "text-text-secondary hover:text-text-primary hover:bg-white/5": !isActive() && !props.isSelected,
+        }}
+        onClick={props.onClick}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        title={isConnected() ? "Click to disconnect" : isVoice() ? "Click to join voice" : undefined}
+      >
+      {/* Channel Icon */}
+      <Show
+        when={isVoice()}
+        fallback={<Hash class="w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />}
+      >
+        <span
+          class="shrink-0 transition-all duration-200"
+          classList={{
+            "animate-pulse text-accent-primary": hasSpeakingParticipants(),
+            "text-current group-hover:scale-110": !hasSpeakingParticipants(),
+          }}
+        >
+          <Volume2 class="w-4 h-4" />
+        </span>
+      </Show>
+
+      {/* Channel Name */}
+      <span
+        class="truncate transition-all duration-200"
+        classList={{
+          "font-semibold": isConnected(),
+        }}
+      >
         {props.channel.name}
       </span>
-      <Show when={isVoice() && isConnected()}>
-        <span class="ml-auto text-xs font-semibold">🔊</span>
+
+      {/* Participant count for voice channels - always show when there are participants */}
+      <Show when={isVoice() && participantCount() > 0}>
+        <div class="ml-auto flex items-center gap-1.5">
+          <span class="text-xs text-text-secondary font-medium">
+            {participantCount()}
+          </span>
+          {/* Speaking indicator dot when connected */}
+          <Show when={isConnected()}>
+            <div
+              class="w-2 h-2 bg-accent-primary rounded-full"
+              classList={{
+                "animate-pulse": hasSpeakingParticipants(),
+              }}
+            />
+          </Show>
+        </div>
       </Show>
     </button>
+
+      {/* Tooltip showing participants (on hover for voice channels) */}
+      <Show when={isVoice() && showTooltip() && participantCount() > 0}>
+        <div class="absolute left-full ml-2 top-0 z-50 px-3 py-2 bg-surface-base border border-white/10 rounded-lg shadow-xl min-w-[150px]">
+          <p class="text-xs text-text-secondary mb-1">
+            {participantCount()} {participantCount() === 1 ? "member" : "members"}
+          </p>
+          <div class="space-y-0.5">
+            {participants().slice(0, 5).map((participant) => (
+              <p class="text-sm text-text-primary truncate">
+                {participant.user_id.slice(0, 8)}...
+              </p>
+            ))}
+            <Show when={participantCount() > 5}>
+              <p class="text-xs text-text-secondary italic">
+                +{participantCount() - 5} more
+              </p>
+            </Show>
+          </div>
+        </div>
+      </Show>
+    </div>
   );
 };
 

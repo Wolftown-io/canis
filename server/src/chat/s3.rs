@@ -168,6 +168,19 @@ impl S3Client {
         Ok(())
     }
 
+    /// Get the raw object stream for a file (for proxying).
+    pub async fn get_object_stream(&self, key: &str) -> Result<ByteStream, S3Error> {
+        let output = self.client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| S3Error::Download(e.to_string()))?;
+
+        Ok(output.body)
+    }
+
     /// Get the bucket name.
     pub fn bucket(&self) -> &str {
         &self.bucket

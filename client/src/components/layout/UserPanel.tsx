@@ -1,5 +1,14 @@
+/**
+ * UserPanel - User Info at Bottom of Sidebar
+ *
+ * Shows current user's avatar, name, username, and settings button.
+ * Fixed to the bottom of the sidebar with mt-auto.
+ *
+ * Voice controls are in VoiceIsland (appears when connected to voice).
+ */
+
 import { Component, Show } from "solid-js";
-import { Settings, Mic, Headphones } from "lucide-solid";
+import { Settings } from "lucide-solid";
 import { authState } from "@/stores/auth";
 import Avatar from "@/components/ui/Avatar";
 
@@ -7,11 +16,11 @@ const UserPanel: Component = () => {
   const user = () => authState.user;
 
   return (
-    <div class="p-2 bg-background-primary/50">
-      <div class="flex items-center gap-2">
+    <div class="mt-auto p-3 bg-surface-base/50 border-t border-white/5">
+      <div class="flex items-center gap-3">
         {/* User info */}
         <Show when={user()}>
-          <div class="flex items-center gap-2 flex-1 min-w-0">
+          <div class="flex items-center gap-2.5 flex-1 min-w-0">
             <Avatar
               src={user()!.avatar_url}
               alt={user()!.display_name}
@@ -20,10 +29,10 @@ const UserPanel: Component = () => {
               showStatus
             />
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-text-primary truncate">
+              <div class="text-sm font-semibold text-text-primary truncate">
                 {user()!.display_name}
               </div>
-              <div class="text-xs text-text-muted truncate">
+              <div class="text-xs text-text-secondary truncate">
                 @{user()!.username}
               </div>
             </div>
@@ -31,30 +40,16 @@ const UserPanel: Component = () => {
         </Show>
 
         {/* Action buttons */}
-        <div class="flex items-center gap-0.5">
-          <button
-            class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-background-tertiary rounded transition-colors"
-            title="Mute"
-          >
-            <Mic class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-background-tertiary rounded transition-colors"
-            title="Deafen"
-          >
-            <Headphones class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-background-tertiary rounded transition-colors"
-            title="Settings"
-            onClick={() => {
-              // TODO: Open settings modal
-              console.log("Settings clicked");
-            }}
-          >
-            <Settings class="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          class="p-1.5 text-text-secondary hover:text-accent-primary hover:bg-white/10 rounded-lg transition-all duration-200"
+          title="User Settings"
+          onClick={() => {
+            // @future - Open user settings modal (profile, theme, notifications, etc.)
+            console.log("Settings clicked");
+          }}
+        >
+          <Settings class="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

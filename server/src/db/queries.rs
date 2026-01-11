@@ -631,3 +631,29 @@ pub async fn delete_file_attachments_by_message(
     .fetch_all(pool)
     .await
 }
+
+/// Check if a user has access to an attachment (via channel membership).
+pub async fn check_attachment_access(
+    pool: &PgPool,
+    attachment_id: Uuid,
+    user_id: Uuid,
+) -> sqlx::Result<bool> {
+    // User must be a member of the channel where the message was posted
+    let result: (bool,) = sqlx::query_as(
+        r#"
+        SELECT EXISTS(
+            SELECT 1
+            FROM file_attachments fa
+            JOIN messages m ON fa.message_id = m.id
+            JOIN channel_members cm ON m.channel_id = cm.channel_id
+            WHERE fa.id = $1 AND cm.user_id = $2
+        )
+        "#,
+    )
+    .bind(attachment_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(result.0)
+}

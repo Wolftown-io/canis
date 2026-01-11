@@ -240,6 +240,31 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
     case "voice_error":
       console.error("Voice error:", event.code, event.message);
+
+      // Auto-retry for "Already in voice channel" error
+      if (event.message === "Already in voice channel") {
+        const { voiceState } = await import("@/stores/voice");
+        const channelId = voiceState.channelId;
+
+        if (channelId) {
+          console.log("[WebSocket] Auto-retry: leaving and rejoining channel", channelId);
+
+          // Send leave message
+          await tauri.wsSend({
+            type: "voice_leave",
+            channel_id: channelId,
+          });
+
+          // Wait a bit for server to process leave
+          await new Promise(resolve => setTimeout(resolve, 150));
+
+          // Retry join
+          await tauri.wsSend({
+            type: "voice_join",
+            channel_id: channelId,
+          });
+        }
+      }
       break;
 
     default:

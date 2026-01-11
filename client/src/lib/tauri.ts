@@ -231,6 +231,40 @@ export async function sendMessage(
   });
 }
 
+export async function uploadFile(
+  messageId: string,
+  file: File
+): Promise<any> {
+  // For now, we use standard fetch for both Browser and Tauri
+  // Tauri 2.0 supports fetch with proper configuration
+  
+  const token = browserState.accessToken || localStorage.getItem("accessToken");
+  const headers: Record<string, string> = {};
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const formData = new FormData();
+  formData.append("message_id", messageId);
+  formData.append("file", file);
+
+  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
+  
+  const response = await fetch(`${baseUrl}/api/messages/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: response.statusText }));
+    throw new Error(error.message || error.error || "Upload failed");
+  }
+
+  return response.json();
+}
+
 // Voice Commands (browser mode stubs - voice requires Tauri)
 
 export async function joinVoice(channelId: string): Promise<void> {

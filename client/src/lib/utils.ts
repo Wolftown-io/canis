@@ -96,3 +96,22 @@ export function shouldGroupWithPrevious(
   // Group if within 5 minutes
   return diffMins < 5;
 }
+
+/**
+ * Format elapsed time in MM:SS format.
+ * Used for voice connection duration timers.
+ *
+ * @param startTime - Unix timestamp in milliseconds
+ * @returns Formatted time string (e.g., "03:45")
+ *
+ * @example
+ * const start = Date.now();
+ * // After 125 seconds...
+ * formatElapsedTime(start); // "02:05"
+ */
+export function formatElapsedTime(startTime: number): string {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}

@@ -6,16 +6,7 @@ use anyhow::Result;
 use std::net::SocketAddr;
 use tracing::info;
 
-mod api;
-mod auth;
-mod chat;
-mod config;
-mod db;
-mod voice;
-mod ws;
-
-#[cfg(test)]
-mod redis_tests;
+use vc_server::{api, chat, config, db, voice};
 
 #[tokio::main]
 async fn main() -> Result<()> {

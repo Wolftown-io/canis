@@ -7,6 +7,7 @@
 import { createStore, produce } from "solid-js/store";
 import { createVoiceAdapter, type VoiceError } from "@/lib/webrtc";
 import type { VoiceParticipant } from "@/lib/types";
+import { channelsState } from "@/stores/channels";
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -159,8 +160,8 @@ export async function cleanupVoice(): Promise<void> {
  * Join a voice channel.
  */
 export async function joinVoice(channelId: string): Promise<void> {
+  // Leave current channel if connected
   if (voiceState.state !== "disconnected") {
-    // Leave current channel first
     await leaveVoice();
   }
 
@@ -185,6 +186,9 @@ export async function joinVoice(channelId: string): Promise<void> {
     },
     onLocalMuteChange: (muted) => {
       setVoiceState({ muted });
+    },
+    onSpeakingChange: (speaking) => {
+      setVoiceState({ speaking });
     },
   });
 
@@ -278,6 +282,14 @@ export async function setDeafen(deafened: boolean): Promise<void> {
   }
 }
 
+/**
+ * Set speaking state (temporary for testing until VAD is implemented).
+ * @phase1 - Backend needs to implement Voice Activity Detection (VAD)
+ */
+export function setSpeaking(speaking: boolean): void {
+  setVoiceState({ speaking });
+}
+
 // Participant management
 
 function addParticipant(userId: string): void {
@@ -340,6 +352,28 @@ export function isInVoice(): boolean {
  */
 export function isInChannel(channelId: string): boolean {
   return voiceState.state === "connected" && voiceState.channelId === channelId;
+}
+
+/**
+ * Get current voice channel information
+ * Returns null if not connected
+ *
+ * @note This is a derived helper to decouple VoiceIsland from channelsState.
+ * When Phase 3 arrives and channels become guild-scoped, only this function
+ * needs updating instead of every component that displays channel info.
+ */
+export function getVoiceChannelInfo(): { id: string; name: string } | null {
+  if (!voiceState.channelId) return null;
+
+  const channel = channelsState.channels.find(
+    (c: { id: string }) => c.id === voiceState.channelId
+  );
+
+  if (!channel) {
+    return { id: voiceState.channelId, name: "Unknown Channel" };
+  }
+
+  return { id: channel.id, name: channel.name };
 }
 
 // Export the store for reading and writing

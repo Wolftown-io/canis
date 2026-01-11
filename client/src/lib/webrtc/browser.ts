@@ -30,12 +30,17 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   private micTestAnalyser: AnalyserNode | null = null;
   private audioContext: AudioContext | null = null;
 
+  // Voice Activity Detection (VAD)
+  private vadAnalyser: AnalyserNode | null = null;
+  private vadAudioContext: AudioContext | null = null;
+  private vadInterval: number | null = null;
+
   // Event handlers
   private eventHandlers: Partial<VoiceAdapterEvents> = {};
 
   // Selected devices
   private inputDeviceId: string | null = null;
-  // private _outputDeviceId: string | null = null; // TODO: Implement output device selection
+  // Output device selection implemented via setSinkId API (no need to store deviceId)
 
   constructor() {
     console.log("[BrowserVoiceAdapter] Initialized");
@@ -46,14 +51,10 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   async join(channelId: string): Promise<VoiceResult<void>> {
     console.log(`[BrowserVoiceAdapter] Joining channel: ${channelId}`);
 
+    // Clean up any stale connection (e.g., from WebSocket reconnect)
     if (this.peerConnection) {
-      return {
-        ok: false,
-        error: {
-          type: "already_connected",
-          channelId: this.channelId || "unknown",
-        },
-      };
+      console.log("[BrowserVoiceAdapter] Cleaning up stale connection");
+      this.cleanup();
     }
 
     try {
@@ -465,10 +466,9 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
   async setOutputDevice(deviceId: string): Promise<VoiceResult<void>> {
     console.log(`[BrowserVoiceAdapter] Setting output device: ${deviceId}`);
-    // this._outputDeviceId = deviceId; // TODO: Store selected output device
 
-    // Set output device for all remote streams
-    // Note: This requires the experimental setSinkId API
+    // Set output device for all remote audio elements
+    // Uses setSinkId API (supported in modern browsers)
     try {
       for (const stream of this.remoteStreams.values()) {
         const audioElements = document.querySelectorAll(
@@ -525,6 +525,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       switch (state) {
         case "connected":
           this.setState("connected");
+          this.startVAD(); // Start Voice Activity Detection
           break;
         case "disconnected":
         case "closed":
@@ -550,7 +551,8 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       console.log("[BrowserVoiceAdapter] Remote track received");
 
       const stream = event.streams[0];
-      const userId = stream.id; // TODO: Get actual user ID from track metadata
+      // @future - Extract actual user ID from SDP metadata (requires backend coordination)
+      const userId = stream.id; // Using stream ID as temporary user identifier
 
       this.remoteStreams.set(userId, stream);
 
@@ -572,7 +574,66 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     };
   }
 
+  private startVAD() {
+    if (!this.localStream) return;
+
+    console.log("[BrowserVoiceAdapter] Starting VAD monitoring");
+
+    try {
+      // Create audio context for VAD
+      this.vadAudioContext = new AudioContext();
+      const source = this.vadAudioContext.createMediaStreamSource(this.localStream);
+      this.vadAnalyser = this.vadAudioContext.createAnalyser();
+      this.vadAnalyser.fftSize = 256;
+      source.connect(this.vadAnalyser);
+
+      // Monitor audio level every 100ms
+      this.vadInterval = window.setInterval(() => {
+        if (!this.vadAnalyser || this.muted) {
+          // Don't trigger speaking when muted
+          this.eventHandlers.onSpeakingChange?.(false);
+          return;
+        }
+
+        const dataArray = new Uint8Array(this.vadAnalyser.frequencyBinCount);
+        this.vadAnalyser.getByteFrequencyData(dataArray);
+
+        // Calculate RMS volume
+        const sum = dataArray.reduce((acc, val) => acc + val, 0);
+        const average = sum / dataArray.length;
+
+        // Normalize to 0-100
+        const level = Math.min(100, Math.round((average / 255) * 100 * 2));
+
+        // Speaking threshold: 20%
+        const isSpeaking = level > 20;
+        this.eventHandlers.onSpeakingChange?.(isSpeaking);
+      }, 100);
+    } catch (err) {
+      console.error("[BrowserVoiceAdapter] Failed to start VAD:", err);
+    }
+  }
+
+  private stopVAD() {
+    console.log("[BrowserVoiceAdapter] Stopping VAD monitoring");
+
+    if (this.vadInterval) {
+      clearInterval(this.vadInterval);
+      this.vadInterval = null;
+    }
+
+    if (this.vadAudioContext) {
+      this.vadAudioContext.close();
+      this.vadAudioContext = null;
+    }
+
+    this.vadAnalyser = null;
+  }
+
   private cleanup() {
+    // Stop VAD
+    this.stopVAD();
+
     // Stop local stream
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => track.stop());

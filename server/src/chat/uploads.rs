@@ -1,11 +1,11 @@
 //! File Upload Handling
-//!
+//! 
 //! Handles file uploads to S3-compatible storage and metadata management.
 
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
     Json,
 };
 use axum::extract::Multipart;
@@ -15,9 +15,9 @@ use uuid::Uuid;
 
 use crate::{api::AppState, auth::AuthUser, db};
 
-// ============================================================================
+// ============================================================================ 
 // Error Types
-// ============================================================================
+// ============================================================================ 
 
 /// Errors that can occur during file upload operations.
 #[derive(Debug, Error)]
@@ -120,9 +120,9 @@ impl IntoResponse for UploadError {
     }
 }
 
-// ============================================================================
+// ============================================================================ 
 // Request/Response Types
-// ============================================================================
+// ============================================================================ 
 
 /// Response for successful file upload.
 #[derive(Debug, Serialize)]
@@ -169,9 +169,9 @@ impl From<db::FileAttachment> for AttachmentResponse {
     }
 }
 
-// ============================================================================
+// ============================================================================ 
 // Constants
-// ============================================================================
+// ============================================================================ 
 
 /// Default allowed MIME types for uploads.
 const DEFAULT_ALLOWED_TYPES: &[&str] = &[
@@ -192,9 +192,9 @@ const DEFAULT_ALLOWED_TYPES: &[&str] = &[
     "video/webm",
 ];
 
-// ============================================================================
+// ============================================================================ 
 // Handlers
-// ============================================================================
+// ============================================================================ 
 
 /// Upload a file attachment.
 ///
@@ -293,7 +293,7 @@ pub async fn upload_file(
 
     // Verify message exists and user has access
     let message = db::find_message_by_id(&state.db, message_id)
-        .await?
+        .await? 
         .ok_or(UploadError::MessageNotFound)?;
 
     // Only message author can attach files
@@ -309,7 +309,10 @@ pub async fn upload_file(
         .unwrap_or("bin");
     let s3_key = format!(
         "attachments/{}/{}/{}.{}",
-        message.channel_id, message_id, file_id, extension
+        message.channel_id,
+        message_id,
+        file_id,
+        extension
     );
 
     // Upload to S3
@@ -360,39 +363,67 @@ pub async fn get_attachment(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AttachmentResponse>, UploadError> {
     let attachment = db::find_file_attachment_by_id(&state.db, id)
-        .await?
+        .await? 
         .ok_or(UploadError::NotFound)?;
 
     Ok(Json(attachment.into()))
 }
 
-/// Download a file (redirect to presigned URL).
+/// Download a file (stream from S3).
 ///
 /// GET /api/messages/attachments/:id/download
 pub async fn download(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Path(id): Path<Uuid>,
-) -> Result<Redirect, UploadError> {
+) -> Result<Response, UploadError> {
     // Check S3 is configured
     let s3 = state.s3.as_ref().ok_or(UploadError::NotConfigured)?;
 
+    // Check permissions
+    let has_access = db::check_attachment_access(&state.db, id, auth_user.id)
+        .await
+        .map_err(UploadError::Database)?;
+
+    if !has_access {
+        return Err(UploadError::Forbidden);
+    }
+
     // Get attachment metadata
     let attachment = db::find_file_attachment_by_id(&state.db, id)
-        .await?
+        .await? 
         .ok_or(UploadError::NotFound)?;
 
-    // Generate presigned URL
-    let presigned_url = s3
-        .presign_get(&attachment.s3_key)
+    // Fetch from S3
+    let stream = s3
+        .get_object_stream(&attachment.s3_key)
         .await
         .map_err(|e| UploadError::Storage(e.to_string()))?;
 
-    Ok(Redirect::temporary(&presigned_url))
+    // Create stream body
+    // ByteStream can be converted directly to Axum Body via into_inner()
+    let sdk_body = stream.into_inner();
+    let body = axum::body::Body::new(sdk_body);
+
+    // Set headers
+    let headers = [
+        (axum::http::header::CONTENT_TYPE, attachment.mime_type),
+        (
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{}\"", attachment.filename),
+        ),
+        (
+            axum::http::header::CACHE_CONTROL,
+            "private, max-age=31536000, immutable".to_string(),
+        ),
+    ];
+
+    Ok((headers, body).into_response())
 }
 
-// ============================================================================
+// ============================================================================ 
 // Helpers
-// ============================================================================
+// ============================================================================ 
 
 /// Sanitize a filename to prevent path traversal and other issues.
 fn sanitize_filename(filename: &str) -> String {

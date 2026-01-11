@@ -1,5 +1,5 @@
 import { Component, For, Show } from "solid-js";
-import { User } from "lucide-solid";
+import { User, MicOff, Volume2 } from "lucide-solid";
 import { voiceState } from "@/stores/voice";
 import { authState } from "@/stores/auth";
 
@@ -11,7 +11,13 @@ interface Props {
  * Displays participants in a voice channel
  */
 const VoiceParticipants: Component<Props> = (props) => {
-  const participants = () => {
+  // Check if we're connected or connecting to this channel
+  const isActiveInChannel = () =>
+    voiceState.channelId === props.channelId &&
+    (voiceState.state === "connected" || voiceState.state === "connecting");
+
+  // Remote participants from server
+  const remoteParticipants = () => {
     return Object.values(voiceState.participants).filter(
       (_p) => voiceState.channelId === props.channelId
     );
@@ -21,30 +27,51 @@ const VoiceParticipants: Component<Props> = (props) => {
     return authState.user?.id === userId;
   };
 
-  const getUserDisplay = (participant: any) => {
-    // If it's the current user, we have full info
+  const getUserDisplay = (participant: { user_id: string; display_name?: string; username?: string }) => {
     if (isCurrentUser(participant.user_id)) {
       return authState.user?.display_name || authState.user?.username || "You";
     }
-    // Use display_name or username from participant info
     return participant.display_name || participant.username || participant.user_id.slice(0, 8);
   };
 
   return (
-    <Show when={voiceState.channelId === props.channelId && participants().length > 0}>
+    <Show when={isActiveInChannel()}>
       <div class="ml-6 mt-1 space-y-1">
-        <For each={participants()}>
+        {/* Local user (always show first when connected) */}
+        <div class="flex items-center gap-2 px-2 py-1 text-xs">
+          <User class="w-3 h-3 text-accent-primary" />
+          <span class="text-accent-primary font-medium">
+            {authState.user?.display_name || authState.user?.username || "You"}
+          </span>
+          <Show when={voiceState.muted}>
+            <div title="Muted">
+              <MicOff class="w-3 h-3 text-accent-danger" />
+            </div>
+          </Show>
+          <Show when={voiceState.speaking}>
+            <div title="Speaking">
+              <Volume2 class="w-3 h-3 text-accent-primary animate-pulse" />
+            </div>
+          </Show>
+        </div>
+
+        {/* Remote participants */}
+        <For each={remoteParticipants()}>
           {(participant) => (
             <div class="flex items-center gap-2 px-2 py-1 text-xs">
-              <User class="w-3 h-3 text-text-muted" />
-              <span class={isCurrentUser(participant.user_id) ? "text-success font-medium" : "text-text-secondary"}>
+              <User class="w-3 h-3 text-text-secondary" />
+              <span class="text-text-secondary">
                 {getUserDisplay(participant)}
               </span>
               <Show when={participant.muted}>
-                <span class="text-danger text-[10px]" title="Muted">🔇</span>
+                <div title="Muted">
+                  <MicOff class="w-3 h-3 text-accent-danger" />
+                </div>
               </Show>
               <Show when={participant.speaking}>
-                <span class="text-success animate-pulse text-[10px]" title="Speaking">🔊</span>
+                <div title="Speaking">
+                  <Volume2 class="w-3 h-3 text-accent-primary animate-pulse" />
+                </div>
               </Show>
             </div>
           )}

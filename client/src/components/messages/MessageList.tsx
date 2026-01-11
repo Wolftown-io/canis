@@ -132,28 +132,28 @@ const MessageList: Component<MessageListProps> = (props) => {
       {/* Loading indicator at top */}
       <Show when={loading() && messages().length > 0}>
         <div class="flex justify-center py-4">
-          <Loader2 class="w-5 h-5 text-text-muted animate-spin" />
+          <Loader2 class="w-5 h-5 text-text-secondary animate-spin" />
         </div>
       </Show>
 
       {/* Initial loading state */}
       <Show when={loading() && messages().length === 0}>
         <div class="flex flex-col items-center justify-center h-full">
-          <Loader2 class="w-8 h-8 text-text-muted animate-spin mb-4" />
-          <p class="text-text-muted">Loading messages...</p>
+          <Loader2 class="w-8 h-8 text-text-secondary animate-spin mb-4" />
+          <p class="text-text-secondary">Loading messages...</p>
         </div>
       </Show>
 
       {/* Empty state */}
       <Show when={!loading() && messages().length === 0}>
         <div class="flex flex-col items-center justify-center h-full text-center px-4">
-          <div class="w-16 h-16 bg-background-secondary rounded-full flex items-center justify-center mb-4">
-            <span class="text-2xl">👋</span>
+          <div class="w-20 h-20 bg-surface-layer2 rounded-full flex items-center justify-center mb-4">
+            <span class="text-4xl">👋</span>
           </div>
           <h3 class="text-lg font-semibold text-text-primary mb-2">
             No messages yet
           </h3>
-          <p class="text-text-muted max-w-sm">
+          <p class="text-text-secondary max-w-sm">
             Be the first to send a message in this channel!
           </p>
         </div>
@@ -177,7 +177,7 @@ const MessageList: Component<MessageListProps> = (props) => {
       <Show when={hasNewMessages()}>
         <button
           onClick={() => scrollToBottom(true)}
-          class="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 transition-all z-10"
+          class="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-accent-primary hover:bg-accent-primary/90 text-surface-base px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 transition-all z-10 font-medium"
         >
           <ChevronDown class="w-4 h-4" />
           <span>
