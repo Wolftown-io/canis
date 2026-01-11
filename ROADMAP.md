@@ -2,7 +2,7 @@
 
 This roadmap outlines the development path from the current prototype to a production-ready, multi-tenant SaaS platform.
 
-**Current Phase:** Phase 2 (Rich Interactions & Modern UX) - In Progress
+**Current Phase:** Phase 2 (Rich Interactions & Modern UX) - Near Complete
 
 **Last Updated:** 2026-01-11
 
@@ -12,17 +12,19 @@ This roadmap outlines the development path from the current prototype to a produ
 |-------|--------|------------|------------------|
 | **Phase 0** | ✅ Complete | 100% | N+1 fix, WebRTC optimization, MFA encryption |
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
-| **Phase 2** | 🔄 In Progress | 70% | Command Palette, Voice Island, Modern UI, Audio Settings |
-| **Phase 3** | 📋 Planned | 0% | Guild store skeleton prepared |
+| **Phase 2** | ✅ Near Complete | 95% | Voice Island, VAD, Speaking Indicators, Command Palette |
+| **Phase 3** | 📋 Planned | 5% | Guild store skeleton prepared |
 | **Phase 4** | 📋 Planned | 0% | - |
 | **Phase 5** | 📋 Planned | 0% | - |
 
 **Production Ready Features:**
 - ✅ Modern UI with "Focused Hybrid" design system
-- ✅ Voice chat with real-time indicators and keyboard shortcuts
+- ✅ Draggable Voice Island with keyboard shortcuts (Ctrl+Shift+M/D)
+- ✅ Voice Activity Detection (VAD) with real-time speaking indicators
 - ✅ Audio device selection with mic/speaker testing
 - ✅ Command Palette (Ctrl+K) for power users
-- ✅ Participant preview before joining voice
+- ✅ Auto-retry voice join on connection conflicts
+- ✅ Participant list with instant local user display
 - ✅ Guild architecture preparation (Phase 3 ready)
 
 ---
@@ -62,7 +64,7 @@ This roadmap outlines the development path from the current prototype to a produ
 - [x] **[Voice] Room State Synchronization** ✅
   - WebSocket event handlers already sync RoomState on join.
   - Updated VoiceParticipants with new theme and proper indicators.
-  - **Note**: Speaking indicators need backend support (VAD detection).
+  - Speaking indicators now implemented via client-side VAD (see Phase 2).
 - [x] **[Client] Audio Device Selection** ✅ (Moved to Phase 2)
   - Completed with full modal UI and device testing.
   - See Phase 2 for implementation details.
@@ -99,6 +101,26 @@ This roadmap outlines the development path from the current prototype to a produ
   - Removed confusing non-functional buttons from UserPanel.
   - Improved VoiceParticipants with proper color tokens.
   - **Impact**: Cohesive visual experience across all UI.
+- [x] **[Voice] Voice Activity Detection (VAD)** `New` ✅
+  - Implemented continuous VAD using Web Audio API AnalyserNode.
+  - Real-time speaking indicators for local and remote participants.
+  - Pulsing animation in channel list when participants are speaking.
+  - **Location**: `client/src/lib/voice/browser.ts`, `client/src/stores/voice.ts`
+- [x] **[Voice] Auto-Retry on Connection Conflicts** `New` ✅
+  - Automatic leave/rejoin when server reports "Already in voice channel".
+  - Handles browser refresh and connection state mismatches gracefully.
+  - **Location**: `client/src/stores/websocket.ts`
+- [x] **[UX] Instant Participant Display** `New` ✅
+  - Local user shown immediately when joining voice channel.
+  - Participant count updates during "connecting" state, not just "connected".
+  - Speaking/muted indicators for local user in channel list.
+  - **Location**: `client/src/components/voice/VoiceParticipants.tsx`, `client/src/components/channels/ChannelItem.tsx`
+- [x] **[UX] Draggable Voice Island** `New` ✅
+  - Voice Island can be dragged anywhere on screen.
+  - Position persists within session.
+  - Keyboard shortcuts: Ctrl+Shift+M (mute), Ctrl+Shift+D (deafen).
+  - Settings modal rendered via Portal for proper z-index stacking.
+  - **Location**: `client/src/components/layout/VoiceIsland.tsx`
 - [ ] **[Media] File Attachments**
   - [ ] **Backend:** Implement `Proxy Method` for authenticated file downloads (Stream S3 -> Client).
   - [ ] **Client:** Implement drag-and-drop file upload in `MessageInput`.
