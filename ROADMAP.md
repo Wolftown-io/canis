@@ -121,6 +121,9 @@ This roadmap outlines the development path from the current prototype to a produ
   - Keyboard shortcuts: Ctrl+Shift+M (mute), Ctrl+Shift+D (deafen).
   - Settings modal rendered via Portal for proper z-index stacking.
   - **Location**: `client/src/components/layout/VoiceIsland.tsx`
+- [x] **[Voice] Basic Noise Reduction (Tier 1)**
+  - Implemented in `browser.ts` via constraints.
+  - UI Toggle in Audio Settings.
 - [ ] **[Media] File Attachments**
   - [ ] **Backend:** Implement `Proxy Method` for authenticated file downloads (Stream S3 -> Client).
   - [ ] **Client:** Implement drag-and-drop file upload in `MessageInput`.
@@ -128,6 +131,12 @@ This roadmap outlines the development path from the current prototype to a produ
 - [x] **[Text] Markdown & Emojis**
   - **Note:** `solid-markdown` enabled and verified.
   - Add an Emoji Picker component.
+- [ ] **[Text] Code Blocks & Syntax Highlighting** `New`
+  - Style code blocks with monospace font (Unispace/Fira Code).
+  - Implement syntax highlighting (lazy-loaded).
+- [ ] **[UX] Theme System Expansion** `New`
+  - Implement CSS variable swapping for themes.
+  - Add "Solarized Light" and "Solarized Dark" presets.
 
 ---
 
@@ -138,6 +147,10 @@ This roadmap outlines the development path from the current prototype to a produ
   - Create `guilds` table (`id`, `name`, `owner_id`, `icon`).
   - **Migration:** Move `channels` and `roles` to belong to `guild_id`.
   - **Migration:** Refactor `channel_members` into `guild_members`.
+- [ ] **[Chat] Direct Messages (DMs)** `New`
+  - Create `dm_channels` or reuse `channels` with `type='dm'`.
+  - Implement "Home" view for DM list.
+  - **Security:** Enforce E2E encryption (Signal/Olm) for DMs.
 - [ ] **[UI] Server Rail & Navigation**
   - Implement the vertical "Server List" sidebar on the left.
   - Build "Context Switching" logic (clicking a server loads its channels).
