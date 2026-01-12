@@ -7,6 +7,7 @@ use uuid::Uuid;
 /// User status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UserStatus {
     /// User is online.
     Online,
@@ -15,14 +16,10 @@ pub enum UserStatus {
     /// User is busy (do not disturb).
     Busy,
     /// User is offline.
+    #[default]
     Offline,
 }
 
-impl Default for UserStatus {
-    fn default() -> Self {
-        Self::Offline
-    }
-}
 
 /// User profile (public information).
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,12 +1,12 @@
 //! Database Queries
 //!
-//! Runtime queries (no compile-time DATABASE_URL required).
+//! Runtime queries (no compile-time `DATABASE_URL` required).
 
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use super::models::*;
+use super::models::{User, Session, Channel, ChannelType, ChannelMember, Message, FileAttachment};
 
 // ============================================================================
 // User Queries
@@ -92,11 +92,11 @@ pub async fn create_user(
     password_hash: &str,
 ) -> sqlx::Result<User> {
     sqlx::query_as::<_, User>(
-        r#"
+        r"
         INSERT INTO users (username, display_name, email, password_hash, auth_method)
         VALUES ($1, $2, $3, $4, 'local')
         RETURNING *
-        "#,
+        ",
     )
     .bind(username)
     .bind(display_name)
@@ -137,11 +137,11 @@ pub async fn create_session(
     user_agent: Option<&str>,
 ) -> sqlx::Result<Session> {
     sqlx::query_as::<_, Session>(
-        r#"
+        r"
         INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
         VALUES ($1, $2, $3, $4::inet, $5)
         RETURNING id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
-        "#,
+        ",
     )
     .bind(user_id)
     .bind(token_hash)
@@ -158,11 +158,11 @@ pub async fn find_session_by_token_hash(
     token_hash: &str,
 ) -> sqlx::Result<Option<Session>> {
     sqlx::query_as::<_, Session>(
-        r#"
+        r"
         SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
         FROM sessions
         WHERE token_hash = $1 AND expires_at > NOW()
-        "#,
+        ",
     )
     .bind(token_hash)
     .fetch_optional(pool)
@@ -211,11 +211,11 @@ pub async fn cleanup_expired_sessions(pool: &PgPool) -> sqlx::Result<u64> {
 /// List all channels.
 pub async fn list_channels(pool: &PgPool) -> sqlx::Result<Vec<Channel>> {
     sqlx::query_as::<_, Channel>(
-        r#"
+        r"
         SELECT id, name, channel_type, category_id, topic, user_limit, position, created_at, updated_at
         FROM channels
         ORDER BY position ASC
-        "#
+        "
     )
     .fetch_all(pool)
     .await
@@ -227,12 +227,12 @@ pub async fn list_channels_by_category(
     category_id: Option<Uuid>,
 ) -> sqlx::Result<Vec<Channel>> {
     sqlx::query_as::<_, Channel>(
-        r#"
+        r"
         SELECT id, name, channel_type, category_id, topic, user_limit, position, created_at, updated_at
         FROM channels
         WHERE category_id IS NOT DISTINCT FROM $1
         ORDER BY position ASC
-        "#,
+        ",
     )
     .bind(category_id)
     .fetch_all(pool)
@@ -242,11 +242,11 @@ pub async fn list_channels_by_category(
 /// Find channel by ID.
 pub async fn find_channel_by_id(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<Channel>> {
     sqlx::query_as::<_, Channel>(
-        r#"
+        r"
         SELECT id, name, channel_type, category_id, topic, user_limit, position, created_at, updated_at
         FROM channels
         WHERE id = $1
-        "#,
+        ",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -273,11 +273,11 @@ pub async fn create_channel(
     let position: i32 = row.get("next_pos");
 
     sqlx::query_as::<_, Channel>(
-        r#"
+        r"
         INSERT INTO channels (name, channel_type, category_id, topic, user_limit, position)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, name, channel_type, category_id, topic, user_limit, position, created_at, updated_at
-        "#,
+        ",
     )
     .bind(name)
     .bind(channel_type)
@@ -299,7 +299,7 @@ pub async fn update_channel(
     position: Option<i32>,
 ) -> sqlx::Result<Option<Channel>> {
     sqlx::query_as::<_, Channel>(
-        r#"
+        r"
         UPDATE channels
         SET name = COALESCE($2, name),
             topic = COALESCE($3, topic),
@@ -308,7 +308,7 @@ pub async fn update_channel(
             updated_at = NOW()
         WHERE id = $1
         RETURNING id, name, channel_type, category_id, topic, user_limit, position, created_at, updated_at
-        "#,
+        ",
     )
     .bind(id)
     .bind(name)
@@ -351,13 +351,13 @@ pub async fn list_channel_members_with_users(
     channel_id: Uuid,
 ) -> sqlx::Result<Vec<User>> {
     sqlx::query_as::<_, User>(
-        r#"
+        r"
         SELECT u.*
         FROM users u
         INNER JOIN channel_members cm ON cm.user_id = u.id
         WHERE cm.channel_id = $1
         ORDER BY cm.joined_at ASC
-        "#,
+        ",
     )
     .bind(channel_id)
     .fetch_all(pool)
@@ -389,12 +389,12 @@ pub async fn add_channel_member(
     role_id: Option<Uuid>,
 ) -> sqlx::Result<ChannelMember> {
     sqlx::query_as::<_, ChannelMember>(
-        r#"
+        r"
         INSERT INTO channel_members (channel_id, user_id, role_id)
         VALUES ($1, $2, $3)
         ON CONFLICT (channel_id, user_id) DO NOTHING
         RETURNING channel_id, user_id, role_id, joined_at
-        "#,
+        ",
     )
     .bind(channel_id)
     .bind(user_id)
@@ -432,14 +432,14 @@ pub async fn list_messages(
 ) -> sqlx::Result<Vec<Message>> {
     if let Some(before_id) = before {
         sqlx::query_as::<_, Message>(
-            r#"
+            r"
             SELECT * FROM messages
             WHERE channel_id = $1
               AND deleted_at IS NULL
               AND id < $2
             ORDER BY created_at DESC
             LIMIT $3
-            "#,
+            ",
         )
         .bind(channel_id)
         .bind(before_id)
@@ -448,13 +448,13 @@ pub async fn list_messages(
         .await
     } else {
         sqlx::query_as::<_, Message>(
-            r#"
+            r"
             SELECT * FROM messages
             WHERE channel_id = $1
               AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT $2
-            "#,
+            ",
         )
         .bind(channel_id)
         .bind(limit)
@@ -484,11 +484,11 @@ pub async fn create_message(
     reply_to: Option<Uuid>,
 ) -> sqlx::Result<Message> {
     sqlx::query_as::<_, Message>(
-        r#"
+        r"
         INSERT INTO messages (channel_id, user_id, content, encrypted, nonce, reply_to)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
-        "#,
+        ",
     )
     .bind(channel_id)
     .bind(user_id)
@@ -508,12 +508,12 @@ pub async fn update_message(
     content: &str,
 ) -> sqlx::Result<Option<Message>> {
     sqlx::query_as::<_, Message>(
-        r#"
+        r"
         UPDATE messages
         SET content = $3, edited_at = NOW()
         WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
         RETURNING *
-        "#,
+        ",
     )
     .bind(id)
     .bind(user_id)
@@ -525,11 +525,11 @@ pub async fn update_message(
 /// Soft delete a message.
 pub async fn delete_message(pool: &PgPool, id: Uuid, user_id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query(
-        r#"
+        r"
         UPDATE messages
         SET deleted_at = NOW(), content = '[deleted]'
         WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
-        "#,
+        ",
     )
     .bind(id)
     .bind(user_id)
@@ -538,14 +538,14 @@ pub async fn delete_message(pool: &PgPool, id: Uuid, user_id: Uuid) -> sqlx::Res
     Ok(result.rows_affected() > 0)
 }
 
-/// Admin delete a message (ignores user_id check).
+/// Admin delete a message (ignores `user_id` check).
 pub async fn admin_delete_message(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query(
-        r#"
+        r"
         UPDATE messages
         SET deleted_at = NOW(), content = '[deleted]'
         WHERE id = $1 AND deleted_at IS NULL
-        "#,
+        ",
     )
     .bind(id)
     .execute(pool)
@@ -567,11 +567,11 @@ pub async fn create_file_attachment(
     s3_key: &str,
 ) -> sqlx::Result<FileAttachment> {
     sqlx::query_as::<_, FileAttachment>(
-        r#"
+        r"
         INSERT INTO file_attachments (message_id, filename, mime_type, size_bytes, s3_key)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *
-        "#,
+        ",
     )
     .bind(message_id)
     .bind(filename)
@@ -656,7 +656,7 @@ pub async fn check_attachment_access(
 ) -> sqlx::Result<bool> {
     // User must be a member of the channel where the message was posted
     let result: (bool,) = sqlx::query_as(
-        r#"
+        r"
         SELECT EXISTS(
             SELECT 1
             FROM file_attachments fa
@@ -664,7 +664,7 @@ pub async fn check_attachment_access(
             JOIN channel_members cm ON m.channel_id = cm.channel_id
             WHERE fa.id = $1 AND cm.user_id = $2
         )
-        "#,
+        ",
     )
     .bind(attachment_id)
     .bind(user_id)

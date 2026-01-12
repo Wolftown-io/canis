@@ -58,6 +58,7 @@ pub struct Room {
 
 impl Room {
     /// Create a new room.
+    #[must_use] 
     pub fn new(channel_id: Uuid, max_participants: usize) -> Self {
         Self {
             channel_id,
@@ -225,7 +226,8 @@ impl SfuServer {
         })
     }
 
-    /// Get RTCConfiguration with ICE servers from config.
+    /// Get `RTCConfiguration` with ICE servers from config.
+    #[must_use] 
     pub fn rtc_config(&self) -> RTCConfiguration {
         let mut ice_servers = vec![RTCIceServer {
             urls: vec![self.config.stun_server.clone()],
@@ -439,7 +441,7 @@ impl SfuServer {
     ) -> Result<(), VoiceError> {
         let candidate: webrtc::ice_transport::ice_candidate::RTCIceCandidateInit =
             serde_json::from_str(candidate_str)
-                .map_err(|e| VoiceError::Signaling(format!("Invalid ICE candidate: {}", e)))?;
+                .map_err(|e| VoiceError::Signaling(format!("Invalid ICE candidate: {e}")))?;
 
         peer.peer_connection
             .add_ice_candidate(candidate)

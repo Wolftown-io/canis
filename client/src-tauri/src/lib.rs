@@ -1,4 +1,4 @@
-//! VoiceChat Desktop Client Library
+//! `VoiceChat` Desktop Client Library
 //!
 //! Tauri backend for the desktop application.
 

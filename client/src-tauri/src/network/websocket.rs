@@ -177,7 +177,7 @@ impl WebSocketManager {
         self.tx
             .send(event)
             .await
-            .map_err(|e| format!("Failed to send event: {}", e))
+            .map_err(|e| format!("Failed to send event: {e}"))
     }
 
     /// Get the current connection status.
@@ -272,20 +272,17 @@ async fn connection_loop(
 
                         // Handle outgoing events
                         event = event_rx.recv() => {
-                            match event {
-                                Some(ev) => {
-                                    if let Ok(json) = serde_json::to_string(&ev) {
-                                        debug!("Sending: {}", json);
-                                        if let Err(e) = write.send(Message::Text(json)).await {
-                                            error!("Failed to send message: {}", e);
-                                            break;
-                                        }
+                            if let Some(ev) = event {
+                                if let Ok(json) = serde_json::to_string(&ev) {
+                                    debug!("Sending: {}", json);
+                                    if let Err(e) = write.send(Message::Text(json)).await {
+                                        error!("Failed to send message: {}", e);
+                                        break;
                                     }
                                 }
-                                None => {
-                                    info!("Event channel closed");
-                                    break;
-                                }
+                            } else {
+                                info!("Event channel closed");
+                                break;
                             }
                         }
 
@@ -314,7 +311,7 @@ async fn connection_loop(
         info!("Reconnecting in {:?} (attempt {})", backoff, attempt);
 
         tokio::select! {
-            _ = tokio::time::sleep(backoff) => {}
+            () = tokio::time::sleep(backoff) => {}
             _ = shutdown_rx.recv() => {
                 info!("Shutdown during reconnect backoff");
                 return;

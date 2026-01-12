@@ -1,4 +1,4 @@
-//! OpenID Connect Integration
+//! `OpenID` Connect Integration
 
 use openidconnect::core::CoreClient;
 

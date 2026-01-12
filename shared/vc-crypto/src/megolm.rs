@@ -11,11 +11,13 @@ pub struct MegolmOutboundSession {
 
 impl MegolmOutboundSession {
     /// Create a new outbound session.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {}
     }
 
     /// Get the session key (to share with group members).
+    #[must_use] 
     pub fn session_key(&self) -> String {
         todo!()
     }
@@ -39,7 +41,7 @@ pub struct MegolmInboundSession {
 
 impl MegolmInboundSession {
     /// Create an inbound session from a session key.
-    pub fn new(_session_key: &str) -> Result<Self> {
+    pub const fn new(_session_key: &str) -> Result<Self> {
         Ok(Self {})
     }
 

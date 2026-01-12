@@ -273,7 +273,7 @@ mod redis_tests {
         let channel_name = channel.to_string();
         tokio::spawn(async move {
             while let Ok(message) = pubsub_stream.recv().await {
-                if message.channel.to_string() == channel_name {
+                if message.channel == channel_name {
                     if let Ok(value) = String::from_utf8(message.value.as_bytes().unwrap().to_vec()) {
                         let _ = tx.send(value).await;
                     }
@@ -323,7 +323,7 @@ mod redis_tests {
         let ch1 = channel.to_string();
         tokio::spawn(async move {
             while let Ok(msg) = stream1.recv().await {
-                if msg.channel.to_string() == ch1 {
+                if msg.channel == ch1 {
                     if let Ok(value) = String::from_utf8(msg.value.as_bytes().unwrap().to_vec()) {
                         let _ = tx1.send(value).await;
                     }
@@ -334,7 +334,7 @@ mod redis_tests {
         let ch2 = channel.to_string();
         tokio::spawn(async move {
             while let Ok(msg) = stream2.recv().await {
-                if msg.channel.to_string() == ch2 {
+                if msg.channel == ch2 {
                     if let Ok(value) = String::from_utf8(msg.value.as_bytes().unwrap().to_vec()) {
                         let _ = tx2.send(value).await;
                     }
@@ -373,7 +373,7 @@ mod redis_tests {
     async fn test_session_cache_pattern() {
         let client = create_test_redis().await;
         let session_id = Uuid::new_v4();
-        let key = format!("session:{}", session_id);
+        let key = format!("session:{session_id}");
 
         // Store session data as hash
         client.hset::<(), _, _>(&key, ("user_id", "12345")).await.expect("Failed to HSET user_id");
@@ -398,7 +398,7 @@ mod redis_tests {
     async fn test_rate_limiting_pattern() {
         let client = create_test_redis().await;
         let user_id = Uuid::new_v4();
-        let key = format!("rate_limit:user:{}", user_id);
+        let key = format!("rate_limit:user:{user_id}");
 
         // Simulate rate limiting (max 5 requests per 10 seconds)
         for i in 1..=5 {
@@ -424,7 +424,7 @@ mod redis_tests {
     async fn test_active_users_tracking() {
         let client = create_test_redis().await;
         let channel_id = Uuid::new_v4();
-        let key = format!("voice:channel:{}:users", channel_id);
+        let key = format!("voice:channel:{channel_id}:users");
 
         let user1 = Uuid::new_v4().to_string();
         let user2 = Uuid::new_v4().to_string();
@@ -484,7 +484,7 @@ mod redis_tests {
     async fn test_cached_user_data() {
         let client = create_test_redis().await;
         let user_id = Uuid::new_v4();
-        let cache_key = format!("cache:user:{}", user_id);
+        let cache_key = format!("cache:user:{user_id}");
 
         // Simulate caching user data (would normally come from DB)
         let user_data = serde_json::json!({

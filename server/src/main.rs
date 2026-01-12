@@ -1,4 +1,4 @@
-//! VoiceChat Server - Main Entry Point
+//! `VoiceChat` Server - Main Entry Point
 //!
 //! Self-hosted voice and text chat platform backend.
 

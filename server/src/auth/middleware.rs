@@ -125,7 +125,7 @@ where
         Box::pin(async move {
             parts
                 .extensions
-                .get::<AuthUser>()
+                .get::<Self>()
                 .cloned()
                 .ok_or(AuthError::MissingAuthHeader)
         })

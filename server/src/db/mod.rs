@@ -1,6 +1,6 @@
 //! Database Layer
 //!
-//! PostgreSQL and Redis connections.
+//! `PostgreSQL` and Redis connections.
 
 mod models;
 mod queries;
@@ -15,7 +15,7 @@ use tracing::info;
 pub use models::*;
 pub use queries::*;
 
-/// Create PostgreSQL connection pool.
+/// Create `PostgreSQL` connection pool.
 pub async fn create_pool(database_url: &str) -> Result<PgPool> {
     let pool = PgPoolOptions::new()
         .max_connections(20)

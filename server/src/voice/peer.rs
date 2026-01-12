@@ -1,6 +1,6 @@
 //! WebRTC Peer Connection Management
 //!
-//! Wraps RTCPeerConnection for each participant in a voice channel.
+//! Wraps `RTCPeerConnection` for each participant in a voice channel.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub struct Peer {
     /// The audio track this user is sending (their microphone).
     pub incoming_track: RwLock<Option<Arc<TrackRemote>>>,
     /// Audio tracks forwarded to this user (other participants' audio).
-    /// Map: source_user_id -> local track
+    /// Map: `source_user_id` -> local track
     pub outgoing_tracks: RwLock<HashMap<Uuid, Arc<TrackLocalStaticRTP>>>,
     /// Whether the user is muted.
     pub muted: RwLock<bool>,

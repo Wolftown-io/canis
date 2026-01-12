@@ -27,7 +27,7 @@ mod tests {
         .fetch_one(pool)
         .await?;
 
-        Ok(row.try_get("id")?)
+        row.try_get("id")
     }
 
     /// Helper to create test channel in database.
@@ -39,7 +39,7 @@ mod tests {
         .fetch_one(pool)
         .await?;
 
-        Ok(row.try_get("id")?)
+        row.try_get("id")
     }
 
     #[sqlx::test]
@@ -113,7 +113,7 @@ mod tests {
             error::VoiceError::RateLimited => {
                 // Expected
             }
-            other => panic!("Expected RateLimited error, got: {:?}", other),
+            other => panic!("Expected RateLimited error, got: {other:?}"),
         }
 
         Ok(())

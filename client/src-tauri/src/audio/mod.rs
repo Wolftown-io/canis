@@ -3,7 +3,7 @@
 //! Handles audio capture, playback, encoding/decoding with cpal and opus.
 //!
 //! This module provides a Send + Sync audio handle that moves non-thread-safe
-//! cpal::Stream objects into background tasks.
+//! `cpal::Stream` objects into background tasks.
 
 use thiserror::Error;
 

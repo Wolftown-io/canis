@@ -112,7 +112,7 @@ pub fn decrypt_mfa_secret(encrypted: &str, key: &[u8]) -> CryptoResult<String> {
 
     // Convert to string
     String::from_utf8(plaintext)
-        .map_err(|e| CryptoError::DecryptionFailed(format!("Invalid UTF-8: {}", e)))
+        .map_err(|e| CryptoError::DecryptionFailed(format!("Invalid UTF-8: {e}")))
 }
 
 #[cfg(test)]

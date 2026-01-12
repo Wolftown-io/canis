@@ -91,7 +91,7 @@ pub struct AttachmentInfo {
 }
 
 impl AttachmentInfo {
-    /// Create from a FileAttachment database model.
+    /// Create from a `FileAttachment` database model.
     pub fn from_db(attachment: &db::FileAttachment) -> Self {
         Self {
             id: attachment.id,
@@ -124,7 +124,7 @@ pub struct ListMessagesQuery {
     pub limit: i64,
 }
 
-fn default_limit() -> i64 {
+const fn default_limit() -> i64 {
     50
 }
 
@@ -149,7 +149,7 @@ pub struct UpdateMessageRequest {
 // ============================================================================
 
 /// List messages in a channel.
-/// GET /api/messages/channel/:channel_id
+/// GET /`api/messages/channel/:channel_id`
 pub async fn list(
     State(state): State<AppState>,
     Path(channel_id): Path<Uuid>,
@@ -222,7 +222,7 @@ pub async fn list(
 }
 
 /// Create a new message.
-/// POST /api/messages/channel/:channel_id
+/// POST /`api/messages/channel/:channel_id`
 pub async fn create(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -588,7 +588,7 @@ mod tests {
 
         // Create 10 messages
         for i in 1..=10 {
-            db::create_message(&pool, channel.id, user.id, &format!("Message {}", i), false, None, None)
+            db::create_message(&pool, channel.id, user.id, &format!("Message {i}"), false, None, None)
                 .await
                 .expect("Failed to create message");
             tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
@@ -630,7 +630,7 @@ mod tests {
         let page2 = result2.0;
 
         // Should have at least some messages
-        assert!(page2.len() > 0, "Second page should have messages");
+        assert!(!page2.is_empty(), "Second page should have messages");
         assert!(page2.len() <= 3, "Second page should respect limit");
 
         // Verify no overlap - oldest_from_page1 should not appear in page2
@@ -729,7 +729,7 @@ mod tests {
 
         // Create 10 messages
         for i in 1..=10 {
-            db::create_message(&pool, channel.id, user.id, &format!("Msg {}", i), false, None, None)
+            db::create_message(&pool, channel.id, user.id, &format!("Msg {i}"), false, None, None)
                 .await
                 .expect("Failed to create message");
         }

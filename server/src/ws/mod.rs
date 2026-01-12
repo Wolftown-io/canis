@@ -181,7 +181,7 @@ pub enum ServerEvent {
     },
 
     // Voice events
-    /// SDP offer from server (after VoiceJoin)
+    /// SDP offer from server (after `VoiceJoin`)
     VoiceOffer {
         /// Voice channel.
         channel_id: Uuid,
@@ -248,14 +248,16 @@ pub mod channels {
     use uuid::Uuid;
 
     /// Redis channel for channel events.
+    #[must_use] 
     pub fn channel_events(channel_id: Uuid) -> String {
-        format!("channel:{}", channel_id)
+        format!("channel:{channel_id}")
     }
 
     /// Redis channel for user presence updates (future feature).
     #[allow(dead_code)]
+    #[must_use] 
     pub fn user_presence(user_id: Uuid) -> String {
-        format!("presence:{}", user_id)
+        format!("presence:{user_id}")
     }
 
     /// Redis channel for global events (future feature).
@@ -270,7 +272,7 @@ pub async fn broadcast_to_channel(
     event: &ServerEvent,
 ) -> Result<(), RedisError> {
     let payload = serde_json::to_string(event).map_err(|e| {
-        RedisError::new(RedisErrorKind::Parse, format!("JSON error: {}", e))
+        RedisError::new(RedisErrorKind::Parse, format!("JSON error: {e}"))
     })?;
 
     redis

@@ -282,9 +282,7 @@ pub async fn upload_file(
     let allowed_types: Vec<&str> = state
         .config
         .allowed_mime_types
-        .as_ref()
-        .map(|v| v.iter().map(|s| s.as_str()).collect())
-        .unwrap_or_else(|| DEFAULT_ALLOWED_TYPES.to_vec());
+        .as_ref().map_or_else(|| DEFAULT_ALLOWED_TYPES.to_vec(), |v| v.iter().map(std::string::String::as_str).collect());
 
     if !allowed_types.contains(&content_type.as_str()) {
         return Err(UploadError::InvalidMimeType {
@@ -358,7 +356,7 @@ pub async fn upload_file(
 
 /// Upload a file and create a message in one request.
 ///
-/// POST /api/messages/channel/:channel_id/upload
+/// POST /`api/messages/channel/:channel_id/upload`
 ///
 /// Expects multipart form with:
 /// - `file`: The file data (required)
@@ -381,7 +379,7 @@ pub async fn upload_message_with_file(
     // Check user is a member of the channel
     let is_member = db::is_channel_member(&state.db, channel_id, auth_user.id)
         .await
-        .map_err(|e| UploadError::Database(e))?;
+        .map_err(UploadError::Database)?;
 
     if !is_member {
         return Err(UploadError::Forbidden);
@@ -450,9 +448,7 @@ pub async fn upload_message_with_file(
     let allowed_types: Vec<&str> = state
         .config
         .allowed_mime_types
-        .as_ref()
-        .map(|v| v.iter().map(|s| s.as_str()).collect())
-        .unwrap_or_else(|| DEFAULT_ALLOWED_TYPES.to_vec());
+        .as_ref().map_or_else(|| DEFAULT_ALLOWED_TYPES.to_vec(), |v| v.iter().map(std::string::String::as_str).collect());
 
     if !allowed_types.contains(&file_content_type.as_str()) {
         return Err(UploadError::InvalidMimeType {

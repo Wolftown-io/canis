@@ -21,7 +21,7 @@ async fn test_websocket_broadcast_flow() {
     let state = AppState::new(db_pool.clone(), redis.clone(), config.clone(), None, sfu);
 
     // 2. Create Test Data
-    let user1 = db::create_user(&db_pool, "ws_test_user1", "WS Test 1", None, "hash").await.expect("Create user1 failed");
+    let _user1 = db::create_user(&db_pool, "ws_test_user1", "WS Test 1", None, "hash").await.expect("Create user1 failed");
     let user2 = db::create_user(&db_pool, "ws_test_user2", "WS Test 2", None, "hash").await.expect("Create user2 failed");
     let channel = db::create_channel(&db_pool, "ws-test-channel", &db::ChannelType::Text, None, None, None).await.expect("Create channel failed");
 
@@ -35,7 +35,7 @@ async fn test_websocket_broadcast_flow() {
     subscriber.wait_for_connect().await.expect("Redis subscriber connect failed");
     
     let channel_topic = vc_server::ws::channels::channel_events(channel.id);
-    let _ = subscriber.subscribe(channel_topic.clone()).await.expect("Subscribe failed");
+    let () = subscriber.subscribe(channel_topic.clone()).await.expect("Subscribe failed");
     let mut message_stream = subscriber.message_rx();
 
     // 4. Simulate User 2 Sending a Message (Trigger)
@@ -88,7 +88,7 @@ async fn test_websocket_broadcast_flow() {
         assert_eq!(msg["content"], msg_content);
         assert_eq!(msg["author"]["username"], "ws_test_user2");
     } else {
-        panic!("Received wrong event type: {:?}", received_event);
+        panic!("Received wrong event type: {received_event:?}");
     }
 
     println!("✅ WebSocket robustness test passed: Redis PubSub broadcast verified.");

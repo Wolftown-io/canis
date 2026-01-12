@@ -262,13 +262,12 @@ pub async fn login(
     }
 
     // Check MFA if enabled
-    if user.mfa_secret.is_some() {
-        if body.mfa_code.is_none() {
+    if user.mfa_secret.is_some()
+        && body.mfa_code.is_none() {
             return Err(AuthError::MfaRequired);
         }
         // TODO: Verify MFA code (Phase 2)
         // For now, MFA verification is not implemented
-    }
 
     // Generate tokens
     let tokens = generate_token_pair(
@@ -445,12 +444,12 @@ pub async fn mfa_setup(
 
     // Encrypt the secret before storing
     let encrypted_secret = encrypt_mfa_secret(&secret_str, &key_bytes)
-        .map_err(|e| AuthError::Internal(format!("Failed to encrypt MFA secret: {}", e)))?;
+        .map_err(|e| AuthError::Internal(format!("Failed to encrypt MFA secret: {e}")))?;
 
     // Store encrypted secret in database
     set_mfa_secret(&state.db, auth_user.id, Some(&encrypted_secret))
         .await
-        .map_err(|e| AuthError::Internal(format!("Failed to store MFA secret: {}", e)))?;
+        .map_err(|e| AuthError::Internal(format!("Failed to store MFA secret: {e}")))?;
 
     // Create TOTP instance for QR code
     let totp = TOTP::new(
@@ -462,7 +461,7 @@ pub async fn mfa_setup(
         Some("VoiceChat".to_string()),
         auth_user.username.clone(),
     )
-    .map_err(|e| AuthError::Internal(format!("Failed to create TOTP: {}", e)))?;
+    .map_err(|e| AuthError::Internal(format!("Failed to create TOTP: {e}")))?;
 
     // Generate QR code URI (otpauth://)
     let qr_code_url = totp.get_url();
@@ -505,7 +504,7 @@ pub async fn mfa_verify(
 
     // Decrypt the secret
     let secret_str = decrypt_mfa_secret(&encrypted_secret, &key_bytes)
-        .map_err(|e| AuthError::Internal(format!("Failed to decrypt MFA secret: {}", e)))?;
+        .map_err(|e| AuthError::Internal(format!("Failed to decrypt MFA secret: {e}")))?;
 
     // Parse the secret
     let secret = Secret::Encoded(secret_str);
@@ -518,13 +517,13 @@ pub async fn mfa_verify(
         30,
         secret.to_bytes().unwrap(),
         Some("VoiceChat".to_string()),
-        user.username.clone(),
+        user.username,
     )
-    .map_err(|e| AuthError::Internal(format!("Failed to create TOTP: {}", e)))?;
+    .map_err(|e| AuthError::Internal(format!("Failed to create TOTP: {e}")))?;
 
     // Verify the code
     let is_valid = totp.check_current(&request.code).map_err(|e| {
-        AuthError::Internal(format!("Failed to verify TOTP code: {}", e))
+        AuthError::Internal(format!("Failed to verify TOTP code: {e}"))
     })?;
 
     if !is_valid {
@@ -561,7 +560,7 @@ pub async fn mfa_disable(
     // Clear MFA secret from database
     set_mfa_secret(&state.db, auth_user.id, None)
         .await
-        .map_err(|e| AuthError::Internal(format!("Failed to disable MFA: {}", e)))?;
+        .map_err(|e| AuthError::Internal(format!("Failed to disable MFA: {e}")))?;
 
     Ok(Json(serde_json::json!({
         "success": true,

@@ -10,7 +10,7 @@ use super::error::VoiceError;
 
 /// Rate limiter for voice operations.
 pub struct VoiceRateLimiter {
-    /// Map of user_id to last join time.
+    /// Map of `user_id` to last join time.
     last_join: Arc<RwLock<HashMap<Uuid, Instant>>>,
     /// Minimum time between join requests.
     min_interval: Duration,

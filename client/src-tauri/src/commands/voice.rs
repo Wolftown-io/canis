@@ -2,7 +2,7 @@
 //!
 //! Tauri commands for voice chat functionality.
 
-use crate::audio::{AudioDevice, AudioDeviceList, FRAME_SIZE_MS, SAMPLE_RATE};
+use crate::audio::{AudioDeviceList, FRAME_SIZE_MS, SAMPLE_RATE};
 use crate::network::ClientEvent;
 use crate::webrtc::IceServerConfig;
 use crate::AppState;
@@ -21,8 +21,8 @@ use webrtc::{
 
 /// Join a voice channel.
 ///
-/// Initializes audio pipeline and WebRTC, sends VoiceJoin to server.
-/// Server will respond with VoiceOffer which should be handled by handle_voice_offer.
+/// Initializes audio pipeline and WebRTC, sends `VoiceJoin` to server.
+/// Server will respond with `VoiceOffer` which should be handled by `handle_voice_offer`.
 #[command]
 pub async fn join_voice(
     channel_id: String,
@@ -82,7 +82,7 @@ pub async fn join_voice(
         .webrtc
         .set_on_state_change(move |new_state| {
             debug!("Voice connection state changed: {:?}", new_state);
-            let _ = app_clone.emit("voice:state_change", format!("{:?}", new_state));
+            let _ = app_clone.emit("voice:state_change", format!("{new_state:?}"));
         })
         .await;
 
@@ -104,7 +104,7 @@ pub async fn join_voice(
         ws_manager
             .send(ClientEvent::VoiceJoin { channel_id })
             .await
-            .map_err(|e| format!("Failed to send VoiceJoin: {}", e))?;
+            .map_err(|e| format!("Failed to send VoiceJoin: {e}"))?;
     } else {
         return Err("WebSocket not connected".into());
     }
@@ -115,7 +115,7 @@ pub async fn join_voice(
 
 /// Handle SDP offer from server and return answer.
 ///
-/// Called when frontend receives ws:voice_offer event.
+/// Called when frontend receives <ws:voice_offer> event.
 #[command]
 pub async fn handle_voice_offer(
     channel_id: String,
@@ -151,7 +151,7 @@ pub async fn handle_voice_offer(
                 sdp: answer,
             })
             .await
-            .map_err(|e| format!("Failed to send VoiceAnswer: {}", e))?;
+            .map_err(|e| format!("Failed to send VoiceAnswer: {e}"))?;
     } else {
         return Err("WebSocket not connected".into());
     }
@@ -165,7 +165,7 @@ pub async fn handle_voice_offer(
         .map_err(|e| e.to_string())?;
 
     // Start audio playback
-    let (playback_tx, playback_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(100);
+    let (_playback_tx, playback_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(100);
     voice_state
         .audio
         .start_playback(playback_rx)
@@ -190,7 +190,7 @@ pub async fn handle_voice_offer(
 
 /// Handle ICE candidate from server.
 ///
-/// Called when frontend receives ws:voice_ice_candidate event.
+/// Called when frontend receives <ws:voice_ice_candidate> event.
 #[command]
 pub async fn handle_voice_ice_candidate(
     channel_id: String,
@@ -205,8 +205,7 @@ pub async fn handle_voice_ice_candidate(
     // Verify we're in this channel
     if voice_state.channel_id.as_ref() != Some(&channel_id) {
         return Err(format!(
-            "Received ICE candidate for wrong channel: {}",
-            channel_id
+            "Received ICE candidate for wrong channel: {channel_id}"
         ));
     }
 
@@ -434,7 +433,7 @@ async fn send_audio_to_track(
     static TIMESTAMP: AtomicU32 = AtomicU32::new(0);
 
     // Calculate samples per frame (20ms at 48kHz)
-    const SAMPLES_PER_FRAME: u32 = (SAMPLE_RATE / 1000 * FRAME_SIZE_MS as u32) as u32;
+    const SAMPLES_PER_FRAME: u32 = SAMPLE_RATE / 1000 * FRAME_SIZE_MS as u32;
 
     // RTP payload type for Opus (as configured in webrtc/mod.rs)
     const OPUS_PAYLOAD_TYPE: u8 = 111;

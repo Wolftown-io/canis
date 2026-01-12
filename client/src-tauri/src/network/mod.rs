@@ -2,4 +2,4 @@
 
 pub mod websocket;
 
-pub use websocket::{ClientEvent, ConnectionStatus, ServerEvent, WebSocketManager};
+pub use websocket::{ClientEvent, ConnectionStatus, WebSocketManager};

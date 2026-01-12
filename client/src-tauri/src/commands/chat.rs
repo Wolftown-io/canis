@@ -77,25 +77,25 @@ pub async fn get_channels(state: State<'_, AppState>) -> Result<Vec<Channel>, St
 
     let response = state
         .http
-        .get(format!("{}/api/channels", server_url))
-        .header("Authorization", format!("Bearer {}", token))
+        .get(format!("{server_url}/api/channels"))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .map_err(|e| {
             error!("Failed to fetch channels: {}", e);
-            format!("Connection failed: {}", e)
+            format!("Connection failed: {e}")
         })?;
 
     if !response.status().is_success() {
         let status = response.status();
         error!("Failed to fetch channels: {}", status);
-        return Err(format!("Failed to fetch channels: {}", status));
+        return Err(format!("Failed to fetch channels: {status}"));
     }
 
     let channels: Vec<Channel> = response
         .json()
         .await
-        .map_err(|e| format!("Invalid response: {}", e))?;
+        .map_err(|e| format!("Invalid response: {e}"))?;
 
     debug!("Fetched {} channels", channels.len());
     Ok(channels)
@@ -119,15 +119,15 @@ pub async fn get_messages(
 
     debug!("Fetching messages for channel {}", channel_id);
 
-    let mut url = format!("{}/api/messages/channel/{}", server_url, channel_id);
+    let mut url = format!("{server_url}/api/messages/channel/{channel_id}");
 
     // Add query params
     let mut params = vec![];
     if let Some(before_id) = before {
-        params.push(format!("before={}", before_id));
+        params.push(format!("before={before_id}"));
     }
     if let Some(lim) = limit {
-        params.push(format!("limit={}", lim));
+        params.push(format!("limit={lim}"));
     }
     if !params.is_empty() {
         url = format!("{}?{}", url, params.join("&"));
@@ -136,24 +136,24 @@ pub async fn get_messages(
     let response = state
         .http
         .get(&url)
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .map_err(|e| {
             error!("Failed to fetch messages: {}", e);
-            format!("Connection failed: {}", e)
+            format!("Connection failed: {e}")
         })?;
 
     if !response.status().is_success() {
         let status = response.status();
         error!("Failed to fetch messages: {}", status);
-        return Err(format!("Failed to fetch messages: {}", status));
+        return Err(format!("Failed to fetch messages: {status}"));
     }
 
     let messages: Vec<Message> = response
         .json()
         .await
-        .map_err(|e| format!("Invalid response: {}", e))?;
+        .map_err(|e| format!("Invalid response: {e}"))?;
 
     debug!("Fetched {} messages", messages.len());
     Ok(messages)
@@ -179,10 +179,9 @@ pub async fn send_message(
     let response = state
         .http
         .post(format!(
-            "{}/api/messages/channel/{}",
-            server_url, channel_id
+            "{server_url}/api/messages/channel/{channel_id}"
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({
             "content": content,
             "encrypted": false
@@ -191,20 +190,20 @@ pub async fn send_message(
         .await
         .map_err(|e| {
             error!("Failed to send message: {}", e);
-            format!("Connection failed: {}", e)
+            format!("Connection failed: {e}")
         })?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         error!("Failed to send message: {} - {}", status, body);
-        return Err(format!("Failed to send message: {}", status));
+        return Err(format!("Failed to send message: {status}"));
     }
 
     let message: Message = response
         .json()
         .await
-        .map_err(|e| format!("Invalid response: {}", e))?;
+        .map_err(|e| format!("Invalid response: {e}"))?;
 
     debug!("Message sent: {}", message.id);
     Ok(message)

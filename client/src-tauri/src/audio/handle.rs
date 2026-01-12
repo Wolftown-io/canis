@@ -1,9 +1,9 @@
 //! Audio Handle - Send + Sync wrapper for audio system
 //!
 //! This module provides a thread-safe handle to the audio system by moving
-//! non-Send/Sync types (cpal::Stream) into background tasks.
+//! non-Send/Sync types (`cpal::Stream`) into background tasks.
 
-use super::{AudioDevice, AudioDeviceList, AudioError, CHANNELS, FRAME_SIZE, FRAME_SIZE_MS, SAMPLE_RATE};
+use super::{AudioDevice, AudioDeviceList, AudioError, CHANNELS, FRAME_SIZE, SAMPLE_RATE};
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, Host};
 use opus::{Channels as OpusChannels, Decoder, Encoder};
@@ -261,7 +261,7 @@ impl AudioHandle {
     }
 
     /// Check if microphone test is running
-    pub fn is_mic_test_running(&self) -> bool {
+    pub const fn is_mic_test_running(&self) -> bool {
         self.mic_test_control.is_some()
     }
 
@@ -301,10 +301,10 @@ fn run_capture_task(
     let sample_buffer = Arc::new(std::sync::Mutex::new(Vec::with_capacity(FRAME_SIZE * CHANNELS as usize * 2)));
     let frame_samples = FRAME_SIZE * CHANNELS as usize;
 
-    let encoder_clone = encoder.clone();
-    let sample_buffer_clone = sample_buffer.clone();
-    let muted_clone = muted.clone();
-    let output_tx_clone = output_tx.clone();
+    let encoder_clone = encoder;
+    let sample_buffer_clone = sample_buffer;
+    let muted_clone = muted;
+    let output_tx_clone = output_tx;
 
     let stream = match device.build_input_stream(
         &config,
@@ -395,7 +395,7 @@ fn run_playback_task(
     let playback_buffer = Arc::new(std::sync::Mutex::new(std::collections::VecDeque::new()));
 
     // Spawn decoding task
-    let decoder_clone = decoder.clone();
+    let decoder_clone = decoder;
     let playback_buffer_clone = playback_buffer.clone();
     std::thread::spawn(move || {
         while let Some(encoded) = input_rx.blocking_recv() {
@@ -405,7 +405,7 @@ fn run_playback_task(
                     Ok(len) => {
                         let samples_f32: Vec<f32> = decoded[..len]
                             .iter()
-                            .map(|&s| s as f32 / 32768.0)
+                            .map(|&s| f32::from(s) / 32768.0)
                             .collect();
 
                         if let Ok(mut buffer) = playback_buffer_clone.lock() {
@@ -420,8 +420,8 @@ fn run_playback_task(
         }
     });
 
-    let playback_buffer_clone2 = playback_buffer.clone();
-    let deafened_clone = deafened.clone();
+    let playback_buffer_clone2 = playback_buffer;
+    let deafened_clone = deafened;
 
     let stream = match device.build_output_stream(
         &config,
@@ -433,9 +433,11 @@ fn run_playback_task(
 
             if let Ok(mut buffer) = playback_buffer_clone2.lock() {
                 let available = buffer.len().min(data.len());
+                #[allow(clippy::needless_range_loop)]
                 for i in 0..available {
                     data[i] = buffer.pop_front().unwrap();
                 }
+                #[allow(clippy::needless_range_loop)]
                 for i in available..data.len() {
                     data[i] = 0.0;
                 }

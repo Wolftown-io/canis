@@ -1,7 +1,7 @@
 //! S3 Storage Client
 //!
 //! Handles S3-compatible storage for file uploads.
-//! Supports any S3-compatible backend: AWS S3, MinIO, Backblaze B2, Cloudflare R2.
+//! Supports any S3-compatible backend: AWS S3, `MinIO`, Backblaze B2, Cloudflare R2.
 
 use aws_config::Region;
 use aws_sdk_s3::{
@@ -51,7 +51,7 @@ pub enum S3Error {
 impl S3Client {
     /// Create a new S3 client from configuration.
     ///
-    /// Supports custom endpoints for S3-compatible backends (MinIO, R2, B2).
+    /// Supports custom endpoints for S3-compatible backends (`MinIO`, R2, B2).
     /// Uses path-style addressing when a custom endpoint is configured.
     pub async fn new(config: &Config) -> Result<Self, S3Error> {
         let region = Region::new(
@@ -163,7 +163,7 @@ impl S3Client {
             .bucket(&self.bucket)
             .send()
             .await
-            .map_err(|e| S3Error::Config(format!("Bucket not accessible: {}", e)))?;
+            .map_err(|e| S3Error::Config(format!("Bucket not accessible: {e}")))?;
 
         Ok(())
     }
@@ -182,6 +182,7 @@ impl S3Client {
     }
 
     /// Get the bucket name.
+    #[must_use] 
     pub fn bucket(&self) -> &str {
         &self.bucket
     }

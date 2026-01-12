@@ -1,6 +1,6 @@
 //! Authentication Commands
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tauri::{command, State};
 use tracing::{debug, error, info};
 
@@ -26,6 +26,7 @@ pub struct RegisterRequest {
 
 /// Token response from server.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TokenResponse {
     access_token: String,
     refresh_token: String,
@@ -47,7 +48,7 @@ struct UserResponse {
 
 impl From<UserResponse> for User {
     fn from(r: UserResponse) -> Self {
-        User {
+        Self {
             id: r.id,
             username: r.username,
             display_name: r.display_name,
@@ -74,7 +75,7 @@ pub async fn login(state: State<'_, AppState>, request: LoginRequest) -> Result<
     // Send login request to server
     let response = state
         .http
-        .post(format!("{}/auth/login", server_url))
+        .post(format!("{server_url}/auth/login"))
         .json(&serde_json::json!({
             "username": request.username,
             "password": request.password
@@ -83,7 +84,7 @@ pub async fn login(state: State<'_, AppState>, request: LoginRequest) -> Result<
         .await
         .map_err(|e| {
             error!("Login request failed: {}", e);
-            format!("Connection failed: {}", e)
+            format!("Connection failed: {e}")
         })?;
 
     if !response.status().is_success() {
@@ -93,13 +94,13 @@ pub async fn login(state: State<'_, AppState>, request: LoginRequest) -> Result<
         return Err(if status.as_u16() == 401 {
             "Invalid username or password".to_string()
         } else {
-            format!("Login failed: {}", status)
+            format!("Login failed: {status}")
         });
     }
 
     let tokens: TokenResponse = response.json().await.map_err(|e| {
         error!("Failed to parse token response: {}", e);
-        format!("Invalid response from server: {}", e)
+        format!("Invalid response from server: {e}")
     })?;
 
     debug!("Login successful, fetching user info");
@@ -107,11 +108,11 @@ pub async fn login(state: State<'_, AppState>, request: LoginRequest) -> Result<
     // Fetch user info with the new token
     let user_response = state
         .http
-        .get(format!("{}/auth/me", server_url))
+        .get(format!("{server_url}/auth/me"))
         .header("Authorization", format!("Bearer {}", tokens.access_token))
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch user info: {}", e))?;
+        .map_err(|e| format!("Failed to fetch user info: {e}"))?;
 
     if !user_response.status().is_success() {
         return Err("Failed to fetch user info".to_string());
@@ -120,7 +121,7 @@ pub async fn login(state: State<'_, AppState>, request: LoginRequest) -> Result<
     let user_data: UserResponse = user_response
         .json()
         .await
-        .map_err(|e| format!("Invalid user response: {}", e))?;
+        .map_err(|e| format!("Invalid user response: {e}"))?;
 
     let user: User = user_data.into();
 
@@ -156,7 +157,7 @@ pub async fn register(
     // Send register request to server
     let response = state
         .http
-        .post(format!("{}/auth/register", server_url))
+        .post(format!("{server_url}/auth/register"))
         .json(&serde_json::json!({
             "username": request.username,
             "email": request.email,
@@ -167,7 +168,7 @@ pub async fn register(
         .await
         .map_err(|e| {
             error!("Registration request failed: {}", e);
-            format!("Connection failed: {}", e)
+            format!("Connection failed: {e}")
         })?;
 
     if !response.status().is_success() {
@@ -187,13 +188,13 @@ pub async fn register(
                 "Invalid input".to_string()
             }
         } else {
-            format!("Registration failed: {}", status)
+            format!("Registration failed: {status}")
         });
     }
 
     let tokens: TokenResponse = response.json().await.map_err(|e| {
         error!("Failed to parse token response: {}", e);
-        format!("Invalid response from server: {}", e)
+        format!("Invalid response from server: {e}")
     })?;
 
     debug!("Registration successful, fetching user info");
@@ -201,11 +202,11 @@ pub async fn register(
     // Fetch user info with the new token
     let user_response = state
         .http
-        .get(format!("{}/auth/me", server_url))
+        .get(format!("{server_url}/auth/me"))
         .header("Authorization", format!("Bearer {}", tokens.access_token))
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch user info: {}", e))?;
+        .map_err(|e| format!("Failed to fetch user info: {e}"))?;
 
     if !user_response.status().is_success() {
         return Err("Failed to fetch user info".to_string());
@@ -214,7 +215,7 @@ pub async fn register(
     let user_data: UserResponse = user_response
         .json()
         .await
-        .map_err(|e| format!("Invalid user response: {}", e))?;
+        .map_err(|e| format!("Invalid user response: {e}"))?;
 
     let user: User = user_data.into();
 
@@ -250,7 +251,7 @@ pub async fn logout(state: State<'_, AppState>) -> Result<(), String> {
     if let (Some(url), Some(token)) = (server_url.as_ref(), refresh_token.as_ref()) {
         let _ = state
             .http
-            .post(format!("{}/auth/logout", url))
+            .post(format!("{url}/auth/logout"))
             .json(&serde_json::json!({ "refresh_token": token }))
             .send()
             .await;
@@ -296,7 +297,7 @@ const KEYRING_SERVICE: &str = "voicechat";
 
 fn keyring_user(server_url: &str) -> String {
     // Use server URL as keyring username to support multiple servers
-    format!("refresh_token:{}", server_url)
+    format!("refresh_token:{server_url}")
 }
 
 fn store_refresh_token(server_url: &str, token: &str) -> Result<(), keyring::Error> {
@@ -304,6 +305,7 @@ fn store_refresh_token(server_url: &str, token: &str) -> Result<(), keyring::Err
     entry.set_password(token)
 }
 
+#[allow(dead_code)]
 fn get_refresh_token(server_url: &str) -> Result<String, keyring::Error> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_user(server_url))?;
     entry.get_password()

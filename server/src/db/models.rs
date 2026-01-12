@@ -40,7 +40,7 @@ pub struct User {
 pub enum AuthMethod {
     /// Local password authentication.
     Local,
-    /// OpenID Connect authentication.
+    /// `OpenID` Connect authentication.
     Oidc,
 }
 

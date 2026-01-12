@@ -1,4 +1,4 @@
-//! VoiceChat Common Library
+//! `VoiceChat` Common Library
 //!
 //! Shared types, protocols, and utilities used by both server and client.
 

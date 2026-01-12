@@ -62,12 +62,12 @@ async fn handle_join(
         .bind(user_id)
         .fetch_one(pool)
         .await
-        .map_err(|e| VoiceError::Signaling(format!("Failed to fetch user info: {}", e)))?;
+        .map_err(|e| VoiceError::Signaling(format!("Failed to fetch user info: {e}")))?;
 
     let username: String = user.try_get("username")
-        .map_err(|e| VoiceError::Signaling(format!("Failed to get username: {}", e)))?;
+        .map_err(|e| VoiceError::Signaling(format!("Failed to get username: {e}")))?;
     let display_name: String = user.try_get("display_name")
-        .map_err(|e| VoiceError::Signaling(format!("Failed to get display_name: {}", e)))?;
+        .map_err(|e| VoiceError::Signaling(format!("Failed to get display_name: {e}")))?;
 
     // Get or create the room
     let room = sfu.get_or_create_room(channel_id).await;

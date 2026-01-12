@@ -80,20 +80,20 @@ pub struct ErrorResponse {
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, code) = match &self {
-            AuthError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS"),
-            AuthError::UserNotFound => (StatusCode::NOT_FOUND, "USER_NOT_FOUND"),
-            AuthError::UserAlreadyExists => (StatusCode::CONFLICT, "USER_EXISTS"),
-            AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "INVALID_TOKEN"),
-            AuthError::TokenExpired => (StatusCode::UNAUTHORIZED, "TOKEN_EXPIRED"),
-            AuthError::MissingAuthHeader => (StatusCode::UNAUTHORIZED, "MISSING_AUTH"),
-            AuthError::InvalidAuthHeader => (StatusCode::UNAUTHORIZED, "INVALID_AUTH_HEADER"),
-            AuthError::MfaRequired => (StatusCode::FORBIDDEN, "MFA_REQUIRED"),
-            AuthError::InvalidMfaCode => (StatusCode::UNAUTHORIZED, "INVALID_MFA"),
-            AuthError::Validation(_) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR"),
-            AuthError::PasswordHash => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
-            AuthError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
-            AuthError::Jwt(_) => (StatusCode::UNAUTHORIZED, "TOKEN_ERROR"),
-            AuthError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
+            Self::InvalidCredentials => (StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS"),
+            Self::UserNotFound => (StatusCode::NOT_FOUND, "USER_NOT_FOUND"),
+            Self::UserAlreadyExists => (StatusCode::CONFLICT, "USER_EXISTS"),
+            Self::InvalidToken => (StatusCode::UNAUTHORIZED, "INVALID_TOKEN"),
+            Self::TokenExpired => (StatusCode::UNAUTHORIZED, "TOKEN_EXPIRED"),
+            Self::MissingAuthHeader => (StatusCode::UNAUTHORIZED, "MISSING_AUTH"),
+            Self::InvalidAuthHeader => (StatusCode::UNAUTHORIZED, "INVALID_AUTH_HEADER"),
+            Self::MfaRequired => (StatusCode::FORBIDDEN, "MFA_REQUIRED"),
+            Self::InvalidMfaCode => (StatusCode::UNAUTHORIZED, "INVALID_MFA"),
+            Self::Validation(_) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR"),
+            Self::PasswordHash => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
+            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
+            Self::Jwt(_) => (StatusCode::UNAUTHORIZED, "TOKEN_ERROR"),
+            Self::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
         };
 
         let body = Json(ErrorResponse {

@@ -4,10 +4,9 @@
 
 use std::sync::Arc;
 
-use tauri::AppHandle;
 use thiserror::Error;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors, media_engine::MediaEngine, APIBuilder,
@@ -26,8 +25,6 @@ use webrtc::{
     rtp_transceiver::{
         rtp_codec::{RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType},
         rtp_sender::RTCRtpSender,
-        rtp_transceiver_direction::RTCRtpTransceiverDirection,
-        RTCRtpTransceiverInit,
     },
     track::track_remote::TrackRemote,
 };
@@ -92,8 +89,10 @@ pub struct WebRtcClient {
     on_state_change: Arc<RwLock<Option<Box<dyn Fn(ConnectionState) + Send + Sync>>>>,
     on_remote_track: Arc<RwLock<Option<Box<dyn Fn(Arc<TrackRemote>) + Send + Sync>>>>,
 
-    // Audio data channels
+    // Audio data channels (reserved for future use)
+    #[allow(dead_code)]
     audio_tx: Arc<RwLock<Option<mpsc::Sender<Vec<u8>>>>>,
+    #[allow(dead_code)]
     audio_rx: Arc<RwLock<Option<mpsc::Receiver<Vec<u8>>>>>,
 }
 
@@ -183,7 +182,7 @@ impl WebRtcClient {
         self.channel_id.read().await.clone()
     }
 
-    /// Create RTCConfiguration from ICE server config
+    /// Create `RTCConfiguration` from ICE server config
     fn create_rtc_config(ice_servers: &[IceServerConfig]) -> RTCConfiguration {
         let ice_servers: Vec<RTCIceServer> = ice_servers
             .iter()

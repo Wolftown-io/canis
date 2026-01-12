@@ -37,7 +37,7 @@ pub async fn get_settings() -> Result<Settings, String> {
 }
 
 #[command]
-pub async fn update_settings(settings: Settings) -> Result<(), String> {
+pub async fn update_settings(_settings: Settings) -> Result<(), String> {
     // TODO: Save to storage
     Ok(())
 }

@@ -1,12 +1,12 @@
 //! Database Integration Tests
 //!
-//! Comprehensive tests for PostgreSQL operations.
+//! Comprehensive tests for `PostgreSQL` operations.
 
 #[cfg(test)]
 mod postgres_tests {
     use super::super::*;
     use sqlx::PgPool;
-    use uuid::Uuid;
+    
 
     // ========================================================================
     // User Tests
@@ -517,7 +517,7 @@ mod postgres_tests {
 
         // Create multiple messages
         for i in 1..=5 {
-            create_message(&pool, channel.id, user.id, &format!("Message {}", i), false, None, None)
+            create_message(&pool, channel.id, user.id, &format!("Message {i}"), false, None, None)
                 .await
                 .expect("Failed to create message");
         }

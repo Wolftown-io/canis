@@ -150,7 +150,7 @@ pub async fn create(
     // Validate voice channel user limit
     if channel_type == ChannelType::Voice {
         if let Some(limit) = body.user_limit {
-            if limit < 1 || limit > 99 {
+            if !(1..=99).contains(&limit) {
                 return Err(ChannelError::Validation(
                     "User limit must be between 1 and 99".to_string(),
                 ));
@@ -281,7 +281,7 @@ pub async fn add_member(
 }
 
 /// Remove a member from a channel.
-/// DELETE /api/channels/:id/members/:user_id
+/// DELETE /`api/channels/:id/members/:user_id`
 pub async fn remove_member(
     State(state): State<AppState>,
     _auth_user: AuthUser,

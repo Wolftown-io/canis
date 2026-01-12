@@ -11,7 +11,7 @@ pub struct Config {
     /// Server bind address (e.g., "0.0.0.0:8080")
     pub bind_address: String,
 
-    /// PostgreSQL connection URL
+    /// `PostgreSQL` connection URL
     pub database_url: String,
 
     /// Redis connection URL
@@ -111,19 +111,22 @@ impl Config {
     }
 
     /// Check if OIDC is configured.
-    pub fn has_oidc(&self) -> bool {
+    #[must_use] 
+    pub const fn has_oidc(&self) -> bool {
         self.oidc_issuer_url.is_some()
             && self.oidc_client_id.is_some()
             && self.oidc_client_secret.is_some()
     }
 
     /// Check if TURN is configured.
-    pub fn has_turn(&self) -> bool {
+    #[must_use] 
+    pub const fn has_turn(&self) -> bool {
         self.turn_server.is_some()
     }
 
     /// Create a default configuration for testing.
     #[cfg(any(test, feature = "test-utils"))]
+    #[must_use] 
     pub fn default_for_test() -> Self {
         Self {
             bind_address: "127.0.0.1:8080".into(),

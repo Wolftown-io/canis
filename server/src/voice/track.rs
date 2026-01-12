@@ -32,7 +32,7 @@ struct Subscription {
 
 /// Manages RTP packet forwarding between participants.
 pub struct TrackRouter {
-    /// Map: source_user_id -> list of subscriptions
+    /// Map: `source_user_id` -> list of subscriptions
     subscriptions: RwLock<HashMap<Uuid, Vec<Subscription>>>,
 }
 
@@ -56,13 +56,13 @@ impl TrackRouter {
         // Create a local track with the same codec as the source
         let local_track = Arc::new(TrackLocalStaticRTP::new(
             RTCRtpCodecCapability {
-                mime_type: source_track.codec().capability.mime_type.clone(),
+                mime_type: source_track.codec().capability.mime_type,
                 clock_rate: source_track.codec().capability.clock_rate,
                 channels: source_track.codec().capability.channels,
-                sdp_fmtp_line: source_track.codec().capability.sdp_fmtp_line.clone(),
+                sdp_fmtp_line: source_track.codec().capability.sdp_fmtp_line,
                 rtcp_feedback: vec![],
             },
-            format!("audio-{}", source_user_id),
+            format!("audio-{source_user_id}"),
             format!("voice-{}-{}", source_user_id, subscriber.user_id),
         ));
 
@@ -150,7 +150,7 @@ impl TrackRouter {
     /// Get the number of subscribers for a source.
     pub async fn subscriber_count(&self, source_user_id: Uuid) -> usize {
         let subs = self.subscriptions.read().await;
-        subs.get(&source_user_id).map(|s| s.len()).unwrap_or(0)
+        subs.get(&source_user_id).map_or(0, std::vec::Vec::len)
     }
 }
 

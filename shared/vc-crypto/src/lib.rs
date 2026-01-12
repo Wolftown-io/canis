@@ -1,4 +1,4 @@
-//! VoiceChat E2EE Cryptography
+//! `VoiceChat` E2EE Cryptography
 //!
 //! End-to-end encryption using vodozemac (Olm/Megolm).
 //!
