@@ -72,6 +72,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/messages", chat::messages_router())
         .nest("/api/guilds", guild::router())
         .nest("/api", social::router())
+        .nest("/api/dm", chat::dm_router())
         .nest("/api/voice", voice::router())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

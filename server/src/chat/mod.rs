@@ -3,6 +3,7 @@
 //! Handles channels, messages, and file uploads.
 
 mod channels;
+mod dm;
 mod messages;
 pub mod s3;
 mod uploads;
@@ -49,4 +50,13 @@ pub fn messages_router() -> Router<AppState> {
 /// The download route accepts auth via query parameter for browser requests.
 pub fn messages_public_router() -> Router<AppState> {
     Router::new().route("/attachments/:id/download", get(uploads::download))
+}
+
+/// Create DM (Direct Message) router.
+pub fn dm_router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(dm::list_dms).post(dm::create_dm))
+        .route("/:id", get(dm::get_dm))
+        .route("/:id/leave", post(dm::leave_dm))
+        .route("/:id/read", post(dm::mark_as_read))
 }
