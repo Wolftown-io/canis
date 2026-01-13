@@ -40,6 +40,26 @@ pub struct DMResponse {
     pub participants: Vec<DMParticipant>,
 }
 
+/// Last message info for DM list preview
+#[derive(Debug, Serialize)]
+pub struct LastMessagePreview {
+    pub id: Uuid,
+    pub content: String,
+    pub user_id: Uuid,
+    pub username: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Enhanced DM response with unread count and last message
+#[derive(Debug, Serialize)]
+pub struct DMListResponse {
+    #[serde(flatten)]
+    pub channel: ChannelResponse,
+    pub participants: Vec<DMParticipant>,
+    pub last_message: Option<LastMessagePreview>,
+    pub unread_count: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DMParticipant {
     pub user_id: Uuid,
@@ -293,17 +313,72 @@ pub async fn create_dm(
 pub async fn list_dms(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> Result<Json<Vec<DMResponse>>, ChannelError> {
+) -> Result<Json<Vec<DMListResponse>>, ChannelError> {
     let channels = list_user_dms(&state.db, auth.id).await?;
 
     let mut responses = Vec::new();
     for channel in channels {
         let participants = get_dm_participants(&state.db, channel.id).await?;
-        responses.push(DMResponse {
+
+        // Get last message
+        let last_message = sqlx::query_as!(
+            LastMessagePreview,
+            r#"SELECT m.id, m.content, m.user_id, u.username, m.created_at
+               FROM messages m
+               JOIN users u ON u.id = m.user_id
+               WHERE m.channel_id = $1
+               ORDER BY m.created_at DESC
+               LIMIT 1"#,
+            channel.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        // Get unread count
+        let read_state_row = sqlx::query!(
+            r#"SELECT last_read_at FROM dm_read_state
+               WHERE user_id = $1 AND channel_id = $2"#,
+            auth.id,
+            channel.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        let unread_count = if let Some(read_state) = read_state_row {
+            sqlx::query!(
+                r#"SELECT COUNT(*) as "count!" FROM messages
+                   WHERE channel_id = $1 AND created_at > $2"#,
+                channel.id,
+                read_state.last_read_at
+            )
+            .fetch_one(&state.db)
+            .await?
+            .count
+        } else {
+            // No read state = all messages are unread
+            sqlx::query!(
+                r#"SELECT COUNT(*) as "count!" FROM messages WHERE channel_id = $1"#,
+                channel.id
+            )
+            .fetch_one(&state.db)
+            .await?
+            .count
+        };
+
+        responses.push(DMListResponse {
             channel: channel.into(),
             participants,
+            last_message,
+            unread_count,
         });
     }
+
+    // Sort by last message time (most recent first)
+    responses.sort_by(|a, b| {
+        let a_time = a.last_message.as_ref().map(|m| m.created_at);
+        let b_time = b.last_message.as_ref().map(|m| m.created_at);
+        b_time.cmp(&a_time)
+    });
 
     Ok(Json(responses))
 }
