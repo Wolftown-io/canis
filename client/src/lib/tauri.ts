@@ -719,6 +719,7 @@ export async function markDMAsRead(
   });
 }
 
+
 // Voice Commands (browser mode stubs - voice requires Tauri)
 
 export async function joinVoice(channelId: string): Promise<void> {
