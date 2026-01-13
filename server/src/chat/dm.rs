@@ -40,6 +40,26 @@ pub struct DMResponse {
     pub participants: Vec<DMParticipant>,
 }
 
+/// Last message info for DM list preview
+#[derive(Debug, Serialize)]
+pub struct LastMessagePreview {
+    pub id: Uuid,
+    pub content: String,
+    pub user_id: Uuid,
+    pub username: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Enhanced DM response with unread count and last message
+#[derive(Debug, Serialize)]
+pub struct DMListResponse {
+    #[serde(flatten)]
+    pub channel: ChannelResponse,
+    pub participants: Vec<DMParticipant>,
+    pub last_message: Option<LastMessagePreview>,
+    pub unread_count: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DMParticipant {
     pub user_id: Uuid,
@@ -293,17 +313,72 @@ pub async fn create_dm(
 pub async fn list_dms(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> Result<Json<Vec<DMResponse>>, ChannelError> {
+) -> Result<Json<Vec<DMListResponse>>, ChannelError> {
     let channels = list_user_dms(&state.db, auth.id).await?;
 
     let mut responses = Vec::new();
     for channel in channels {
         let participants = get_dm_participants(&state.db, channel.id).await?;
-        responses.push(DMResponse {
+
+        // Get last message
+        let last_message = sqlx::query_as!(
+            LastMessagePreview,
+            r#"SELECT m.id, m.content, m.user_id, u.username, m.created_at
+               FROM messages m
+               JOIN users u ON u.id = m.user_id
+               WHERE m.channel_id = $1
+               ORDER BY m.created_at DESC
+               LIMIT 1"#,
+            channel.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        // Get unread count
+        let read_state_row = sqlx::query!(
+            r#"SELECT last_read_at FROM dm_read_state
+               WHERE user_id = $1 AND channel_id = $2"#,
+            auth.id,
+            channel.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        let unread_count = if let Some(read_state) = read_state_row {
+            sqlx::query!(
+                r#"SELECT COUNT(*) as "count!" FROM messages
+                   WHERE channel_id = $1 AND created_at > $2"#,
+                channel.id,
+                read_state.last_read_at
+            )
+            .fetch_one(&state.db)
+            .await?
+            .count
+        } else {
+            // No read state = all messages are unread
+            sqlx::query!(
+                r#"SELECT COUNT(*) as "count!" FROM messages WHERE channel_id = $1"#,
+                channel.id
+            )
+            .fetch_one(&state.db)
+            .await?
+            .count
+        };
+
+        responses.push(DMListResponse {
             channel: channel.into(),
             participants,
+            last_message,
+            unread_count,
         });
     }
+
+    // Sort by last message time (most recent first)
+    responses.sort_by(|a, b| {
+        let a_time = a.last_message.as_ref().map(|m| m.created_at);
+        let b_time = b.last_message.as_ref().map(|m| m.created_at);
+        b_time.cmp(&a_time)
+    });
 
     Ok(Json(responses))
 }
@@ -391,4 +466,79 @@ pub async fn leave_dm(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ============================================================================
+// Mark as Read
+// ============================================================================
+
+/// Mark DM as read request body
+#[derive(Debug, Deserialize)]
+pub struct MarkAsReadRequest {
+    pub last_read_message_id: Option<Uuid>,
+}
+
+/// Mark DM as read response
+#[derive(Debug, Serialize)]
+pub struct MarkAsReadResponse {
+    pub channel_id: Uuid,
+    pub last_read_at: chrono::DateTime<chrono::Utc>,
+    pub last_read_message_id: Option<Uuid>,
+    pub unread_count: i64,
+}
+
+/// Mark a DM channel as read
+/// POST /api/dm/:id/read
+pub async fn mark_as_read(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(channel_id): Path<Uuid>,
+    Json(body): Json<MarkAsReadRequest>,
+) -> Result<Json<MarkAsReadResponse>, ChannelError> {
+    // Verify channel exists and user is a participant
+    let channel = db::find_channel_by_id(&state.db, channel_id)
+        .await?
+        .ok_or(ChannelError::NotFound)?;
+
+    if channel.channel_type != ChannelType::Dm {
+        return Err(ChannelError::NotFound);
+    }
+
+    let is_participant = sqlx::query!(
+        "SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2) as \"exists!\"",
+        channel_id,
+        auth.id
+    )
+    .fetch_one(&state.db)
+    .await?
+    .exists;
+
+    if !is_participant {
+        return Err(ChannelError::Forbidden);
+    }
+
+    let now = chrono::Utc::now();
+
+    // Upsert read state
+    sqlx::query!(
+        r#"INSERT INTO dm_read_state (user_id, channel_id, last_read_at, last_read_message_id)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (user_id, channel_id)
+           DO UPDATE SET last_read_at = $3, last_read_message_id = $4"#,
+        auth.id,
+        channel_id,
+        now,
+        body.last_read_message_id
+    )
+    .execute(&state.db)
+    .await?;
+
+    // TODO: Broadcast dm_read event to all user's WebSocket sessions
+
+    Ok(Json(MarkAsReadResponse {
+        channel_id,
+        last_read_at: now,
+        last_read_message_id: body.last_read_message_id,
+        unread_count: 0,
+    }))
 }

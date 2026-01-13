@@ -16,7 +16,7 @@ import CommandPalette from "@/components/layout/CommandPalette";
 import MessageList from "@/components/messages/MessageList";
 import MessageInput from "@/components/messages/MessageInput";
 import TypingIndicator from "@/components/messages/TypingIndicator";
-import { FriendsList } from "@/components/social";
+import { HomeView } from "@/components/home";
 import { selectedChannel } from "@/stores/channels";
 import { loadGuilds, guildsState } from "@/stores/guilds";
 
@@ -78,8 +78,8 @@ const Main: Component = () => {
             </Show>
           }
         >
-          {/* Home View - Friends List */}
-          <FriendsList />
+          {/* Home View - DMs and Friends */}
+          <HomeView />
         </Show>
       </AppShell>
     </>

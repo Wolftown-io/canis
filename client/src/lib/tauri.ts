@@ -14,10 +14,11 @@ import type {
   Friend,
   Friendship,
   DMChannel,
+  DMListItem,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, Message, AppSettings, Guild, GuildMember, Friend, Friendship, DMChannel };
+export type { User, Channel, Message, AppSettings, Guild, GuildMember, Friend, Friendship, DMChannel, DMListItem };
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -693,6 +694,29 @@ export async function leaveDM(channelId: string): Promise<void> {
   }
 
   await httpRequest<void>("POST", `/api/dm/${channelId}/leave`);
+}
+
+export async function getDMList(): Promise<DMListItem[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_dm_list");
+  }
+
+  return httpRequest<DMListItem[]>("GET", "/api/dm");
+}
+
+export async function markDMAsRead(
+  channelId: string,
+  lastReadMessageId?: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("mark_dm_as_read", { channelId, lastReadMessageId });
+  }
+
+  await httpRequest<void>("POST", `/api/dm/${channelId}/read`, {
+    last_read_message_id: lastReadMessageId,
+  });
 }
 
 // Voice Commands (browser mode stubs - voice requires Tauri)

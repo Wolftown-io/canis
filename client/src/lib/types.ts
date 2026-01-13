@@ -230,3 +230,28 @@ export interface DMChannel {
   channel: Channel;
   participants: DMParticipant[];
 }
+
+// Enhanced DM types for Home view
+
+export interface LastMessagePreview {
+  id: string;
+  content: string;
+  user_id: string;
+  username: string;
+  created_at: string;
+}
+
+export interface DMListItem {
+  id: string;
+  name: string;
+  channel_type: ChannelType;
+  category_id: string | null;
+  guild_id: string | null;
+  topic: string | null;
+  user_limit: number | null;
+  position: number;
+  created_at: string;
+  participants: DMParticipant[];
+  last_message: LastMessagePreview | null;
+  unread_count: number;
+}
