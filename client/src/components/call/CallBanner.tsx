@@ -9,7 +9,6 @@ import { Component, Show, createSignal, createEffect, onCleanup } from "solid-js
 import { Phone, PhoneOff, PhoneIncoming, PhoneOutgoing, Users } from "lucide-solid";
 import {
   callState,
-  getCurrentCall,
   joinCall,
   declineCall,
   endCall,
