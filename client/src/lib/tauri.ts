@@ -11,6 +11,9 @@ import type {
   AppSettings,
   Guild,
   GuildMember,
+  GuildInvite,
+  InviteResponse,
+  InviteExpiry,
   Friend,
   Friendship,
   DMChannel,
@@ -18,7 +21,7 @@ import type {
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, Message, AppSettings, Guild, GuildMember, Friend, Friendship, DMChannel, DMListItem };
+export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem };
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -576,6 +579,73 @@ export async function getGuildChannels(guildId: string): Promise<Channel[]> {
   }
 
   return httpRequest<Channel[]>("GET", `/api/guilds/${guildId}/channels`);
+}
+
+// Guild Invite Commands
+
+/**
+ * Get invites for a guild (owner only)
+ */
+export async function getGuildInvites(guildId: string): Promise<GuildInvite[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_guild_invites", { guildId });
+  }
+
+  return httpRequest<GuildInvite[]>("GET", `/api/guilds/${guildId}/invites`);
+}
+
+/**
+ * Create a new invite for a guild (owner only)
+ */
+export async function createGuildInvite(
+  guildId: string,
+  expiresIn: InviteExpiry = "7d"
+): Promise<GuildInvite> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("create_guild_invite", { guildId, expiresIn });
+  }
+
+  return httpRequest<GuildInvite>("POST", `/api/guilds/${guildId}/invites`, {
+    expires_in: expiresIn,
+  });
+}
+
+/**
+ * Delete/revoke an invite (owner only)
+ */
+export async function deleteGuildInvite(guildId: string, code: string): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("delete_guild_invite", { guildId, code });
+  }
+
+  await httpRequest<void>("DELETE", `/api/guilds/${guildId}/invites/${code}`);
+}
+
+/**
+ * Join a guild via invite code
+ */
+export async function joinViaInvite(code: string): Promise<InviteResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("join_via_invite", { code });
+  }
+
+  return httpRequest<InviteResponse>("POST", `/api/invites/${code}/join`);
+}
+
+/**
+ * Kick a member from a guild (owner only)
+ */
+export async function kickGuildMember(guildId: string, userId: string): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("kick_guild_member", { guildId, userId });
+  }
+
+  await httpRequest<void>("DELETE", `/api/guilds/${guildId}/members/${userId}`);
 }
 
 // Friends Commands
