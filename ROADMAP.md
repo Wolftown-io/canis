@@ -2,9 +2,9 @@
 
 This roadmap outlines the development path from the current prototype to a production-ready, multi-tenant SaaS platform.
 
-**Current Phase:** Phase 2 (Rich Interactions & Modern UX) - Near Complete
+**Current Phase:** Phase 3 (Guild Architecture & Security) - In Progress
 
-**Last Updated:** 2026-01-13
+**Last Updated:** 2026-01-14
 
 ## Quick Status Overview
 
@@ -13,7 +13,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 0** | ✅ Complete | 100% | N+1 fix, WebRTC optimization, MFA encryption |
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
 | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
-| **Phase 3** | 📋 Planned | 5% | Guild store skeleton prepared |
+| **Phase 3** | 🔄 In Progress | 75% | Guild system, Friends, DMs, Home View, Permission system design |
 | **Phase 4** | 📋 Planned | 0% | - |
 | **Phase 5** | 📋 Planned | 0% | - |
 
@@ -158,28 +158,40 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Phase 3: Guild Architecture & Security (The Big Refactor)
 *Goal: Transform from "Simple Chat" to "Multi-Server Platform" (Discord-like architecture).*
 
-- [ ] **[DB] Guild (Server) Entity**
-  - Create `guilds` table (`id`, `name`, `owner_id`, `icon`).
-  - **Migration:** Move `channels` and `roles` to belong to `guild_id`.
-  - **Migration:** Refactor `channel_members` into `guild_members`.
-- [ ] **[Social] Friends & Status System** `New`
-  - **DB:** Create `friendships` table (pending/accepted/blocked).
-  - **API:** Implement Friend Request system (add/accept/block).
-  - **Status:** Custom status messages ("Vacation 🌴") and "Invisible" mode.
-  - **Real-time:** Fan-out presence updates to friends only.
-- [ ] **[Chat] Direct Messages & Group DMs** `New`
-  - Create `dm_channels` or reuse `channels` with `type='dm'` / `type='group'`.
-  - **Group DMs:** Ad-hoc groups (max 10) created from Friends List.
-  - Implement "Home" view for DM list.
-  - **Security:** Enforce E2E encryption (Signal/Olm) for DMs.
-- [ ] **[UI] Server Rail & Navigation**
-  - Implement the vertical "Server List" sidebar on the left.
-  - Build "Context Switching" logic (clicking a server loads its channels).
-- [ ] **[UX] Unified Home View** `New`
-  - Create a "Home" dashboard aggregating Mentions, Online Friends, and Active Voice across all servers.
-- [ ] **[Auth] Context-Aware RBAC**
-  - Implement permissions scoped to a Guild (e.g., "Admin" is only valid in Server A).
+- [x] **[DB] Guild (Server) Entity** ✅
+  - Created `guilds` table with full CRUD operations.
+  - Channels now belong to `guild_id`.
+  - Guild members with join/leave functionality.
+  - **Location:** `server/src/guild/`, `server/migrations/20240201000000_guilds.sql`
+- [x] **[Social] Friends & Status System** ✅
+  - **DB:** `friendships` table (pending/accepted/blocked).
+  - **API:** Friend Request system (send/accept/reject/block).
+  - **UI:** FriendsList component with tabs, AddFriend modal.
+  - **Location:** `server/src/social/`, `client/src/components/friends/`
+- [x] **[Chat] Direct Messages & Group DMs** ✅
+  - Reused `channels` with `type='dm'`.
+  - DM creation, listing, leave functionality.
+  - **Location:** `server/src/chat/dm.rs`
+- [x] **[UI] Server Rail & Navigation** ✅
+  - Vertical Server List sidebar (ServerRail).
+  - Context switching between guilds.
+  - **Location:** `client/src/components/layout/ServerRail.tsx`
+- [x] **[UX] Unified Home View** ✅
+  - Home dashboard with DM sidebar and conversations.
+  - Unread counts, last message previews.
+  - **Location:** `client/src/components/home/`
+- [x] **[Auth] Permission System Design** ✅
+  - Comprehensive design document for role-based permissions.
+  - **Location:** `docs/plans/permission-system-design-2026-01-13.md`
+- [ ] **[Auth] Permission System Implementation**
+  - Implement permissions scoped to Guild.
   - Define default roles (`@everyone`).
+  - **Design:** `docs/plans/permission-system-implementation-2026-01-13.md`
+- [ ] **[Voice] DM Voice Calls** `New` `Designed`
+  - Voice calling in DM and group DM conversations.
+  - Call signaling via Redis Streams, reuses existing SFU.
+  - Join/Decline flow with configurable notifications.
+  - **Design:** `docs/plans/2026-01-14-dm-voice-calls-design.md`
 - [ ] **[Security] Rate Limiting**
   - Integrate `tower-governor` to protect API endpoints from spam/DoS.
 
