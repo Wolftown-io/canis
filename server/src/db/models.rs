@@ -86,6 +86,7 @@ pub struct Channel {
 /// Channel type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "channel_type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum ChannelType {
     /// Text chat channel.
     Text,
