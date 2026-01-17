@@ -14,29 +14,30 @@ This guide covers setting up the VoiceChat development environment.
 
 ### 1. Start Development Services
 
-Start PostgreSQL, Redis, MinIO, and MailHog:
+Start PostgreSQL and Redis:
 
 ```bash
-docker compose -f infra/compose/docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 This starts:
-- **PostgreSQL** on port 5433 (user: `voicechat`, password: `devpassword`)
+- **PostgreSQL** on port 5433 (user: `voicechat`, password: `voicechat_dev_pass`)
 - **Redis** on port 6379
-- **MinIO** on ports 9000-9001 (admin UI: http://localhost:9001)
-- **MailHog** on ports 1025 (SMTP) and 8025 (web UI: http://localhost:8025)
 
 ### 2. Configure Environment
 
-The server `.env` file should already be configured correctly:
+Copy the example environment file and verify the configuration:
 
 ```bash
-# Verify server/.env has the correct database password
-cat server/.env | grep DATABASE_URL
-# Should show: postgresql://voicechat:devpassword@localhost:5433/voicechat
+# If .env doesn't exist, copy from example
+cp .env.example .env
+
+# Verify the database password matches docker-compose.dev.yml
+cat .env | grep DATABASE_URL
+# Should show: postgres://voicechat:voicechat_dev_pass@localhost:5433/voicechat
 ```
 
-**Important**: The development database password is `devpassword` (as configured in `infra/compose/docker-compose.dev.yml`), not `voicechat_dev_pass`.
+**Important**: The development database password is `voicechat_dev_pass` (as configured in `docker-compose.dev.yml`).
 
 ### 3. Run Database Migrations
 
@@ -48,23 +49,33 @@ sqlx migrate run
 ### 4. Start the Server
 
 ```bash
-cd server
-cargo run
+cargo run -p vc-server
 ```
 
 The server will start on http://localhost:8080
 
-### 5. Start the Client
+### 5. Start the Client (Tauri Desktop)
 
 In a new terminal:
 
 ```bash
 cd client
 bun install
+bun run tauri dev
+```
+
+This starts both the Vite dev server and the Tauri desktop app.
+
+### 5a. Start the Web Frontend Only
+
+For web-only development (no Tauri):
+
+```bash
+cd client
 bun run dev
 ```
 
-The client will start on http://localhost:5173
+The web frontend will be available at http://localhost:5173
 
 ## Troubleshooting
 
@@ -74,23 +85,23 @@ If you see "password authentication failed for user 'voicechat'":
 
 1. Check that Docker containers are running:
    ```bash
-   docker ps --filter "name=voicechat"
+   docker compose -f docker-compose.dev.yml ps
    ```
 
-2. Verify the password in `server/.env` matches the Docker container:
+2. Verify the password in `.env` matches the Docker container:
    ```bash
    # Check container environment
-   docker exec voicechat-dev-postgres env | grep POSTGRES_PASSWORD
-   # Should show: POSTGRES_PASSWORD=devpassword
+   docker exec voicechat-postgres-dev env | grep POSTGRES_PASSWORD
+   # Should show: POSTGRES_PASSWORD=voicechat_dev_pass
 
    # Check .env file
-   grep DATABASE_URL server/.env
-   # Should include: password=devpassword
+   grep DATABASE_URL .env
+   # Should include: voicechat_dev_pass
    ```
 
-3. If the password is wrong, update `server/.env`:
+3. If the password is wrong, update `.env`:
    ```
-   DATABASE_URL=postgresql://voicechat:devpassword@localhost:5433/voicechat
+   DATABASE_URL=postgres://voicechat:voicechat_dev_pass@localhost:5433/voicechat
    ```
 
 ### Port Already in Use
@@ -110,27 +121,27 @@ lsof -ti:8080 | xargs kill
 ### Reset Database
 
 ```bash
-# Stop all containers
-docker compose -f infra/compose/docker-compose.dev.yml down -v
+# Stop all containers and remove volumes
+docker compose -f docker-compose.dev.yml down -v
 
 # Start fresh
-docker compose -f infra/compose/docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # Wait for PostgreSQL to be ready
 sleep 3
 
-# Run migrations
-cd server && sqlx migrate run
+# Run migrations (server does this automatically on startup)
+cargo run -p vc-server
 ```
 
 ### Access Database
 
 ```bash
 # Using docker exec
-docker exec -it voicechat-dev-postgres psql -U voicechat -d voicechat
+docker exec -it voicechat-postgres-dev psql -U voicechat -d voicechat
 
 # Or using psql from host
-PGPASSWORD=devpassword psql -h localhost -p 5433 -U voicechat -d voicechat
+PGPASSWORD=voicechat_dev_pass psql -h localhost -p 5433 -U voicechat -d voicechat
 ```
 
 ## Phase 3 Development Status

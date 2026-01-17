@@ -67,6 +67,7 @@ pub struct ChannelResponse {
     pub topic: Option<String>,
     pub user_limit: Option<i32>,
     pub position: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl From<db::Channel> for ChannelResponse {
@@ -84,6 +85,7 @@ impl From<db::Channel> for ChannelResponse {
             topic: ch.topic,
             user_limit: ch.user_limit,
             position: ch.position,
+            created_at: ch.created_at,
         }
     }
 }

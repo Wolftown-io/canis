@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 3 (Guild Architecture & Security) - In Progress
 
-**Last Updated:** 2026-01-14
+**Last Updated:** 2026-01-16
 
 ## Quick Status Overview
 
@@ -192,6 +192,13 @@ This roadmap outlines the development path from the current prototype to a produ
   - Call signaling via Redis Streams, reuses existing SFU.
   - Join/Decline flow with configurable notifications.
   - **Design:** `docs/plans/2026-01-14-dm-voice-calls-design.md`
+- [ ] **[Content] Information Pages** `New` `Designed`
+  - Platform-wide pages (ToS, Privacy Policy) in Home view.
+  - Guild-level pages (Rules, FAQ) in sidebar above channels.
+  - Markdown editor with Mermaid diagram support.
+  - Role-based visibility and optional acceptance requirements.
+  - Platform admin role system for managing platform pages.
+  - **Design:** `docs/plans/2026-01-16-information-pages-design.md`
 - [ ] **[Security] Rate Limiting**
   - Integrate `tower-governor` to protect API endpoints from spam/DoS.
 
@@ -208,11 +215,24 @@ This roadmap outlines the development path from the current prototype to a produ
   - Allow pinning channels from different guilds into a single "Favorites" list.
 - [ ] **[Auth] SSO / OIDC Integration**
   - Enable "Login with Google/Microsoft" via `openidconnect`.
+- [ ] **[Security] E2EE Key Backup & Recovery** `New` `Designed`
+  - Element X-style Security Key (256-bit random, Base58-encoded).
+  - Optional backup after registration, skippable with reminder.
+  - QR-code transfer between devices (60s timeout, optional PIN).
+  - Full key verification with paste support before backup completion.
+  - Auto-clear clipboard after 60s with visible countdown.
+  - Key rotation with re-encryption when old key available.
+  - **Design:** `docs/plans/2026-01-17-recovery-key-design.md`
 - [ ] **[Voice] Screen Sharing**
   - Update SFU to handle multiple video tracks (Webcam + Screen).
   - Update Client UI to render "Filmstrip" or "Grid" layouts.
 - [ ] **[Client] Mobile Support**
   - Adapt Tauri frontend for mobile or begin Flutter/Native implementation.
+- [ ] **[Content] Information Pages v2** `Future`
+  - Full version history with diff view.
+  - Public pages (accessible without login).
+  - Page templates and search.
+  - PDF export functionality.
 
 ---
 
