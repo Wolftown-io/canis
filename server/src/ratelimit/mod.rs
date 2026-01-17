@@ -7,10 +7,12 @@ pub mod config;
 pub mod constants;
 pub mod error;
 pub mod ip;
+pub mod limiter;
 pub mod types;
 
 pub use config::*;
 pub use constants::*;
 pub use error::*;
 pub use ip::*;
+pub use limiter::*;
 pub use types::*;
