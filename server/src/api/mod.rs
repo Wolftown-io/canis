@@ -2,7 +2,8 @@
 //!
 //! Central routing configuration and shared state.
 
-use axum::{extract::DefaultBodyLimit, routing::get, Router};
+use axum::{extract::DefaultBodyLimit, extract::State, middleware::from_fn, middleware::from_fn_with_state, routing::get, Json, Router};
+use serde::Serialize;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower_http::{
@@ -12,7 +13,9 @@ use tower_http::{
 };
 
 use crate::{
-    auth, chat, chat::S3Client, config::Config, guild, social, voice, voice::SfuServer, ws,
+    auth, chat, chat::S3Client, config::Config, guild,
+    ratelimit::{rate_limit_by_user, with_category, RateLimitCategory, RateLimiter},
+    social, voice, voice::SfuServer, ws,
 };
 
 /// Shared application state.
@@ -28,6 +31,8 @@ pub struct AppState {
     pub s3: Option<S3Client>,
     /// SFU server for voice channels
     pub sfu: Arc<SfuServer>,
+    /// Rate limiter (optional, uses Redis)
+    pub rate_limiter: Option<RateLimiter>,
 }
 
 impl AppState {
@@ -39,6 +44,7 @@ impl AppState {
         config: Config,
         s3: Option<S3Client>,
         sfu: SfuServer,
+        rate_limiter: Option<RateLimiter>,
     ) -> Self {
         Self {
             db,
@@ -46,6 +52,7 @@ impl AppState {
             config: Arc::new(config),
             s3,
             sfu: Arc::new(sfu),
+            rate_limiter,
         }
     }
 
@@ -66,20 +73,28 @@ pub fn create_router(state: AppState) -> Router {
     // Get max upload size from config (default 50MB)
     let max_upload_size = state.config.max_upload_size;
 
-    // Protected routes that require authentication
-    let protected_routes = Router::new()
+    // Social routes with Social rate limit category (20 req/60s)
+    let social_routes = social::router()
+        .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
+        .layer(from_fn(with_category(RateLimitCategory::Social)));
+
+    // Other API routes with Write rate limit category (30 req/60s)
+    let api_routes = Router::new()
         .nest("/api/channels", chat::channels_router())
         .nest("/api/messages", chat::messages_router())
         .nest("/api/guilds", guild::router())
         .nest("/api/invites", guild::invite_router())
-        .nest("/api", social::router())
         .nest("/api/dm", chat::dm_router())
         .nest("/api/dm", voice::call_handlers::call_router())
         .nest("/api/voice", voice::router())
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            auth::require_auth,
-        ));
+        .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
+        .layer(from_fn(with_category(RateLimitCategory::Write)));
+
+    // Protected routes that require authentication
+    let protected_routes = Router::new()
+        .merge(api_routes)
+        .nest("/api", social_routes)
+        .layer(from_fn_with_state(state.clone(), auth::require_auth));
 
     Router::new()
         // Health check
@@ -104,9 +119,21 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// Health check response.
+#[derive(Serialize)]
+struct HealthResponse {
+    /// Service status
+    status: &'static str,
+    /// Whether rate limiting is enabled
+    rate_limiting: bool,
+}
+
 /// Health check endpoint.
-async fn health_check() -> &'static str {
-    "OK"
+async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok",
+        rate_limiting: state.rate_limiter.is_some(),
+    })
 }
 
 /// API documentation routes.

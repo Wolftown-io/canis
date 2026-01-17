@@ -68,8 +68,32 @@ async fn main() -> Result<()> {
     let sfu = voice::SfuServer::new(std::sync::Arc::new(config.clone()))?;
     info!("Voice SFU server initialized");
 
+    // Initialize rate limiter (optional)
+    let rate_limiter = {
+        use vc_server::ratelimit::{RateLimitConfig, RateLimiter};
+
+        let rl_config = RateLimitConfig::from_env();
+        if rl_config.enabled {
+            // Clone redis for rate limiter
+            let mut limiter = RateLimiter::new(redis.clone(), rl_config);
+            match limiter.init().await {
+                Ok(()) => {
+                    info!("Rate limiter initialized");
+                    Some(limiter)
+                }
+                Err(e) => {
+                    tracing::warn!("Rate limiter initialization failed: {}. Rate limiting disabled.", e);
+                    None
+                }
+            }
+        } else {
+            info!("Rate limiting disabled by configuration");
+            None
+        }
+    };
+
     // Build application state
-    let state = api::AppState::new(db_pool, redis, config.clone(), s3, sfu);
+    let state = api::AppState::new(db_pool, redis, config.clone(), s3, sfu, rate_limiter);
 
     // Build router
     let app = api::create_router(state);

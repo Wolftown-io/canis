@@ -85,7 +85,7 @@ impl Default for RateLimits {
             auth_password_reset: LimitConfig { requests: 2, window_secs: 60 },
             auth_other: LimitConfig { requests: 20, window_secs: 60 },
             write: LimitConfig { requests: 30, window_secs: 60 },
-            social: LimitConfig { requests: 10, window_secs: 60 },
+            social: LimitConfig { requests: 20, window_secs: 60 },
             read: LimitConfig { requests: 200, window_secs: 60 },
             ws_connect: LimitConfig { requests: 10, window_secs: 60 },
             ws_message: LimitConfig { requests: 60, window_secs: 60 },

@@ -17,6 +17,9 @@ use axum::{
 };
 
 use crate::api::AppState;
+use crate::ratelimit::{
+    check_ip_not_blocked, rate_limit_by_ip, with_category, RateLimitCategory,
+};
 
 pub use error::{AuthError, AuthResult};
 pub use middleware::{require_auth, AuthUser};
@@ -39,14 +42,54 @@ pub use middleware::{require_auth, AuthUser};
 /// - POST /mfa/verify - Verify MFA
 /// - POST /mfa/disable - Disable MFA
 pub fn router(state: AppState) -> Router<AppState> {
-    // Public routes (no auth required)
-    let public_routes = Router::new()
-        .route("/register", post(handlers::register))
+    // Login route with IP block check and rate limiting
+    let login_route = Router::new()
         .route("/login", post(handlers::login))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_by_ip,
+        ))
+        .layer(axum_middleware::from_fn(with_category(
+            RateLimitCategory::AuthLogin,
+        )))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            check_ip_not_blocked,
+        ));
+
+    // Register route with rate limiting
+    let register_route = Router::new()
+        .route("/register", post(handlers::register))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_by_ip,
+        ))
+        .layer(axum_middleware::from_fn(with_category(
+            RateLimitCategory::AuthRegister,
+        )));
+
+    // Refresh route with rate limiting
+    let refresh_route = Router::new()
         .route("/refresh", post(handlers::refresh_token))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_by_ip,
+        ))
+        .layer(axum_middleware::from_fn(with_category(
+            RateLimitCategory::AuthOther,
+        )));
+
+    // Public routes without rate limiting (OIDC routes)
+    let oidc_routes = Router::new()
         .route("/oidc/providers", get(handlers::oidc_providers))
         .route("/oidc/authorize/:provider", get(handlers::oidc_authorize))
         .route("/oidc/callback", get(handlers::oidc_callback));
+
+    // Merge all public routes
+    let public_routes = login_route
+        .merge(register_route)
+        .merge(refresh_route)
+        .merge(oidc_routes);
 
     // Protected routes (auth required)
     let protected_routes = Router::new()

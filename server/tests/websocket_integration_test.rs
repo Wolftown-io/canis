@@ -23,7 +23,7 @@ async fn test_websocket_broadcast_flow() {
     let sfu =
         vc_server::voice::SfuServer::new(Arc::new(config.clone())).expect("Failed to create SFU");
 
-    let state = AppState::new(db_pool.clone(), redis.clone(), config.clone(), None, sfu);
+    let state = AppState::new(db_pool.clone(), redis.clone(), config.clone(), None, sfu, None);
 
     // 2. Create Test Data
     let _user1 = db::create_user(&db_pool, "ws_test_user1", "WS Test 1", None, "hash")
@@ -36,6 +36,7 @@ async fn test_websocket_broadcast_flow() {
         &db_pool,
         "ws-test-channel",
         &db::ChannelType::Text,
+        None,
         None,
         None,
         None,

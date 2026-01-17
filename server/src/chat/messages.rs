@@ -439,6 +439,7 @@ mod tests {
             config,
             None,
             crate::voice::SfuServer::new(std::sync::Arc::new(Config::default_for_test())).unwrap(),
+            None, // No rate limiter in tests
         )
     }
 

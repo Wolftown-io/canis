@@ -3,7 +3,7 @@
 use axum::{
     extract::{ConnectInfo, Path, State},
     http::{header::USER_AGENT, HeaderMap},
-    Json,
+    Extension, Json,
 };
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,7 @@ use crate::db::{
     find_session_by_token_hash, find_user_by_id, find_user_by_username, set_mfa_secret,
     username_exists,
 };
+use crate::ratelimit::NormalizedIp;
 
 use super::error::{AuthError, AuthResult};
 use super::jwt::{generate_token_pair, validate_refresh_token};
@@ -237,28 +238,47 @@ pub async fn register(
 /// Login with username/password.
 ///
 /// POST /auth/login
-#[tracing::instrument(skip(state, body), fields(username = %body.username))]
+#[tracing::instrument(skip(state, body, normalized_ip), fields(username = %body.username))]
 pub async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    normalized_ip: Option<Extension<NormalizedIp>>,
     headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> AuthResult<Json<AuthResponse>> {
+    // Helper macro to record failed auth (if rate limiter is configured)
+    macro_rules! record_failed_auth {
+        () => {
+            if let (Some(ref rl), Some(Extension(ref nip))) = (&state.rate_limiter, &normalized_ip)
+            {
+                let _ = rl.record_failed_auth(&nip.0).await;
+            }
+        };
+    }
+
     // Find user by username
-    let user = find_user_by_username(&state.db, &body.username)
-        .await?
-        .ok_or(AuthError::InvalidCredentials)?;
+    let user = match find_user_by_username(&state.db, &body.username).await? {
+        Some(u) => u,
+        None => {
+            record_failed_auth!();
+            return Err(AuthError::InvalidCredentials);
+        }
+    };
 
     // Verify password (only for local auth)
-    let password_hash = user
-        .password_hash
-        .as_ref()
-        .ok_or(AuthError::InvalidCredentials)?;
+    let password_hash = match user.password_hash.as_ref() {
+        Some(h) => h,
+        None => {
+            record_failed_auth!();
+            return Err(AuthError::InvalidCredentials);
+        }
+    };
 
     let valid =
         verify_password(&body.password, password_hash).map_err(|_| AuthError::PasswordHash)?;
 
     if !valid {
+        record_failed_auth!();
         return Err(AuthError::InvalidCredentials);
     }
 
@@ -291,6 +311,11 @@ pub async fn login(
         user_agent.as_deref(),
     )
     .await?;
+
+    // Clear failed auth counter on successful login
+    if let (Some(ref rl), Some(Extension(ref nip))) = (&state.rate_limiter, &normalized_ip) {
+        let _ = rl.clear_failed_auth(&nip.0).await;
+    }
 
     tracing::info!(user_id = %user.id, "User logged in");
 
