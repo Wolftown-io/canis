@@ -65,7 +65,12 @@ impl IntoResponse for RateLimitError {
                     limit: 0,
                     remaining: 0,
                 };
-                (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response()
+                let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+                let headers = response.headers_mut();
+                if let Ok(v) = HeaderValue::from_str(&retry_after.to_string()) {
+                    headers.insert("Retry-After", v);
+                }
+                response
             }
         }
     }
