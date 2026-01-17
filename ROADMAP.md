@@ -215,13 +215,14 @@ This roadmap outlines the development path from the current prototype to a produ
   - Allow pinning channels from different guilds into a single "Favorites" list.
 - [ ] **[Auth] SSO / OIDC Integration**
   - Enable "Login with Google/Microsoft" via `openidconnect`.
-- [ ] **[Security] E2EE Key Backup & Recovery** `New`
-  - Optional encrypted backup of Olm identity keys to server.
-  - User-provided passphrase → PBKDF2/Argon2 → AES-256-GCM encryption.
-  - Enables message history recovery on new device login.
-  - Cross-device key sync for multi-device support.
-  - Clear security warnings about passphrase strength requirements.
-  - **Trade-off:** Convenience vs. security (weak passphrase = compromised keys).
+- [ ] **[Security] E2EE Key Backup & Recovery** `New` `Designed`
+  - Element X-style Security Key (256-bit random, Base58-encoded).
+  - Optional backup after registration, skippable with reminder.
+  - QR-code transfer between devices (60s timeout, optional PIN).
+  - Full key verification with paste support before backup completion.
+  - Auto-clear clipboard after 60s with visible countdown.
+  - Key rotation with re-encryption when old key available.
+  - **Design:** `docs/plans/2026-01-17-recovery-key-design.md`
 - [ ] **[Voice] Screen Sharing**
   - Update SFU to handle multiple video tracks (Webcam + Screen).
   - Update Client UI to render "Filmstrip" or "Grid" layouts.
