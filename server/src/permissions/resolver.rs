@@ -53,7 +53,7 @@ pub fn compute_guild_permissions(
 /// Check if a user can manage a target role.
 ///
 /// Rules:
-/// 1. Must have MANAGE_ROLES permission
+/// 1. Must have `MANAGE_ROLES` permission
 /// 2. Cannot edit roles at or above your position
 /// 3. Cannot grant permissions you don't have
 pub fn can_manage_role(
@@ -93,7 +93,7 @@ pub fn can_manage_role(
 /// Rules:
 /// 1. Cannot moderate guild owner
 /// 2. Cannot moderate someone with higher/equal role
-pub fn can_moderate_member(
+pub const fn can_moderate_member(
     actor_highest_position: i32,
     target_highest_position: i32,
     target_is_owner: bool,
@@ -136,17 +136,16 @@ pub enum PermissionError {
 impl std::fmt::Display for PermissionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingPermission(p) => write!(f, "Missing permission: {:?}", p),
+            Self::MissingPermission(p) => write!(f, "Missing permission: {p:?}"),
             Self::RoleHierarchy {
                 actor_position,
                 target_position,
             } => write!(
                 f,
-                "Cannot modify role at position {} (your position: {})",
-                target_position, actor_position
+                "Cannot modify role at position {target_position} (your position: {actor_position})"
             ),
             Self::CannotEscalate(p) => {
-                write!(f, "Cannot grant permissions you don't have: {:?}", p)
+                write!(f, "Cannot grant permissions you don't have: {p:?}")
             }
             Self::CannotModerateOwner => write!(f, "Cannot moderate guild owner"),
         }
@@ -162,13 +161,8 @@ mod tests {
     #[test]
     fn test_owner_has_all_permissions() {
         let owner_id = Uuid::new_v4();
-        let perms = compute_guild_permissions(
-            owner_id,
-            owner_id,
-            GuildPermissions::empty(),
-            &[],
-            None,
-        );
+        let perms =
+            compute_guild_permissions(owner_id, owner_id, GuildPermissions::empty(), &[], None);
         assert_eq!(perms, GuildPermissions::all());
     }
 
@@ -203,13 +197,7 @@ mod tests {
             updated_at: chrono::Utc::now(),
         };
 
-        let perms = compute_guild_permissions(
-            user_id,
-            owner_id,
-            everyone,
-            &[mod_role],
-            None,
-        );
+        let perms = compute_guild_permissions(user_id, owner_id, everyone, &[mod_role], None);
 
         assert!(perms.has(GuildPermissions::SEND_MESSAGES)); // from everyone
         assert!(perms.has(GuildPermissions::MANAGE_MESSAGES)); // from role
@@ -312,10 +300,7 @@ mod tests {
         let perms = GuildPermissions::KICK_MEMBERS; // No MANAGE_ROLES
 
         let result = can_manage_role(perms, 50, 100, None);
-        assert!(matches!(
-            result,
-            Err(PermissionError::MissingPermission(_))
-        ));
+        assert!(matches!(result, Err(PermissionError::MissingPermission(_))));
     }
 
     #[test]
@@ -349,13 +334,7 @@ mod tests {
             updated_at: chrono::Utc::now(),
         };
 
-        let perms = compute_guild_permissions(
-            user_id,
-            owner_id,
-            everyone,
-            &[role1, role2],
-            None,
-        );
+        let perms = compute_guild_permissions(user_id, owner_id, everyone, &[role1, role2], None);
 
         // Should have permissions from both roles
         assert!(perms.has(GuildPermissions::SEND_MESSAGES));

@@ -98,7 +98,10 @@ async fn test_under_limit_allows_requests() {
 
     assert!(result.allowed, "First request should be allowed");
     assert_eq!(result.limit, 3, "Limit should be 3");
-    assert_eq!(result.remaining, 2, "Remaining should be 2 after first request");
+    assert_eq!(
+        result.remaining, 2,
+        "Remaining should be 2 after first request"
+    );
     assert_eq!(result.retry_after, 0, "No retry needed when allowed");
 
     // Second request should also be allowed
@@ -108,7 +111,10 @@ async fn test_under_limit_allows_requests() {
         .expect("Rate limit check failed");
 
     assert!(result.allowed, "Second request should be allowed");
-    assert_eq!(result.remaining, 1, "Remaining should be 1 after second request");
+    assert_eq!(
+        result.remaining, 1,
+        "Remaining should be 1 after second request"
+    );
 
     // Third request should be allowed (at the limit)
     let result = limiter
@@ -245,7 +251,10 @@ async fn test_failed_auth_blocks_ip_after_threshold() {
     let ttl = limiter.get_block_ttl(&ip).await;
     assert!(ttl.is_some(), "Block should have a TTL");
     assert!(ttl.unwrap() > 0, "Block TTL should be positive");
-    assert!(ttl.unwrap() <= 60, "Block TTL should not exceed block_duration_secs");
+    assert!(
+        ttl.unwrap() <= 60,
+        "Block TTL should not exceed block_duration_secs"
+    );
 
     println!(
         "Failed auth test passed: IP blocked after 3 failures, TTL = {:?}s",

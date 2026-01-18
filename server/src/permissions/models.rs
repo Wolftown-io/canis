@@ -138,12 +138,10 @@ pub struct GlobalBan {
     pub created_at: DateTime<Utc>,
 }
 
-// Implement TryFrom for GuildPermissions to work with sqlx
-impl TryFrom<i64> for GuildPermissions {
-    type Error = std::convert::Infallible;
-
-    fn try_from(value: i64) -> Result<Self, Self::Error> {
-        Ok(GuildPermissions::from_db(value))
+// Implement From for GuildPermissions to work with sqlx
+impl From<i64> for GuildPermissions {
+    fn from(value: i64) -> Self {
+        Self::from_db(value)
     }
 }
 

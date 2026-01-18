@@ -5,11 +5,9 @@ use axum::{
 use uuid::Uuid;
 use validator::Validate;
 
+use super::types::{Friend, Friendship, FriendshipStatus, SendFriendRequestBody, SocialError};
 use crate::api::AppState;
 use crate::auth::AuthUser;
-use super::types::{
-    Friend, Friendship, FriendshipStatus, SendFriendRequestBody, SocialError,
-};
 
 /// POST /api/friends/request
 /// Send a friend request to another user
@@ -22,13 +20,10 @@ pub async fn send_friend_request(
         .map_err(|e| SocialError::Validation(e.to_string()))?;
 
     // Find the target user by username
-    let target_user = sqlx::query!(
-        "SELECT id FROM users WHERE username = $1",
-        body.username
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(SocialError::UserNotFound)?;
+    let target_user = sqlx::query!("SELECT id FROM users WHERE username = $1", body.username)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(SocialError::UserNotFound)?;
 
     let target_id = target_user.id;
 
@@ -61,9 +56,9 @@ pub async fn send_friend_request(
     // Create new friendship request
     let friendship_id = Uuid::now_v7();
     let friendship = sqlx::query_as::<_, Friendship>(
-        r#"INSERT INTO friendships (id, requester_id, addressee_id, status)
+        r"INSERT INTO friendships (id, requester_id, addressee_id, status)
            VALUES ($1, $2, $3, 'pending')
-           RETURNING id, requester_id, addressee_id, status, created_at, updated_at"#,
+           RETURNING id, requester_id, addressee_id, status, created_at, updated_at",
     )
     .bind(friendship_id)
     .bind(auth.id)
@@ -187,9 +182,9 @@ pub async fn accept_friend_request(
 ) -> Result<Json<Friendship>, SocialError> {
     // Verify that auth.id is the addressee of this friendship
     let friendship = sqlx::query_as::<_, Friendship>(
-        r#"SELECT id, requester_id, addressee_id, status as status, created_at, updated_at
+        r"SELECT id, requester_id, addressee_id, status as status, created_at, updated_at
            FROM friendships
-           WHERE id = $1"#,
+           WHERE id = $1",
     )
     .bind(friendship_id)
     .fetch_optional(&state.db)
@@ -208,10 +203,10 @@ pub async fn accept_friend_request(
 
     // Update status to accepted
     let updated = sqlx::query_as::<_, Friendship>(
-        r#"UPDATE friendships
+        r"UPDATE friendships
            SET status = 'accepted', updated_at = NOW()
            WHERE id = $1
-           RETURNING id, requester_id, addressee_id, status, created_at, updated_at"#,
+           RETURNING id, requester_id, addressee_id, status, created_at, updated_at",
     )
     .bind(friendship_id)
     .fetch_one(&state.db)
@@ -296,30 +291,29 @@ pub async fn block_user(
         // If we're the requester, update status to blocked
         if friendship.requester_id == auth.id {
             let updated = sqlx::query_as::<_, Friendship>(
-                r#"UPDATE friendships
+                r"UPDATE friendships
                    SET status = 'blocked', updated_at = NOW()
                    WHERE id = $1
-                   RETURNING id, requester_id, addressee_id, status, created_at, updated_at"#,
+                   RETURNING id, requester_id, addressee_id, status, created_at, updated_at",
             )
             .bind(friendship.id)
             .fetch_one(&state.db)
             .await?;
 
             return Ok(Json(updated));
-        } else {
-            // If they're the requester, delete and create new blocked entry
-            sqlx::query!("DELETE FROM friendships WHERE id = $1", friendship.id)
-                .execute(&state.db)
-                .await?;
         }
+        // If they're the requester, delete and create new blocked entry
+        sqlx::query!("DELETE FROM friendships WHERE id = $1", friendship.id)
+            .execute(&state.db)
+            .await?;
     }
 
     // Create new blocked friendship
     let friendship_id = Uuid::now_v7();
     let blocked = sqlx::query_as::<_, Friendship>(
-        r#"INSERT INTO friendships (id, requester_id, addressee_id, status)
+        r"INSERT INTO friendships (id, requester_id, addressee_id, status)
            VALUES ($1, $2, $3, 'blocked')
-           RETURNING id, requester_id, addressee_id, status, created_at, updated_at"#,
+           RETURNING id, requester_id, addressee_id, status, created_at, updated_at",
     )
     .bind(friendship_id)
     .bind(auth.id)

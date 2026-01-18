@@ -35,7 +35,7 @@ pub fn extract_client_ip(
     }
     connect_info
         .map(|c| c.0.ip())
-        .unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+        .unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST))
 }
 
 /// Normalize IP address for rate limiting.
@@ -86,7 +86,10 @@ mod tests {
     #[test]
     fn test_extract_client_ip_with_forwarded_for() {
         let mut headers = HeaderMap::new();
-        headers.insert("X-Forwarded-For", "203.0.113.50, 70.41.3.18".parse().unwrap());
+        headers.insert(
+            "X-Forwarded-For",
+            "203.0.113.50, 70.41.3.18".parse().unwrap(),
+        );
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 12345);
         let connect_info = ConnectInfo(socket);
 

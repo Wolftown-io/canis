@@ -13,5 +13,7 @@ pub mod system;
 pub use guild::GuildPermissions;
 pub use models::*;
 pub use queries::*;
-pub use resolver::{can_manage_role, can_moderate_member, compute_guild_permissions, PermissionError};
+pub use resolver::{
+    can_manage_role, can_moderate_member, compute_guild_permissions, PermissionError,
+};
 pub use system::SystemPermission;

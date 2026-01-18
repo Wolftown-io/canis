@@ -671,11 +671,7 @@ pub async fn check_attachment_access(
 // ============================================================================
 
 /// Check if a user is a member of a guild.
-pub async fn is_guild_member(
-    pool: &PgPool,
-    guild_id: Uuid,
-    user_id: Uuid,
-) -> sqlx::Result<bool> {
+pub async fn is_guild_member(pool: &PgPool, guild_id: Uuid, user_id: Uuid) -> sqlx::Result<bool> {
     let result: (bool,) = sqlx::query_as(
         "SELECT EXISTS(SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
     )

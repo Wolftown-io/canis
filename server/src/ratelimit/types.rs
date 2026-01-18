@@ -29,7 +29,7 @@ pub enum RateLimitCategory {
 
 impl RateLimitCategory {
     /// Returns the string identifier for this category (used in Redis keys).
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::AuthLogin => "auth_login",
             Self::AuthRegister => "auth_register",
@@ -44,8 +44,8 @@ impl RateLimitCategory {
         }
     }
 
-    /// Returns all categories except FailedAuth (which is handled separately).
-    pub fn all() -> &'static [RateLimitCategory] {
+    /// Returns all categories except `FailedAuth` (which is handled separately).
+    pub const fn all() -> &'static [Self] {
         &[
             Self::AuthLogin,
             Self::AuthRegister,

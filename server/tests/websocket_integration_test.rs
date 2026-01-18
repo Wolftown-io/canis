@@ -23,7 +23,14 @@ async fn test_websocket_broadcast_flow() {
     let sfu =
         vc_server::voice::SfuServer::new(Arc::new(config.clone())).expect("Failed to create SFU");
 
-    let state = AppState::new(db_pool.clone(), redis.clone(), config.clone(), None, sfu, None);
+    let state = AppState::new(
+        db_pool.clone(),
+        redis.clone(),
+        config.clone(),
+        None,
+        sfu,
+        None,
+    );
 
     // 2. Create Test Data with unique identifiers
     let test_id = uuid::Uuid::new_v4().to_string()[..8].to_string();

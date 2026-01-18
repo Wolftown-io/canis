@@ -1,7 +1,6 @@
-///! Direct Message Channel Management
-///
-/// Handles creation and management of DM channels (1:1 and group DMs).
-
+//! Direct Message Channel Management
+//!
+//! Handles creation and management of DM channels (1:1 and group DMs).
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -81,13 +80,13 @@ pub async fn get_or_create_dm(
 ) -> sqlx::Result<Channel> {
     // Check for existing DM between these two users
     let existing = sqlx::query_as::<_, Channel>(
-        r#"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
+        r"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
                   c.topic, c.user_limit, c.position, c.created_at, c.updated_at
            FROM channels c
            JOIN dm_participants p1 ON c.id = p1.channel_id AND p1.user_id = $1
            JOIN dm_participants p2 ON c.id = p2.channel_id AND p2.user_id = $2
            WHERE c.channel_type = 'dm' AND c.guild_id IS NULL
-           AND (SELECT COUNT(*) FROM dm_participants WHERE channel_id = c.id) = 2"#,
+           AND (SELECT COUNT(*) FROM dm_participants WHERE channel_id = c.id) = 2",
     )
     .bind(user1_id)
     .bind(user2_id)
@@ -110,12 +109,16 @@ pub async fn get_or_create_dm(
     .fetch_all(pool)
     .await?;
 
-    let dm_name = names.iter().map(|r| r.username.as_str()).collect::<Vec<_>>().join(", ");
+    let dm_name = names
+        .iter()
+        .map(|r| r.username.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
 
     let channel = sqlx::query_as::<_, Channel>(
-        r#"INSERT INTO channels (id, name, channel_type, guild_id, position)
+        r"INSERT INTO channels (id, name, channel_type, guild_id, position)
            VALUES ($1, $2, 'dm', NULL, 0)
-           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, created_at, updated_at"#,
+           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, created_at, updated_at",
     )
     .bind(channel_id)
     .bind(&dm_name)
@@ -166,14 +169,18 @@ pub async fn create_group_dm(
         .fetch_all(pool)
         .await?;
 
-        names.iter().map(|r| r.username.as_str()).collect::<Vec<_>>().join(", ")
+        names
+            .iter()
+            .map(|r| r.username.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
     };
 
     // Create channel
     let channel = sqlx::query_as::<_, Channel>(
-        r#"INSERT INTO channels (id, name, channel_type, guild_id, position)
+        r"INSERT INTO channels (id, name, channel_type, guild_id, position)
            VALUES ($1, $2, 'dm', NULL, 0)
-           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, created_at, updated_at"#,
+           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, created_at, updated_at",
     )
     .bind(channel_id)
     .bind(&channel_name)
@@ -231,12 +238,12 @@ pub async fn get_dm_participants(
 /// List all DM channels for a user
 pub async fn list_user_dms(pool: &sqlx::PgPool, user_id: Uuid) -> sqlx::Result<Vec<Channel>> {
     let channels = sqlx::query_as::<_, Channel>(
-        r#"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
+        r"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
                   c.topic, c.user_limit, c.position, c.created_at, c.updated_at
            FROM channels c
            JOIN dm_participants dp ON c.id = dp.channel_id
            WHERE dp.user_id = $1 AND c.channel_type = 'dm'
-           ORDER BY c.updated_at DESC"#,
+           ORDER BY c.updated_at DESC",
     )
     .bind(user_id)
     .fetch_all(pool)
@@ -280,7 +287,9 @@ pub async fn create_dm(
     for participant_id in &body.participant_ids {
         db::find_user_by_id(&state.db, *participant_id)
             .await?
-            .ok_or_else(|| ChannelError::Validation("One or more participants not found".to_string()))?;
+            .ok_or_else(|| {
+                ChannelError::Validation("One or more participants not found".to_string())
+            })?;
     }
 
     let channel = if body.participant_ids.len() == 1 {

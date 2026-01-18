@@ -60,15 +60,15 @@ impl RateLimiter {
         let rate_limit_sha: String = self.redis.script_load(RATE_LIMIT_SCRIPT).await?;
         let failed_auth_sha: String = self.redis.script_load(FAILED_AUTH_SCRIPT).await?;
 
-        let mut scripts = self.scripts.write().await;
-        scripts.rate_limit = rate_limit_sha.clone();
-        scripts.failed_auth = failed_auth_sha.clone();
-
         info!(
             rate_limit_sha = %rate_limit_sha,
             failed_auth_sha = %failed_auth_sha,
             "Lua scripts loaded into Redis"
         );
+
+        let mut scripts = self.scripts.write().await;
+        scripts.rate_limit = rate_limit_sha;
+        scripts.failed_auth = failed_auth_sha;
         Ok(())
     }
 
@@ -386,7 +386,10 @@ impl RateLimiter {
 
     /// Builds a Redis key with the configured prefix.
     fn build_key(&self, category: &str, identifier: &str) -> String {
-        format!("{}:{}:{}", self.config.redis_key_prefix, category, identifier)
+        format!(
+            "{}:{}:{}",
+            self.config.redis_key_prefix, category, identifier
+        )
     }
 
     /// Returns the limit configuration for a given category.

@@ -338,9 +338,17 @@ mod postgres_tests {
 
     #[sqlx::test]
     async fn test_find_channel_by_id(pool: PgPool) {
-        let channel = create_channel(&pool, "test-channel", &ChannelType::Text, None, None, None, None)
-            .await
-            .expect("Failed to create channel");
+        let channel = create_channel(
+            &pool,
+            "test-channel",
+            &ChannelType::Text,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create channel");
 
         let found = find_channel_by_id(&pool, channel.id)
             .await
@@ -352,9 +360,17 @@ mod postgres_tests {
 
     #[sqlx::test]
     async fn test_update_channel(pool: PgPool) {
-        let channel = create_channel(&pool, "old-name", &ChannelType::Text, None, None, None, None)
-            .await
-            .expect("Failed to create channel");
+        let channel = create_channel(
+            &pool,
+            "old-name",
+            &ChannelType::Text,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create channel");
 
         // Update channel
         let updated = update_channel(
@@ -375,9 +391,17 @@ mod postgres_tests {
 
     #[sqlx::test]
     async fn test_delete_channel(pool: PgPool) {
-        let channel = create_channel(&pool, "to-delete", &ChannelType::Text, None, None, None, None)
-            .await
-            .expect("Failed to create channel");
+        let channel = create_channel(
+            &pool,
+            "to-delete",
+            &ChannelType::Text,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create channel");
 
         let deleted = delete_channel(&pool, channel.id)
             .await
@@ -398,9 +422,17 @@ mod postgres_tests {
     #[sqlx::test]
     async fn test_channel_members(pool: PgPool) {
         // Create channel and user
-        let channel = create_channel(&pool, "member-test", &ChannelType::Text, None, None, None, None)
-            .await
-            .expect("Failed to create channel");
+        let channel = create_channel(
+            &pool,
+            "member-test",
+            &ChannelType::Text,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create channel");
 
         let user = create_user(&pool, "memberuser", "Member User", None, "hash")
             .await
@@ -488,9 +520,17 @@ mod postgres_tests {
     #[sqlx::test]
     async fn test_message_lifecycle(pool: PgPool) {
         // Create channel and user
-        let channel = create_channel(&pool, "msg-test", &ChannelType::Text, None, None, None, None)
-            .await
-            .expect("Failed to create channel");
+        let channel = create_channel(
+            &pool,
+            "msg-test",
+            &ChannelType::Text,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create channel");
 
         let user = create_user(&pool, "msguser", "Message User", None, "hash")
             .await
@@ -598,9 +638,17 @@ mod postgres_tests {
     #[sqlx::test]
     async fn test_reply_to_message(pool: PgPool) {
         // Create channel and user
-        let channel = create_channel(&pool, "reply-test", &ChannelType::Text, None, None, None, None)
-            .await
-            .expect("Failed to create channel");
+        let channel = create_channel(
+            &pool,
+            "reply-test",
+            &ChannelType::Text,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create channel");
 
         let user = create_user(&pool, "replyuser", "Reply User", None, "hash")
             .await

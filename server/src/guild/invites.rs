@@ -9,9 +9,9 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 use uuid::Uuid;
 
-use crate::{api::AppState, auth::AuthUser, db};
 use super::handlers::GuildError;
 use super::types::{CreateInviteRequest, GuildInvite, InviteResponse};
+use crate::{api::AppState, auth::AuthUser, db};
 
 /// Generate a cryptographically random 8-character invite code
 fn generate_invite_code() -> String {
@@ -57,10 +57,10 @@ pub async fn list_invites(
 
     // Get active invites (not expired)
     let invites = sqlx::query_as::<_, GuildInvite>(
-        r#"SELECT id, guild_id, code, created_by, expires_at, use_count, created_at
+        r"SELECT id, guild_id, code, created_by, expires_at, use_count, created_at
            FROM guild_invites
            WHERE guild_id = $1 AND (expires_at IS NULL OR expires_at > NOW())
-           ORDER BY created_at DESC"#,
+           ORDER BY created_at DESC",
     )
     .bind(guild_id)
     .fetch_all(&state.db)
@@ -90,8 +90,8 @@ pub async fn create_invite(
 
     // Check rate limit (max 10 active invites per guild)
     let active_count: (i64,) = sqlx::query_as(
-        r#"SELECT COUNT(*) FROM guild_invites
-           WHERE guild_id = $1 AND (expires_at IS NULL OR expires_at > NOW())"#,
+        r"SELECT COUNT(*) FROM guild_invites
+           WHERE guild_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
     )
     .bind(guild_id)
     .fetch_one(&state.db)
@@ -124,9 +124,9 @@ pub async fn create_invite(
 
     // Insert invite
     let invite = sqlx::query_as::<_, GuildInvite>(
-        r#"INSERT INTO guild_invites (guild_id, code, created_by, expires_at)
+        r"INSERT INTO guild_invites (guild_id, code, created_by, expires_at)
            VALUES ($1, $2, $3, $4)
-           RETURNING id, guild_id, code, created_by, expires_at, use_count, created_at"#,
+           RETURNING id, guild_id, code, created_by, expires_at, use_count, created_at",
     )
     .bind(guild_id)
     .bind(&code)
@@ -179,14 +179,16 @@ pub async fn join_via_invite(
 ) -> Result<Json<InviteResponse>, GuildError> {
     // Find the invite
     let invite = sqlx::query_as::<_, GuildInvite>(
-        r#"SELECT id, guild_id, code, created_by, expires_at, use_count, created_at
+        r"SELECT id, guild_id, code, created_by, expires_at, use_count, created_at
            FROM guild_invites
-           WHERE code = $1 AND (expires_at IS NULL OR expires_at > NOW())"#,
+           WHERE code = $1 AND (expires_at IS NULL OR expires_at > NOW())",
     )
     .bind(&code)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(GuildError::Validation("Invalid or expired invite code".to_string()))?;
+    .ok_or(GuildError::Validation(
+        "Invalid or expired invite code".to_string(),
+    ))?;
 
     // Check if already a member
     let is_member = db::is_guild_member(&state.db, invite.guild_id, auth.id).await?;

@@ -37,12 +37,12 @@ pub struct CallApiError {
 impl IntoResponse for CallError {
     fn into_response(self) -> axum::response::Response {
         let (status, code) = match &self {
-            CallError::CallNotFound => (StatusCode::NOT_FOUND, "call_not_found"),
-            CallError::CallAlreadyExists => (StatusCode::CONFLICT, "call_already_exists"),
-            CallError::Redis(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
-            CallError::InvalidEvent(_) => (StatusCode::BAD_REQUEST, "invalid_event"),
-            CallError::StateTransition(_) => (StatusCode::CONFLICT, "invalid_transition"),
-            CallError::Serialization(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+            Self::CallNotFound => (StatusCode::NOT_FOUND, "call_not_found"),
+            Self::CallAlreadyExists => (StatusCode::CONFLICT, "call_already_exists"),
+            Self::Redis(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+            Self::InvalidEvent(_) => (StatusCode::BAD_REQUEST, "invalid_event"),
+            Self::StateTransition(_) => (StatusCode::CONFLICT, "invalid_transition"),
+            Self::Serialization(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
         };
 
         let body = Json(CallApiError {
@@ -54,7 +54,7 @@ impl IntoResponse for CallError {
     }
 }
 
-/// Custom error type for call handlers that combines CallError and database errors
+/// Custom error type for call handlers that combines `CallError` and database errors
 pub enum CallHandlerError {
     Call(CallError),
     NotFound,
@@ -65,8 +65,8 @@ pub enum CallHandlerError {
 impl IntoResponse for CallHandlerError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            CallHandlerError::Call(e) => e.into_response(),
-            CallHandlerError::NotFound => (
+            Self::Call(e) => e.into_response(),
+            Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 Json(CallApiError {
                     error: "DM channel not found".to_string(),
@@ -74,7 +74,7 @@ impl IntoResponse for CallHandlerError {
                 }),
             )
                 .into_response(),
-            CallHandlerError::Forbidden => (
+            Self::Forbidden => (
                 StatusCode::FORBIDDEN,
                 Json(CallApiError {
                     error: "Not a participant of this DM".to_string(),
@@ -82,10 +82,10 @@ impl IntoResponse for CallHandlerError {
                 }),
             )
                 .into_response(),
-            CallHandlerError::Database(e) => (
+            Self::Database(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(CallApiError {
-                    error: format!("Database error: {}", e),
+                    error: format!("Database error: {e}"),
                     code: "internal_error".to_string(),
                 }),
             )
@@ -96,13 +96,13 @@ impl IntoResponse for CallHandlerError {
 
 impl From<CallError> for CallHandlerError {
     fn from(e: CallError) -> Self {
-        CallHandlerError::Call(e)
+        Self::Call(e)
     }
 }
 
 impl From<sqlx::Error> for CallHandlerError {
     fn from(e: sqlx::Error) -> Self {
-        CallHandlerError::Database(e.to_string())
+        Self::Database(e.to_string())
     }
 }
 
@@ -149,10 +149,9 @@ pub async fn get_call(
     let call_service = CallService::new(state.redis.clone());
     let call_state = call_service.get_call_state(channel_id).await?;
 
-    Ok(Json(call_state.map(|state| CallStateResponse {
-        channel_id,
-        state,
-    })))
+    Ok(Json(
+        call_state.map(|state| CallStateResponse { channel_id, state }),
+    ))
 }
 
 /// Get username for a user ID
@@ -263,7 +262,7 @@ pub async fn decline_call(
 
     // If call ended due to all declining, broadcast CallEnded
     if let CallState::Ended { reason, .. } = &call_state {
-        let reason_str = format!("{:?}", reason).to_lowercase();
+        let reason_str = format!("{reason:?}").to_lowercase();
         let _ = broadcast_to_channel(
             &state.redis,
             channel_id,
@@ -312,7 +311,7 @@ pub async fn leave_call(
         ..
     } = &call_state
     {
-        let reason_str = format!("{:?}", reason).to_lowercase();
+        let reason_str = format!("{reason:?}").to_lowercase();
         let _ = broadcast_to_channel(
             &state.redis,
             channel_id,

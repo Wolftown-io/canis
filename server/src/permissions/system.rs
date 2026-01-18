@@ -127,11 +127,7 @@ mod tests {
         for (i, name) in names.iter().enumerate() {
             for (j, other_name) in names.iter().enumerate() {
                 if i != j {
-                    assert_ne!(
-                        name, other_name,
-                        "Duplicate action name found: {}",
-                        name
-                    );
+                    assert_ne!(name, other_name, "Duplicate action name found: {}", name);
                 }
             }
         }
@@ -174,10 +170,7 @@ mod tests {
 
     #[test]
     fn test_delete_guild_action_name() {
-        assert_eq!(
-            SystemPermission::DeleteGuild.action_name(),
-            "delete_guild"
-        );
+        assert_eq!(SystemPermission::DeleteGuild.action_name(), "delete_guild");
     }
 
     #[test]
@@ -272,8 +265,14 @@ mod tests {
 
     #[test]
     fn test_equality() {
-        assert_eq!(SystemPermission::ViewAllGuilds, SystemPermission::ViewAllGuilds);
-        assert_ne!(SystemPermission::ViewAllGuilds, SystemPermission::ViewAllUsers);
+        assert_eq!(
+            SystemPermission::ViewAllGuilds,
+            SystemPermission::ViewAllGuilds
+        );
+        assert_ne!(
+            SystemPermission::ViewAllGuilds,
+            SystemPermission::ViewAllUsers
+        );
     }
 
     #[test]

@@ -42,8 +42,8 @@ pub struct RateLimits {
     pub ws_message: LimitConfig,
     /// Failed authentication tracking
     pub failed_auth: FailedAuthConfig,
-    /// Failed auth as LimitConfig (for consistency in get_limit_config)
-    /// This is computed from failed_auth config.
+    /// Failed auth as `LimitConfig` (for consistency in `get_limit_config`)
+    /// This is computed from `failed_auth` config.
     pub failed_auth_as_limit: LimitConfig,
 }
 
@@ -88,15 +88,42 @@ impl Default for RateLimits {
             window_secs: 300,
         };
         Self {
-            auth_login: LimitConfig { requests: 3, window_secs: 60 },
-            auth_register: LimitConfig { requests: 5, window_secs: 60 },
-            auth_password_reset: LimitConfig { requests: 2, window_secs: 60 },
-            auth_other: LimitConfig { requests: 20, window_secs: 60 },
-            write: LimitConfig { requests: 30, window_secs: 60 },
-            social: LimitConfig { requests: 20, window_secs: 60 },
-            read: LimitConfig { requests: 200, window_secs: 60 },
-            ws_connect: LimitConfig { requests: 10, window_secs: 60 },
-            ws_message: LimitConfig { requests: 60, window_secs: 60 },
+            auth_login: LimitConfig {
+                requests: 3,
+                window_secs: 60,
+            },
+            auth_register: LimitConfig {
+                requests: 5,
+                window_secs: 60,
+            },
+            auth_password_reset: LimitConfig {
+                requests: 2,
+                window_secs: 60,
+            },
+            auth_other: LimitConfig {
+                requests: 20,
+                window_secs: 60,
+            },
+            write: LimitConfig {
+                requests: 30,
+                window_secs: 60,
+            },
+            social: LimitConfig {
+                requests: 20,
+                window_secs: 60,
+            },
+            read: LimitConfig {
+                requests: 200,
+                window_secs: 60,
+            },
+            ws_connect: LimitConfig {
+                requests: 10,
+                window_secs: 60,
+            },
+            ws_message: LimitConfig {
+                requests: 60,
+                window_secs: 60,
+            },
             failed_auth_as_limit: LimitConfig {
                 requests: failed_auth.max_failures,
                 window_secs: failed_auth.window_secs,
@@ -115,16 +142,16 @@ impl RateLimitConfig {
     /// - `RATE_LIMIT_FAIL_OPEN`: Allow requests when Redis unavailable (default: true)
     /// - `RATE_LIMIT_TRUST_PROXY`: Trust X-Forwarded-For headers (default: false)
     /// - `RATE_LIMIT_ALLOWLIST`: Comma-separated IP allowlist
-    /// - `RATE_LIMIT_AUTH_LOGIN`: Login limit as "requests,window_secs"
-    /// - `RATE_LIMIT_AUTH_REGISTER`: Register limit as "requests,window_secs"
-    /// - `RATE_LIMIT_AUTH_PASSWORD_RESET`: Password reset limit as "requests,window_secs"
-    /// - `RATE_LIMIT_AUTH_OTHER`: Other auth limit as "requests,window_secs"
-    /// - `RATE_LIMIT_WRITE`: Write limit as "requests,window_secs"
-    /// - `RATE_LIMIT_SOCIAL`: Social limit as "requests,window_secs"
-    /// - `RATE_LIMIT_READ`: Read limit as "requests,window_secs"
-    /// - `RATE_LIMIT_WS_CONNECT`: WebSocket connect limit as "requests,window_secs"
-    /// - `RATE_LIMIT_WS_MESSAGE`: WebSocket message limit as "requests,window_secs"
-    /// - `RATE_LIMIT_FAILED_AUTH`: Failed auth as "max_failures,block_duration_secs,window_secs"
+    /// - `RATE_LIMIT_AUTH_LOGIN`: Login limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_AUTH_REGISTER`: Register limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_AUTH_PASSWORD_RESET`: Password reset limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_AUTH_OTHER`: Other auth limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_WRITE`: Write limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_SOCIAL`: Social limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_READ`: Read limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_WS_CONNECT`: WebSocket connect limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_WS_MESSAGE`: WebSocket message limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_FAILED_AUTH`: Failed auth as "`max_failures,block_duration_secs,window_secs`"
     pub fn from_env() -> Self {
         let mut config = Self::default();
 
@@ -206,19 +233,22 @@ impl RateLimitConfig {
     }
 }
 
-/// Parses a limit config from "requests,window_secs" format.
+/// Parses a limit config from "`requests,window_secs`" format.
 fn parse_limit_config(val: &str) -> Option<LimitConfig> {
     let parts: Vec<&str> = val.split(',').collect();
     if parts.len() == 2 {
         let requests = parts[0].trim().parse().ok()?;
         let window_secs = parts[1].trim().parse().ok()?;
-        Some(LimitConfig { requests, window_secs })
+        Some(LimitConfig {
+            requests,
+            window_secs,
+        })
     } else {
         None
     }
 }
 
-/// Parses a failed auth config from "max_failures,block_duration_secs,window_secs" format.
+/// Parses a failed auth config from "`max_failures,block_duration_secs,window_secs`" format.
 fn parse_failed_auth_config(val: &str) -> Option<FailedAuthConfig> {
     let parts: Vec<&str> = val.split(',').collect();
     if parts.len() == 3 {

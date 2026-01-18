@@ -9,8 +9,8 @@ use axum::{
 use uuid::Uuid;
 use validator::Validate;
 
+use super::types::{CreateGuildRequest, Guild, UpdateGuildRequest, JoinGuildRequest, GuildMember};
 use crate::{api::AppState, auth::AuthUser, db};
-use super::types::*;
 
 // ============================================================================
 // Error Types
@@ -66,9 +66,9 @@ pub async fn create_guild(
     // Insert guild
     let guild_id = Uuid::now_v7();
     let guild = sqlx::query_as::<_, Guild>(
-        r#"INSERT INTO guilds (id, name, owner_id, description)
+        r"INSERT INTO guilds (id, name, owner_id, description)
            VALUES ($1, $2, $3, $4)
-           RETURNING id, name, owner_id, icon_url, description, created_at"#,
+           RETURNING id, name, owner_id, icon_url, description, created_at",
     )
     .bind(guild_id)
     .bind(&body.name)
@@ -86,8 +86,8 @@ pub async fn create_guild(
 
     // Create default @everyone role
     sqlx::query(
-        r#"INSERT INTO guild_roles (guild_id, name, permissions, position, is_default)
-           VALUES ($1, 'everyone', 0, 0, true)"#,
+        r"INSERT INTO guild_roles (guild_id, name, permissions, position, is_default)
+           VALUES ($1, 'everyone', 0, 0, true)",
     )
     .bind(guild_id)
     .execute(&state.db)
@@ -103,11 +103,11 @@ pub async fn list_guilds(
     auth: AuthUser,
 ) -> Result<Json<Vec<Guild>>, GuildError> {
     let guilds = sqlx::query_as::<_, Guild>(
-        r#"SELECT g.id, g.name, g.owner_id, g.icon_url, g.description, g.created_at
+        r"SELECT g.id, g.name, g.owner_id, g.icon_url, g.description, g.created_at
            FROM guilds g
            INNER JOIN guild_members gm ON g.id = gm.guild_id
            WHERE gm.user_id = $1
-           ORDER BY g.created_at"#,
+           ORDER BY g.created_at",
     )
     .bind(auth.id)
     .fetch_all(&state.db)
@@ -153,16 +153,12 @@ pub async fn update_guild(
         .map_err(|e| GuildError::Validation(e.to_string()))?;
 
     // Verify ownership
-    let owner_check: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT owner_id FROM guilds WHERE id = $1",
-    )
-    .bind(guild_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let owner_check: Option<(Uuid,)> = sqlx::query_as("SELECT owner_id FROM guilds WHERE id = $1")
+        .bind(guild_id)
+        .fetch_optional(&state.db)
+        .await?;
 
-    let owner_id = owner_check
-        .ok_or(GuildError::NotFound)?
-        .0;
+    let owner_id = owner_check.ok_or(GuildError::NotFound)?.0;
 
     if owner_id != auth.id {
         return Err(GuildError::Forbidden);
@@ -220,16 +216,12 @@ pub async fn delete_guild(
     Path(guild_id): Path<Uuid>,
 ) -> Result<StatusCode, GuildError> {
     // Verify ownership
-    let owner_check: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT owner_id FROM guilds WHERE id = $1",
-    )
-    .bind(guild_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let owner_check: Option<(Uuid,)> = sqlx::query_as("SELECT owner_id FROM guilds WHERE id = $1")
+        .bind(guild_id)
+        .fetch_optional(&state.db)
+        .await?;
 
-    let owner_id = owner_check
-        .ok_or(GuildError::NotFound)?
-        .0;
+    let owner_id = owner_check.ok_or(GuildError::NotFound)?.0;
 
     if owner_id != auth.id {
         return Err(GuildError::Forbidden);
@@ -249,7 +241,7 @@ pub async fn join_guild(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(guild_id): Path<Uuid>,
-    Json(_body): Json<JoinGuildRequest>,
+    Json(_): Json<JoinGuildRequest>,
 ) -> Result<StatusCode, GuildError> {
     // Verify guild exists
     let guild_check: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM guilds WHERE id = $1")
@@ -326,7 +318,7 @@ pub async fn list_members(
     }
 
     let members = sqlx::query_as::<_, GuildMember>(
-        r#"SELECT
+        r"SELECT
             u.id as user_id,
             u.username,
             u.display_name,
@@ -338,7 +330,7 @@ pub async fn list_members(
            FROM guild_members gm
            INNER JOIN users u ON gm.user_id = u.id
            WHERE gm.guild_id = $1
-           ORDER BY gm.joined_at"#,
+           ORDER BY gm.joined_at",
     )
     .bind(guild_id)
     .fetch_all(&state.db)
@@ -355,11 +347,10 @@ pub async fn kick_member(
     Path((guild_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, GuildError> {
     // Verify ownership
-    let owner_check: Option<(Uuid,)> =
-        sqlx::query_as("SELECT owner_id FROM guilds WHERE id = $1")
-            .bind(guild_id)
-            .fetch_optional(&state.db)
-            .await?;
+    let owner_check: Option<(Uuid,)> = sqlx::query_as("SELECT owner_id FROM guilds WHERE id = $1")
+        .bind(guild_id)
+        .fetch_optional(&state.db)
+        .await?;
 
     let owner_id = owner_check.ok_or(GuildError::NotFound)?.0;
 

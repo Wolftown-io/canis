@@ -318,7 +318,7 @@ pub async fn delete_guild_role(pool: &PgPool, role_id: Uuid) -> sqlx::Result<boo
 /// Create default roles for a new guild.
 ///
 /// Creates:
-/// - @everyone (position 1000, is_default = true)
+/// - @everyone (position 1000, `is_default` = true)
 /// - Moderator (position 100)
 /// - Officer (position 50)
 pub async fn create_default_roles(pool: &PgPool, guild_id: Uuid) -> sqlx::Result<()> {
@@ -586,7 +586,7 @@ pub async fn get_audit_log(
     action_filter: Option<&str>,
 ) -> sqlx::Result<Vec<AuditLogEntry>> {
     if let Some(filter) = action_filter {
-        let pattern = format!("{}%", filter);
+        let pattern = format!("{filter}%");
         sqlx::query_as::<_, AuditLogEntry>(
             r"
             SELECT

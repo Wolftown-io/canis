@@ -60,7 +60,7 @@ pub struct CallEvent {
 impl CallState {
     /// Create initial ringing state
     pub fn new_ringing(initiator: Uuid, target_users: HashSet<Uuid>) -> Self {
-        CallState::Ringing {
+        Self::Ringing {
             started_by: initiator,
             started_at: Utc::now(),
             declined_by: HashSet::new(),
@@ -73,7 +73,7 @@ impl CallState {
         match (self, event) {
             // Ringing -> Active when someone joins
             (
-                CallState::Ringing {
+                Self::Ringing {
                     started_at,
                     started_by,
                     ..
@@ -83,7 +83,7 @@ impl CallState {
                 let mut participants = HashSet::new();
                 participants.insert(started_by);
                 participants.insert(*user_id);
-                Ok(CallState::Active {
+                Ok(Self::Active {
                     started_at,
                     participants,
                 })
@@ -91,7 +91,7 @@ impl CallState {
 
             // Ringing -> Ringing with decline recorded
             (
-                CallState::Ringing {
+                Self::Ringing {
                     started_by,
                     started_at,
                     mut declined_by,
@@ -102,13 +102,13 @@ impl CallState {
                 declined_by.insert(*user_id);
                 // Check if all targets declined
                 if declined_by.len() >= target_users.len() {
-                    Ok(CallState::Ended {
+                    Ok(Self::Ended {
                         reason: EndReason::AllDeclined,
                         duration_secs: None,
                         ended_at: Utc::now(),
                     })
                 } else {
-                    Ok(CallState::Ringing {
+                    Ok(Self::Ringing {
                         started_by,
                         started_at,
                         declined_by,
@@ -118,7 +118,7 @@ impl CallState {
             }
 
             // Ringing -> Ended when initiator cancels
-            (CallState::Ringing { .. }, CallEventType::Ended { reason }) => Ok(CallState::Ended {
+            (Self::Ringing { .. }, CallEventType::Ended { reason }) => Ok(Self::Ended {
                 reason: *reason,
                 duration_secs: None,
                 ended_at: Utc::now(),
@@ -126,14 +126,14 @@ impl CallState {
 
             // Active -> Active with new participant
             (
-                CallState::Active {
+                Self::Active {
                     started_at,
                     mut participants,
                 },
                 CallEventType::Joined { user_id },
             ) => {
                 participants.insert(*user_id);
-                Ok(CallState::Active {
+                Ok(Self::Active {
                     started_at,
                     participants,
                 })
@@ -141,7 +141,7 @@ impl CallState {
 
             // Active -> Active or Ended when someone leaves
             (
-                CallState::Active {
+                Self::Active {
                     started_at,
                     mut participants,
                 },
@@ -149,16 +149,15 @@ impl CallState {
             ) => {
                 participants.remove(user_id);
                 if participants.is_empty() {
-                    let duration = Utc::now()
-                        .signed_duration_since(started_at)
-                        .num_seconds() as u32;
-                    Ok(CallState::Ended {
+                    let duration =
+                        Utc::now().signed_duration_since(started_at).num_seconds() as u32;
+                    Ok(Self::Ended {
                         reason: EndReason::LastLeft,
                         duration_secs: Some(duration),
                         ended_at: Utc::now(),
                     })
                 } else {
-                    Ok(CallState::Active {
+                    Ok(Self::Active {
                         started_at,
                         participants,
                     })
@@ -166,11 +165,9 @@ impl CallState {
             }
 
             // Active -> Ended
-            (CallState::Active { started_at, .. }, CallEventType::Ended { reason }) => {
-                let duration = Utc::now()
-                    .signed_duration_since(started_at)
-                    .num_seconds() as u32;
-                Ok(CallState::Ended {
+            (Self::Active { started_at, .. }, CallEventType::Ended { reason }) => {
+                let duration = Utc::now().signed_duration_since(started_at).num_seconds() as u32;
+                Ok(Self::Ended {
                     reason: *reason,
                     duration_secs: Some(duration),
                     ended_at: Utc::now(),
@@ -178,25 +175,25 @@ impl CallState {
             }
 
             // Ended state is terminal
-            (CallState::Ended { .. }, _) => Err(CallStateError::CallAlreadyEnded),
+            (Self::Ended { .. }, _) => Err(CallStateError::CallAlreadyEnded),
 
             // Invalid transitions
             (state, event) => Err(CallStateError::InvalidTransition {
-                state: format!("{:?}", state),
-                event: format!("{:?}", event),
+                state: format!("{state:?}"),
+                event: format!("{event:?}"),
             }),
         }
     }
 
     /// Check if call is still active (not ended)
-    pub fn is_active(&self) -> bool {
-        !matches!(self, CallState::Ended { .. })
+    pub const fn is_active(&self) -> bool {
+        !matches!(self, Self::Ended { .. })
     }
 
     /// Get participants if call is active
-    pub fn participants(&self) -> Option<&HashSet<Uuid>> {
+    pub const fn participants(&self) -> Option<&HashSet<Uuid>> {
         match self {
-            CallState::Active { participants, .. } => Some(participants),
+            Self::Active { participants, .. } => Some(participants),
             _ => None,
         }
     }
@@ -265,9 +262,7 @@ mod tests {
             started_at: Utc::now(),
             participants,
         };
-        let new_state = state
-            .apply(&CallEventType::Left { user_id: user })
-            .unwrap();
+        let new_state = state.apply(&CallEventType::Left { user_id: user }).unwrap();
 
         assert!(matches!(
             new_state,

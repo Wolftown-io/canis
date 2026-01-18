@@ -11,13 +11,13 @@ pub struct CallService {
 }
 
 impl CallService {
-    pub fn new(redis: RedisClient) -> Self {
+    pub const fn new(redis: RedisClient) -> Self {
         Self { redis }
     }
 
     /// Get Redis stream key for a channel's call events
     fn stream_key(channel_id: Uuid) -> String {
-        format!("call_events:{}", channel_id)
+        format!("call_events:{channel_id}")
     }
 
     /// Get current call state by replaying events from stream
@@ -47,8 +47,8 @@ impl CallService {
                 .get("data")
                 .ok_or_else(|| CallError::InvalidEvent("Missing data field".into()))?;
 
-            let event_type: CallEventType = serde_json::from_str(data)
-                .map_err(|e| CallError::InvalidEvent(e.to_string()))?;
+            let event_type: CallEventType =
+                serde_json::from_str(data).map_err(|e| CallError::InvalidEvent(e.to_string()))?;
 
             state = Some(match state {
                 None => {
@@ -134,13 +134,7 @@ impl CallService {
 
         let _: String = self
             .redis
-            .xadd(
-                &key,
-                false,
-                None,
-                "*",
-                vec![("data", event_json.as_str())],
-            )
+            .xadd(&key, false, None, "*", vec![("data", event_json.as_str())])
             .await
             .map_err(|e| CallError::Redis(e.to_string()))?;
 
@@ -174,13 +168,7 @@ impl CallService {
 
         let _: String = self
             .redis
-            .xadd(
-                &key,
-                false,
-                None,
-                "*",
-                vec![("data", event_json.as_str())],
-            )
+            .xadd(&key, false, None, "*", vec![("data", event_json.as_str())])
             .await
             .map_err(|e| CallError::Redis(e.to_string()))?;
 
@@ -239,13 +227,7 @@ impl CallService {
 
         let _: String = self
             .redis
-            .xadd(
-                &key,
-                false,
-                None,
-                "*",
-                vec![("data", event_json.as_str())],
-            )
+            .xadd(&key, false, None, "*", vec![("data", event_json.as_str())])
             .await
             .map_err(|e| CallError::Redis(e.to_string()))?;
 
@@ -279,13 +261,7 @@ impl CallService {
 
         let _: String = self
             .redis
-            .xadd(
-                &key,
-                false,
-                None,
-                "*",
-                vec![("data", event_json.as_str())],
-            )
+            .xadd(&key, false, None, "*", vec![("data", event_json.as_str())])
             .await
             .map_err(|e| CallError::Redis(e.to_string()))?;
 

@@ -1,13 +1,13 @@
 //! Rate limiting error types for HTTP responses.
 
+use crate::ratelimit::RateLimitResult;
+use axum::http::header::HeaderValue;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use axum::http::header::HeaderValue;
 use serde::Serialize;
-use crate::ratelimit::RateLimitResult;
 
 /// Errors that can occur during rate limit checks.
 #[derive(Debug)]
@@ -41,7 +41,8 @@ impl IntoResponse for RateLimitError {
             Self::RedisUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(serde_json::json!({"error": "service_unavailable"})),
-            ).into_response(),
+            )
+                .into_response(),
             Self::LimitExceeded(result) => {
                 let body = RateLimitErrorResponse {
                     error: "rate_limited",
@@ -60,7 +61,7 @@ impl IntoResponse for RateLimitError {
             Self::IpBlocked { retry_after } => {
                 let body = RateLimitErrorResponse {
                     error: "ip_blocked",
-                    message: format!("IP blocked. Wait {} seconds.", retry_after),
+                    message: format!("IP blocked. Wait {retry_after} seconds."),
                     retry_after,
                     limit: 0,
                     remaining: 0,

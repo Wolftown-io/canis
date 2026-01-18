@@ -2,7 +2,10 @@
 //!
 //! Central routing configuration and shared state.
 
-use axum::{extract::DefaultBodyLimit, extract::State, middleware::from_fn, middleware::from_fn_with_state, routing::get, Json, Router};
+use axum::{
+    extract::DefaultBodyLimit, extract::State, middleware::from_fn, middleware::from_fn_with_state,
+    routing::get, Json, Router,
+};
 use serde::Serialize;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -13,9 +16,14 @@ use tower_http::{
 };
 
 use crate::{
-    auth, chat, chat::S3Client, config::Config, guild,
+    auth, chat,
+    chat::S3Client,
+    config::Config,
+    guild,
     ratelimit::{rate_limit_by_user, with_category, RateLimitCategory, RateLimiter},
-    social, voice, voice::SfuServer, ws,
+    social, voice,
+    voice::SfuServer,
+    ws,
 };
 
 /// Shared application state.

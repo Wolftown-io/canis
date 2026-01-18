@@ -82,7 +82,10 @@ async fn main() -> Result<()> {
                     Some(limiter)
                 }
                 Err(e) => {
-                    tracing::warn!("Rate limiter initialization failed: {}. Rate limiting disabled.", e);
+                    tracing::warn!(
+                        "Rate limiter initialization failed: {}. Rate limiting disabled.",
+                        e
+                    );
                     None
                 }
             }
