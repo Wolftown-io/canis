@@ -24,6 +24,19 @@ pub use types::{AdminError, ElevatedAdmin, SystemAdminUser};
 /// All routes require system admin privileges (applied via middleware).
 /// Routes under the elevated router additionally require an elevated session.
 pub fn router(state: AppState) -> Router<AppState> {
+    // Elevated routes (require both system admin and elevated session)
+    let elevated_routes = Router::new()
+        .route(
+            "/users/:id/ban",
+            post(handlers::ban_user).delete(handlers::unban_user),
+        )
+        .route(
+            "/guilds/:id/suspend",
+            post(handlers::suspend_guild).delete(handlers::unsuspend_guild),
+        )
+        .route("/announcements", post(handlers::create_announcement))
+        .layer(from_fn_with_state(state.clone(), require_elevated));
+
     // Non-elevated admin routes
     let base_routes = Router::new()
         .route("/health", get(|| async { "admin ok" }))
@@ -33,7 +46,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/elevate",
             post(handlers::elevate_session).delete(handlers::de_elevate_session),
-        );
+        )
+        .merge(elevated_routes);
 
     // Apply system admin middleware to all routes
     base_routes.layer(from_fn_with_state(state, require_system_admin))

@@ -7,7 +7,7 @@
 //! - Elevate/de-elevate session
 
 use axum::{
-    extract::{ConnectInfo, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
@@ -23,7 +23,10 @@ use crate::permissions::queries::{
     create_elevated_session, get_audit_log as query_audit_log, write_audit_log,
 };
 
-use super::types::{AdminError, ElevateRequest, ElevateResponse, SystemAdminUser};
+use super::types::{
+    AdminError, CreateAnnouncementRequest, ElevateRequest, ElevateResponse, ElevatedAdmin,
+    GlobalBanRequest, SuspendGuildRequest, SystemAdminUser,
+};
 
 // ============================================================================
 // Query Parameters
@@ -455,4 +458,302 @@ pub async fn de_elevate_session(
     }
 
     Ok(Json(DeElevateResponse { elevated: false }))
+}
+
+// ============================================================================
+// Elevated Handlers (Destructive Actions)
+// ============================================================================
+
+/// Global ban response.
+#[derive(Debug, Serialize)]
+pub struct BanResponse {
+    pub banned: bool,
+    pub user_id: Uuid,
+}
+
+/// Guild suspend response.
+#[derive(Debug, Serialize)]
+pub struct SuspendResponse {
+    pub suspended: bool,
+    pub guild_id: Uuid,
+}
+
+/// Announcement response.
+#[derive(Debug, Serialize)]
+pub struct AnnouncementResponse {
+    pub id: Uuid,
+    pub title: String,
+    pub created: bool,
+}
+
+/// Global ban a user.
+///
+/// POST /api/admin/users/:id/ban
+#[tracing::instrument(skip(state))]
+pub async fn ban_user(
+    State(state): State<AppState>,
+    Extension(admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(user_id): Path<Uuid>,
+    Json(body): Json<GlobalBanRequest>,
+) -> Result<Json<BanResponse>, AdminError> {
+    // Check user exists
+    let user_exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?;
+
+    if user_exists.is_none() {
+        return Err(AdminError::NotFound("User".to_string()));
+    }
+
+    // Cannot ban yourself
+    if user_id == admin.user_id {
+        return Err(AdminError::Validation("Cannot ban yourself".to_string()));
+    }
+
+    // Create or update ban
+    sqlx::query(
+        r"
+        INSERT INTO global_bans (user_id, banned_by, reason, expires_at)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id) DO UPDATE SET
+            banned_by = $2,
+            reason = $3,
+            expires_at = $4,
+            created_at = NOW()
+        ",
+    )
+    .bind(user_id)
+    .bind(admin.user_id)
+    .bind(&body.reason)
+    .bind(body.expires_at)
+    .execute(&state.db)
+    .await?;
+
+    // Log the action
+    let ip_address = addr.ip().to_string();
+    write_audit_log(
+        &state.db,
+        admin.user_id,
+        "admin.users.ban",
+        Some("user"),
+        Some(user_id),
+        Some(serde_json::json!({"reason": body.reason, "expires_at": body.expires_at})),
+        Some(&ip_address),
+    )
+    .await?;
+
+    Ok(Json(BanResponse {
+        banned: true,
+        user_id,
+    }))
+}
+
+/// Remove global ban from a user.
+///
+/// DELETE /api/admin/users/:id/ban
+#[tracing::instrument(skip(state))]
+pub async fn unban_user(
+    State(state): State<AppState>,
+    Extension(admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<BanResponse>, AdminError> {
+    let result = sqlx::query("DELETE FROM global_bans WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AdminError::NotFound("Ban".to_string()));
+    }
+
+    // Log the action
+    let ip_address = addr.ip().to_string();
+    write_audit_log(
+        &state.db,
+        admin.user_id,
+        "admin.users.unban",
+        Some("user"),
+        Some(user_id),
+        None,
+        Some(&ip_address),
+    )
+    .await?;
+
+    Ok(Json(BanResponse {
+        banned: false,
+        user_id,
+    }))
+}
+
+/// Suspend a guild.
+///
+/// POST /api/admin/guilds/:id/suspend
+#[tracing::instrument(skip(state))]
+pub async fn suspend_guild(
+    State(state): State<AppState>,
+    Extension(admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(guild_id): Path<Uuid>,
+    Json(body): Json<SuspendGuildRequest>,
+) -> Result<Json<SuspendResponse>, AdminError> {
+    let result = sqlx::query(
+        r"
+        UPDATE guilds SET
+            suspended_at = NOW(),
+            suspended_by = $2,
+            suspension_reason = $3
+        WHERE id = $1 AND suspended_at IS NULL
+        ",
+    )
+    .bind(guild_id)
+    .bind(admin.user_id)
+    .bind(&body.reason)
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        // Check if guild exists
+        let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM guilds WHERE id = $1")
+            .bind(guild_id)
+            .fetch_optional(&state.db)
+            .await?;
+
+        if exists.is_none() {
+            return Err(AdminError::NotFound("Guild".to_string()));
+        }
+        return Err(AdminError::Validation(
+            "Guild is already suspended".to_string(),
+        ));
+    }
+
+    // Log the action
+    let ip_address = addr.ip().to_string();
+    write_audit_log(
+        &state.db,
+        admin.user_id,
+        "admin.guilds.suspend",
+        Some("guild"),
+        Some(guild_id),
+        Some(serde_json::json!({"reason": body.reason})),
+        Some(&ip_address),
+    )
+    .await?;
+
+    Ok(Json(SuspendResponse {
+        suspended: true,
+        guild_id,
+    }))
+}
+
+/// Unsuspend a guild.
+///
+/// DELETE /api/admin/guilds/:id/suspend
+#[tracing::instrument(skip(state))]
+pub async fn unsuspend_guild(
+    State(state): State<AppState>,
+    Extension(admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<SuspendResponse>, AdminError> {
+    let result = sqlx::query(
+        r"
+        UPDATE guilds SET
+            suspended_at = NULL,
+            suspended_by = NULL,
+            suspension_reason = NULL
+        WHERE id = $1 AND suspended_at IS NOT NULL
+        ",
+    )
+    .bind(guild_id)
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AdminError::NotFound("Suspended guild".to_string()));
+    }
+
+    // Log the action
+    let ip_address = addr.ip().to_string();
+    write_audit_log(
+        &state.db,
+        admin.user_id,
+        "admin.guilds.unsuspend",
+        Some("guild"),
+        Some(guild_id),
+        None,
+        Some(&ip_address),
+    )
+    .await?;
+
+    Ok(Json(SuspendResponse {
+        suspended: false,
+        guild_id,
+    }))
+}
+
+/// Create a system announcement.
+///
+/// POST /api/admin/announcements
+#[tracing::instrument(skip(state))]
+pub async fn create_announcement(
+    State(state): State<AppState>,
+    Extension(admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(body): Json<CreateAnnouncementRequest>,
+) -> Result<Json<AnnouncementResponse>, AdminError> {
+    // Validate severity
+    let valid_severities = ["info", "warning", "critical", "maintenance"];
+    if !valid_severities.contains(&body.severity.as_str()) {
+        return Err(AdminError::Validation(format!(
+            "Invalid severity. Must be one of: {}",
+            valid_severities.join(", ")
+        )));
+    }
+
+    let announcement_id = Uuid::now_v7();
+    let starts_at = body.starts_at.unwrap_or_else(Utc::now);
+
+    sqlx::query(
+        r"
+        INSERT INTO system_announcements (id, author_id, title, content, severity, starts_at, ends_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ",
+    )
+    .bind(announcement_id)
+    .bind(admin.user_id)
+    .bind(&body.title)
+    .bind(&body.content)
+    .bind(&body.severity)
+    .bind(starts_at)
+    .bind(body.ends_at)
+    .execute(&state.db)
+    .await?;
+
+    // Log the action
+    let ip_address = addr.ip().to_string();
+    write_audit_log(
+        &state.db,
+        admin.user_id,
+        "admin.announcements.create",
+        Some("announcement"),
+        Some(announcement_id),
+        Some(serde_json::json!({"title": body.title, "severity": body.severity})),
+        Some(&ip_address),
+    )
+    .await?;
+
+    Ok(Json(AnnouncementResponse {
+        id: announcement_id,
+        title: body.title,
+        created: true,
+    }))
 }
