@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Information Pages system for platform-wide and guild-specific content (ToS, Privacy Policy, FAQ, rules, guides)
+- Markdown editor with live preview, toolbar, and cheat sheet
+- Mermaid diagram support in markdown preview
+- Page acceptance tracking with scroll-to-bottom requirement for mandatory pages
+- Page ordering via drag-and-drop with position persistence
+- Audit logging for all page operations (create, update, delete, reorder)
 - CHANGELOG.md following keepachangelog.com format
 - Changelog maintenance guidelines in CLAUDE.md
 
@@ -20,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+- XSS hardening for Mermaid SVG rendering (forbid foreignObject, style, script tags)
+- Ownership verification in page reorder operations prevents cross-guild attacks
+- Fail-fast permission checks on database errors (no silent auth bypass)
 
 ## [0.1.0] - 2026-01-18
 
