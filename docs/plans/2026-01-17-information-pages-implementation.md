@@ -4,11 +4,26 @@
 
 **Goal:** Implement information pages at platform and guild level for ToS, rules, FAQ with markdown support, mermaid diagrams, and acceptance tracking.
 
-**Architecture:** Pages stored in PostgreSQL with audit logging. Platform pages managed by platform admins, guild pages by users with MANAGE_PAGES permission. Frontend uses Solid.js stores with secure markdown rendering via marked + DOMPurify.
+**Architecture:** Pages stored in PostgreSQL with audit logging. Platform pages managed by system admins (existing `system_admins` table), guild pages by users with MANAGE_PAGES permission. Frontend uses Solid.js stores with secure markdown rendering via marked + DOMPurify.
 
 **Tech Stack:** Rust (Axum), PostgreSQL (sqlx), Solid.js, marked, mermaid, DOMPurify
 
 **Design Doc:** `docs/plans/2026-01-16-information-pages-design.md`
+
+**Last Updated:** 2026-01-18 (Review refinements)
+
+---
+
+## Pre-Implementation Notes
+
+### Key Codebase Discoveries (from 2026-01-18 review)
+
+1. **Platform Admin:** Use existing `system_admins` table (NOT new `platform_roles`)
+   - Table already exists in `20260113000001_permission_system.sql`
+   - Query: `SELECT 1 FROM system_admins WHERE user_id = $1`
+2. **Package Manager:** Use `bun` (NOT `npm`)
+3. **`marked` already installed:** Skip in dependency install step
+4. **Permission bit 21:** Available for `MANAGE_PAGES`
 
 ---
 
@@ -17,23 +32,17 @@
 ### Task 1: Database Migration - Tables
 
 **Files:**
-- Create: `server/migrations/20260117000000_information_pages.sql`
+- Create: `server/migrations/20260118000000_information_pages.sql`
 
 **Step 1: Write the migration**
 
-```sql
--- server/migrations/20260117000000_information_pages.sql
+> **Note:** We reuse existing `system_admins` table for platform admin checks. No need to create `platform_roles`.
 
--- Platform admin roles
-CREATE TABLE platform_roles (
-    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL DEFAULT 'user',  -- 'user', 'admin'
-    granted_by UUID REFERENCES users(id),
-    granted_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT valid_role CHECK (role IN ('user', 'admin'))
-);
+```sql
+-- server/migrations/20260118000000_information_pages.sql
 
 -- Pages table (platform pages have guild_id = NULL)
+-- Platform admin checks use existing system_admins table
 CREATE TABLE pages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     guild_id UUID REFERENCES guilds(id) ON DELETE CASCADE,
@@ -115,9 +124,8 @@ CREATE TRIGGER page_visibility_guild_check
     BEFORE INSERT OR UPDATE ON page_visibility
     FOR EACH ROW EXECUTE FUNCTION check_page_visibility_guild();
 
--- Add first platform admin (the first registered user)
-INSERT INTO platform_roles (user_id, role, granted_by)
-SELECT id, 'admin', id FROM users ORDER BY created_at LIMIT 1;
+-- Note: Platform admin management uses existing system_admins table
+-- No INSERT needed - admins are already managed via that table
 ```
 
 **Step 2: Run migration**
@@ -297,14 +305,8 @@ pub struct PageAcceptance {
     pub accepted_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct PlatformRole {
-    pub user_id: Uuid,
-    pub role: String,
-    pub granted_by: Option<Uuid>,
-    #[serde(with = "time::serde::rfc3339::option")]
-    pub granted_at: Option<OffsetDateTime>,
-}
+// Note: Platform admin checks use existing system_admins table
+// No separate PlatformRole type needed
 ```
 
 **Step 4: Add module to lib.rs**
@@ -343,7 +345,7 @@ use uuid::Uuid;
 use sha2::{Sha256, Digest};
 
 use crate::pages::{
-    Page, PageListItem, PageAcceptance, PlatformRole,
+    Page, PageListItem, PageAcceptance,
     RESERVED_SLUGS, DELETED_SLUG_COOLDOWN_DAYS, MAX_PAGES_PER_SCOPE,
 };
 
@@ -372,16 +374,16 @@ pub fn is_reserved_slug(slug: &str) -> bool {
     RESERVED_SLUGS.contains(&slug)
 }
 
-/// Check if user is platform admin
+/// Check if user is platform admin (uses existing system_admins table)
 pub async fn is_platform_admin(pool: &PgPool, user_id: Uuid) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query_scalar!(
-        r#"SELECT role FROM platform_roles WHERE user_id = $1"#,
+    let exists = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM system_admins WHERE user_id = $1) as "exists!""#,
         user_id
     )
-    .fetch_optional(pool)
+    .fetch_one(pool)
     .await?;
 
-    Ok(result.map(|r| r == "admin").unwrap_or(false))
+    Ok(exists)
 }
 
 /// Count pages in scope
@@ -1198,7 +1200,9 @@ git commit -m "feat(pages): add pages store"
 
 **Step 1: Install dependencies**
 
-Run: `cd client && npm install marked dompurify mermaid @types/dompurify`
+> **Note:** `marked` is already installed. Only install missing packages.
+
+Run: `cd client && bun add dompurify mermaid && bun add -d @types/dompurify`
 
 **Step 2: Create secure markdown renderer**
 
@@ -1362,11 +1366,11 @@ git commit -m "test(pages): add integration tests"
 ```bash
 # Backend
 cd server && cargo test
-cd server && cargo clippy
+cd server && cargo clippy -- -D warnings
 
 # Frontend
-cd client && npm run check
-cd client && npm run build
+cd client && bun run lint
+cd client && bun run build
 ```
 
 Manual testing checklist:
