@@ -164,7 +164,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: infra/docker/server.Dockerfile
+          file: infra/docker/Dockerfile
           push: false
           tags: voicechat/server:test
           cache-from: type=gha
