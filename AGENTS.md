@@ -22,6 +22,7 @@ Client (Tauri 2.0)          Server (Axum)
 ## Key Files
 - `Cargo.toml` - Rust workspace configuration
 - `CLAUDE.md` - AI agent instructions and code review guidelines
+- `CHANGELOG.md` - Change log (keepachangelog.com format)
 - `README.md` - Quick start and project overview
 - `Makefile` - Build and development commands
 - `docker-compose.dev.yml` - Development services (PostgreSQL, Redis, MinIO)
@@ -37,6 +38,7 @@ Client (Tauri 2.0)          Server (Axum)
 - `specs/` - Project specifications - see specs/AGENTS.md
 - `scripts/` - Build and utility scripts - see scripts/AGENTS.md
 - `.claude/` - Claude Code configuration - see .claude/AGENTS.md
+- `.github/` - GitHub Actions CI/CD workflows - see .github/AGENTS.md
 
 ## For AI Agents
 

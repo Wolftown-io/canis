@@ -10,6 +10,7 @@ Core implementation of the VoiceChat server. Contains all business logic, API ha
 - `config.rs` - Environment-based configuration loading
 
 ## Subdirectories
+- `admin/` - System admin panel (user bans, guild suspensions, audit log) - see admin/AGENTS.md
 - `api/` - HTTP REST API routes and handlers - see api/AGENTS.md
 - `auth/` - Authentication and authorization (JWT, OIDC, MFA) - see auth/AGENTS.md
 - `chat/` - Text chat, channels, messages, file uploads - see chat/AGENTS.md

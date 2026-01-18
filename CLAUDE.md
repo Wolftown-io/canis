@@ -91,6 +91,7 @@ const channel = await invoke<Channel>('get_channel', { id });
 - `ARCHITECTURE.md` — Technische Architektur und Diagramme
 - `STANDARDS.md` — Verwendete Protokolle und Libraries
 - `LICENSE_COMPLIANCE.md` — Lizenzprüfung aller Dependencies
+- `CHANGELOG.md` — Änderungsprotokoll (keepachangelog.com Format)
 
 ---
 
@@ -395,6 +396,58 @@ Ask [Faramir|Elrond|Gandalf|Éowyn|Pippin] about [topic]
 5. Review: `Review this PR`
 6. UX-Check: `Ask Pippin` bei User-facing Features
 7. Performance: `Ask Gandalf` bei Hot-Paths
+8. **Changelog:** Update `CHANGELOG.md` unter `[Unreleased]`
+
+---
+
+# Changelog
+
+> Format: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
+
+## Changelog-Pflicht (WICHTIG)
+
+**Jede benutzerrelevante Änderung MUSS in `CHANGELOG.md` dokumentiert werden.**
+
+### Wann aktualisieren?
+
+- **Neue Features:** Unter `### Added`
+- **Geänderte Funktionalität:** Unter `### Changed`
+- **Deprecations:** Unter `### Deprecated`
+- **Entfernte Features:** Unter `### Removed`
+- **Bugfixes:** Unter `### Fixed`
+- **Sicherheits-Patches:** Unter `### Security`
+
+### Wann NICHT aktualisieren?
+
+- Reine Refactorings ohne Verhaltensänderung
+- Interne Code-Reorganisation
+- Dokumentations-Updates (außer API-Docs)
+- Test-Änderungen ohne Feature-Bezug
+
+### Format
+
+```markdown
+## [Unreleased]
+
+### Added
+- Permission system with role-based access control
+- Admin panel for user and guild management
+
+### Fixed
+- File upload timeout on large files (#123)
+```
+
+### Workflow
+
+1. **Während der Entwicklung:** Eintrag unter `[Unreleased]` hinzufügen
+2. **Bei Release:** `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD` umbenennen
+3. **Neue `[Unreleased]` Section:** Leere Kategorien für nächsten Zyklus
+
+### Gute Einträge
+
+- **Nutzer-Perspektive:** Was ändert sich für den User?
+- **Konkret:** "Fixed login timeout" statt "Fixed bug"
+- **Issue-Referenz:** `(#123)` wenn vorhanden
 
 ---
 
