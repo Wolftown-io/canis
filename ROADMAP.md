@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 3 (Guild Architecture & Security) - In Progress
 
-**Last Updated:** 2026-01-16
+**Last Updated:** 2026-01-18
 
 ## Quick Status Overview
 
@@ -192,7 +192,7 @@ This roadmap outlines the development path from the current prototype to a produ
   - Call signaling via Redis Streams, reuses existing SFU.
   - Join/Decline flow with configurable notifications.
   - **Design:** `docs/plans/2026-01-14-dm-voice-calls-design.md`
-- [ ] **[Content] Information Pages** `New` `Designed`
+- [ ] **[Content] Information Pages** `New` `In Progress`
   - Platform-wide pages (ToS, Privacy Policy) in Home view.
   - Guild-level pages (Rules, FAQ) in sidebar above channels.
   - Markdown editor with Mermaid diagram support.
