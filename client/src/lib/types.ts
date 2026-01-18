@@ -328,3 +328,67 @@ export interface UpdatePageRequest {
   content?: string;
   requires_acceptance?: boolean;
 }
+
+// Role Types
+
+export interface GuildRole {
+  id: string;
+  guild_id: string;
+  name: string;
+  color: string | null;
+  permissions: number;
+  position: number;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface CreateRoleRequest {
+  name: string;
+  color?: string;
+  permissions?: number;
+}
+
+export interface UpdateRoleRequest {
+  name?: string;
+  color?: string;
+  permissions?: number;
+  position?: number;
+}
+
+export interface AssignRoleResponse {
+  assigned: boolean;
+  user_id: string;
+  role_id: string;
+}
+
+export interface RemoveRoleResponse {
+  removed: boolean;
+  user_id: string;
+  role_id: string;
+}
+
+export interface DeleteRoleResponse {
+  deleted: boolean;
+  role_id: string;
+}
+
+// Channel Override Types
+
+export interface ChannelOverride {
+  id: string;
+  channel_id: string;
+  role_id: string;
+  allow_permissions: number;
+  deny_permissions: number;
+}
+
+export interface SetChannelOverrideRequest {
+  allow?: number;
+  deny?: number;
+}
+
+// Member with roles (extended GuildMember)
+
+export interface GuildMemberWithRoles extends GuildMember {
+  role_ids: string[];
+}
