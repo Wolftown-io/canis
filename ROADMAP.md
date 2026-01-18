@@ -13,7 +13,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 0** | ✅ Complete | 100% | N+1 fix, WebRTC optimization, MFA encryption |
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
 | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
-| **Phase 3** | 🔄 In Progress | 75% | Guild system, Friends, DMs, Home View, Permission system design |
+| **Phase 3** | 🔄 In Progress | 85% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission system design |
 | **Phase 4** | 📋 Planned | 0% | - |
 | **Phase 5** | 📋 Planned | 0% | - |
 
@@ -199,12 +199,12 @@ This roadmap outlines the development path from the current prototype to a produ
   - Role-based visibility and optional acceptance requirements.
   - Platform admin role system for managing platform pages.
   - **Design:** `docs/plans/2026-01-16-information-pages-design.md`
-- [ ] **[Security] Rate Limiting** `Designed`
-  - Redis-based fixed window rate limiting.
-  - Hybrid IP/user identification.
-  - Failed auth tracking with IP blocking.
-  - Admin endpoints and Prometheus metrics.
-  - **Design:** `docs/plans/2026-01-17-rate-limiting-design.md`
+- [x] **[Security] Rate Limiting** ✅
+  - Redis-based fixed window rate limiting with Lua scripts.
+  - Hybrid IP/user identification with configurable trust proxy.
+  - Failed auth tracking with automatic IP blocking.
+  - Category-based limits (Auth, Read, Write, Social, Voice).
+  - **Location:** `server/src/ratelimit/`
 
 ---
 
