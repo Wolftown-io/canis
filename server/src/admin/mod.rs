@@ -2,7 +2,7 @@
 //!
 //! Provides admin-only endpoints for platform management:
 //! - Non-elevated: list users, list guilds, audit log, elevate/de-elevate session
-//! - Elevated: ban users, suspend guilds, manage announcements (in elevated_handlers)
+//! - Elevated: ban users, suspend guilds, manage announcements
 
 pub mod handlers;
 pub mod middleware;

@@ -89,7 +89,7 @@ pub struct SetOverrideRequest {
 
 /// List all permission overrides for a channel.
 ///
-/// GET /api/channels/:channel_id/overrides
+/// `GET /api/channels/:channel_id/overrides`
 #[tracing::instrument(skip(state))]
 pub async fn list_overrides(
     State(state): State<AppState>,
@@ -141,7 +141,7 @@ pub async fn list_overrides(
 
 /// Set permission override for a role on a channel.
 ///
-/// PUT /api/channels/:channel_id/overrides/:role_id
+/// `PUT /api/channels/:channel_id/overrides/:role_id`
 #[tracing::instrument(skip(state, body))]
 pub async fn set_override(
     State(state): State<AppState>,
@@ -211,7 +211,7 @@ pub async fn set_override(
 
 /// Remove permission override.
 ///
-/// DELETE /api/channels/:channel_id/overrides/:role_id
+/// `DELETE /api/channels/:channel_id/overrides/:role_id`
 #[tracing::instrument(skip(state))]
 pub async fn delete_override(
     State(state): State<AppState>,

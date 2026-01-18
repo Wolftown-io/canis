@@ -6,6 +6,8 @@
 //! - View audit log
 //! - Elevate/de-elevate session
 
+#![allow(clippy::used_underscore_binding)]
+
 use axum::{
     extract::{ConnectInfo, Path, Query, State},
     Extension, Json,
@@ -43,6 +45,7 @@ pub struct PaginationParams {
     pub offset: i64,
 }
 
+#[allow(clippy::missing_const_for_fn)]
 fn default_limit() -> i64 {
     50
 }
@@ -121,7 +124,7 @@ pub struct DeElevateResponse {
 
 /// List all users with pagination.
 ///
-/// GET /api/admin/users
+/// `GET /api/admin/users`
 #[tracing::instrument(skip(state))]
 pub async fn list_users(
     State(state): State<AppState>,
@@ -179,7 +182,7 @@ pub async fn list_users(
 
 /// List all guilds with pagination.
 ///
-/// GET /api/admin/guilds
+/// `GET /api/admin/guilds`
 #[tracing::instrument(skip(state))]
 pub async fn list_guilds(
     State(state): State<AppState>,
@@ -237,7 +240,7 @@ pub async fn list_guilds(
 
 /// Get system audit log with pagination and optional action filter.
 ///
-/// GET /api/admin/audit-log
+/// `GET /api/admin/audit-log`
 #[tracing::instrument(skip(state))]
 pub async fn get_audit_log(
     State(state): State<AppState>,
@@ -273,15 +276,15 @@ pub async fn get_audit_log(
         .collect();
 
     // Fetch usernames for actors
-    let usernames: std::collections::HashMap<Uuid, String> = if !actor_ids.is_empty() {
+    let usernames: std::collections::HashMap<Uuid, String> = if actor_ids.is_empty() {
+        std::collections::HashMap::new()
+    } else {
         sqlx::query_as::<_, (Uuid, String)>("SELECT id, username FROM users WHERE id = ANY($1)")
             .bind(&actor_ids)
             .fetch_all(&state.db)
             .await?
             .into_iter()
             .collect()
-    } else {
-        std::collections::HashMap::new()
     };
 
     let items: Vec<AuditLogEntryResponse> = entries
@@ -309,7 +312,7 @@ pub async fn get_audit_log(
 
 /// Elevate admin session with MFA verification.
 ///
-/// POST /api/admin/elevate
+/// `POST /api/admin/elevate`
 #[tracing::instrument(skip(state, body))]
 pub async fn elevate_session(
     State(state): State<AppState>,
@@ -426,7 +429,7 @@ pub async fn elevate_session(
 
 /// De-elevate admin session.
 ///
-/// DELETE /api/admin/elevate
+/// `DELETE /api/admin/elevate`
 #[tracing::instrument(skip(state))]
 pub async fn de_elevate_session(
     State(state): State<AppState>,
@@ -488,7 +491,7 @@ pub struct AnnouncementResponse {
 
 /// Global ban a user.
 ///
-/// POST /api/admin/users/:id/ban
+/// `POST /api/admin/users/:id/ban`
 #[tracing::instrument(skip(state))]
 pub async fn ban_user(
     State(state): State<AppState>,
@@ -554,7 +557,7 @@ pub async fn ban_user(
 
 /// Remove global ban from a user.
 ///
-/// DELETE /api/admin/users/:id/ban
+/// `DELETE /api/admin/users/:id/ban`
 #[tracing::instrument(skip(state))]
 pub async fn unban_user(
     State(state): State<AppState>,
@@ -593,7 +596,7 @@ pub async fn unban_user(
 
 /// Suspend a guild.
 ///
-/// POST /api/admin/guilds/:id/suspend
+/// `POST /api/admin/guilds/:id/suspend`
 #[tracing::instrument(skip(state))]
 pub async fn suspend_guild(
     State(state): State<AppState>,
@@ -654,7 +657,7 @@ pub async fn suspend_guild(
 
 /// Unsuspend a guild.
 ///
-/// DELETE /api/admin/guilds/:id/suspend
+/// `DELETE /api/admin/guilds/:id/suspend`
 #[tracing::instrument(skip(state))]
 pub async fn unsuspend_guild(
     State(state): State<AppState>,
@@ -701,7 +704,7 @@ pub async fn unsuspend_guild(
 
 /// Create a system announcement.
 ///
-/// POST /api/admin/announcements
+/// `POST /api/admin/announcements`
 #[tracing::instrument(skip(state))]
 pub async fn create_announcement(
     State(state): State<AppState>,
