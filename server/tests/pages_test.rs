@@ -63,8 +63,8 @@ fn test_slugify_edge_cases() {
     assert_eq!(slugify("---"), "");
     assert_eq!(slugify("123"), "123");
     assert_eq!(slugify("a-b-c"), "a-b-c");
-    // Note: Rust's is_alphanumeric() includes unicode letters
-    assert_eq!(slugify("Über Café"), "über-café");
+    // Unicode letters are stripped to ensure URL-safe ASCII slugs
+    assert_eq!(slugify("Über Café"), "ber-caf");
 }
 
 /// Test reserved slug detection.
@@ -205,13 +205,13 @@ fn test_empty_content_hash() {
     );
 }
 
-/// Test slugify with unicode characters.
+/// Test slugify strips unicode characters for URL-safe ASCII slugs.
 #[test]
 fn test_slugify_unicode() {
-    // Rust's is_alphanumeric() includes unicode letters, so they're preserved
-    assert_eq!(slugify("日本語"), "日本語");
-    assert_eq!(slugify("Test 日本語 Page"), "test-日本語-page");
-    assert_eq!(slugify("Café"), "café");
+    // Unicode characters are stripped for URL-safe slugs (matching frontend behavior)
+    assert_eq!(slugify("日本語"), "");
+    assert_eq!(slugify("Test 日本語 Page"), "test-page");
+    assert_eq!(slugify("Café"), "caf");
 }
 
 /// Test slugify doesn't produce leading/trailing dashes.

@@ -75,9 +75,11 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
 });
 
 // SVG-specific sanitization for mermaid diagrams
+// Note: foreignObject and style are explicitly forbidden as they are XSS vectors
 const MERMAID_SVG_CONFIG = {
-  ADD_TAGS: ["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "marker", "style", "foreignObject"],
+  ADD_TAGS: ["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "marker"],
   ADD_ATTR: ["viewBox", "d", "fill", "stroke", "stroke-width", "transform", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "points", "font-size", "font-family", "text-anchor", "dominant-baseline", "marker-end", "marker-start", "xmlns", "preserveAspectRatio"],
+  FORBID_TAGS: ["foreignObject", "style", "script"],
 };
 
 interface MarkdownPreviewProps {
@@ -88,6 +90,7 @@ interface MarkdownPreviewProps {
 export default function MarkdownPreview(props: MarkdownPreviewProps) {
   const [html, setHtml] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
+  const [renderVersion, setRenderVersion] = createSignal(0);
   let containerRef: HTMLDivElement | undefined;
 
   onMount(() => {
@@ -95,8 +98,11 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
   });
 
   // Parse markdown and sanitize
+  // Uses version counter to prevent race conditions with rapid content changes
   createEffect(async () => {
     const content = props.content;
+    const version = renderVersion() + 1;
+    setRenderVersion(version);
 
     if (!content) {
       setHtml("");
@@ -111,19 +117,29 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
         breaks: true,
       });
 
+      // Check if content changed during async operation (race condition guard)
+      if (renderVersion() !== version) {
+        return; // Stale render, skip update
+      }
+
       // Sanitize HTML using DOMPurify - this is the security layer
       const sanitizedHtml = DOMPurify.sanitize(rawHtml);
       setHtml(sanitizedHtml);
       setError(null);
     } catch (err) {
-      console.error("Markdown parsing error:", err);
-      setError("Failed to render markdown");
+      // Only update error if this is still the current render
+      if (renderVersion() === version) {
+        console.error("Markdown parsing error:", err);
+        setError("Failed to render markdown");
+      }
     }
   });
 
   // Render mermaid diagrams after HTML is set
+  // Uses version tracking to prevent stale async renders from modifying DOM
   createEffect(() => {
     const currentHtml = html();
+    const version = renderVersion();
     if (!currentHtml || !containerRef) return;
 
     // Find and render mermaid code blocks
@@ -138,6 +154,11 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
         const id = `mermaid-${Date.now()}-${index}`;
         const { svg } = await mermaid.render(id, code.trim());
 
+        // Check if render is still current (race condition guard)
+        if (renderVersion() !== version) {
+          return; // DOM has been replaced, skip modification
+        }
+
         // Replace the code block with rendered SVG (sanitized)
         const wrapper = document.createElement("div");
         wrapper.className = "mermaid-diagram";
@@ -145,6 +166,9 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
         wrapper.innerHTML = DOMPurify.sanitize(svg, MERMAID_SVG_CONFIG);
         pre.replaceWith(wrapper);
       } catch (err) {
+        // Only show error if this is still the current render
+        if (renderVersion() !== version) return;
+
         console.error("Mermaid rendering error:", err);
         // Leave the code block as-is if mermaid fails
         const errorDiv = document.createElement("div");

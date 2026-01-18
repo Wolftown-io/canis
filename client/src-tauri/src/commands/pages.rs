@@ -117,7 +117,7 @@ pub async fn get_platform_page(
 
     let response = state
         .http
-        .get(format!("{server_url}/api/pages/{slug}"))
+        .get(format!("{server_url}/api/pages/by-slug/{slug}"))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
@@ -142,6 +142,9 @@ pub async fn get_platform_page(
 }
 
 /// Create a platform page (admin only).
+/// Maximum content size in bytes (100KB), matching server limit
+const MAX_CONTENT_SIZE: usize = 102_400;
+
 #[command]
 pub async fn create_platform_page(
     state: State<'_, AppState>,
@@ -150,6 +153,14 @@ pub async fn create_platform_page(
     slug: Option<String>,
     requires_acceptance: Option<bool>,
 ) -> Result<Page, String> {
+    // Validate content size before sending to server
+    if content.len() > MAX_CONTENT_SIZE {
+        return Err(format!(
+            "Content exceeds maximum size of {} KB",
+            MAX_CONTENT_SIZE / 1024
+        ));
+    }
+
     let (server_url, token) = {
         let auth = state.auth.read().await;
         (auth.server_url.clone(), auth.access_token.clone())
@@ -203,6 +214,16 @@ pub async fn update_platform_page(
     content: Option<String>,
     requires_acceptance: Option<bool>,
 ) -> Result<Page, String> {
+    // Validate content size if provided
+    if let Some(ref c) = content {
+        if c.len() > MAX_CONTENT_SIZE {
+            return Err(format!(
+                "Content exceeds maximum size of {} KB",
+                MAX_CONTENT_SIZE / 1024
+            ));
+        }
+    }
+
     let (server_url, token) = {
         let auth = state.auth.read().await;
         (auth.server_url.clone(), auth.access_token.clone())
@@ -388,7 +409,7 @@ pub async fn get_guild_page(
 
     let response = state
         .http
-        .get(format!("{server_url}/api/guilds/{guild_id}/pages/{slug}"))
+        .get(format!("{server_url}/api/guilds/{guild_id}/pages/by-slug/{slug}"))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
@@ -431,6 +452,14 @@ pub async fn create_guild_page(
     let token = token.ok_or("Not authenticated")?;
 
     debug!("Creating guild page: {} in {}", title, guild_id);
+
+    // Validate content size before sending to server
+    if content.len() > MAX_CONTENT_SIZE {
+        return Err(format!(
+            "Content exceeds maximum size of {} KB",
+            MAX_CONTENT_SIZE / 1024
+        ));
+    }
 
     let response = state
         .http
@@ -485,6 +514,16 @@ pub async fn update_guild_page(
     let token = token.ok_or("Not authenticated")?;
 
     debug!("Updating guild page: {} in {}", page_id, guild_id);
+
+    // Validate content size if provided
+    if let Some(ref c) = content {
+        if c.len() > MAX_CONTENT_SIZE {
+            return Err(format!(
+                "Content exceeds maximum size of {} KB",
+                MAX_CONTENT_SIZE / 1024
+            ));
+        }
+    }
 
     let response = state
         .http

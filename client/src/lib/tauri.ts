@@ -1120,7 +1120,7 @@ export async function getPlatformPage(slug: string): Promise<Page> {
     return invoke("get_platform_page", { slug });
   }
 
-  return httpRequest<Page>("GET", `/api/pages/${slug}`);
+  return httpRequest<Page>("GET", `/api/pages/by-slug/${slug}`);
 }
 
 /**
@@ -1224,7 +1224,7 @@ export async function getGuildPage(guildId: string, slug: string): Promise<Page>
     return invoke("get_guild_page", { guildId, slug });
   }
 
-  return httpRequest<Page>("GET", `/api/guilds/${guildId}/pages/${slug}`);
+  return httpRequest<Page>("GET", `/api/guilds/${guildId}/pages/by-slug/${slug}`);
 }
 
 /**

@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
@@ -50,8 +51,12 @@ pub async fn create_platform_page(
     user: AuthUser,
     Json(req): Json<CreatePageRequest>,
 ) -> PageResult<Json<Page>> {
-    // Verify system admin
-    if !is_system_admin(&state.db, user.id).await.unwrap_or(false) {
+    // Verify system admin (fail-fast on DB error for security)
+    let is_admin = is_system_admin(&state.db, user.id).await.map_err(|e| {
+        error!("Permission check failed: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Permission check failed".to_string())
+    })?;
+    if !is_admin {
         return Err((StatusCode::FORBIDDEN, "System admin required".to_string()));
     }
 
@@ -65,29 +70,38 @@ pub async fn create_platform_page(
 
     validate_slug(&slug)?;
 
-    // Check slug availability
-    if queries::slug_exists(&state.db, None, &slug, None)
+    // Check slug availability (conservative: assume exists on error)
+    let slug_exists = queries::slug_exists(&state.db, None, &slug, None)
         .await
-        .unwrap_or(true)
-    {
+        .unwrap_or_else(|e| {
+            error!("Slug check failed, assuming exists: {}", e);
+            true
+        });
+    if slug_exists {
         return Err((StatusCode::CONFLICT, "Slug already exists".to_string()));
     }
 
-    if queries::slug_recently_deleted(&state.db, None, &slug)
+    let recently_deleted = queries::slug_recently_deleted(&state.db, None, &slug)
         .await
-        .unwrap_or(false)
-    {
+        .unwrap_or_else(|e| {
+            error!("Recently deleted check failed: {}", e);
+            false
+        });
+    if recently_deleted {
         return Err((
             StatusCode::CONFLICT,
             "Slug was recently deleted. Try a different slug.".to_string(),
         ));
     }
 
-    // Check page limit
-    if queries::is_at_page_limit(&state.db, None)
+    // Check page limit (conservative: assume at limit on error)
+    let at_limit = queries::is_at_page_limit(&state.db, None)
         .await
-        .unwrap_or(true)
-    {
+        .unwrap_or_else(|e| {
+            error!("Page limit check failed, assuming at limit: {}", e);
+            true
+        });
+    if at_limit {
         return Err((
             StatusCode::BAD_REQUEST,
             format!("Maximum {} pages reached", MAX_PAGES_PER_SCOPE),
@@ -107,10 +121,10 @@ pub async fn create_platform_page(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Log audit
-    queries::log_audit(&state.db, page.id, "create", user.id, None, None, None)
-        .await
-        .ok();
+    // Log audit (non-blocking, log errors instead of failing)
+    if let Err(e) = queries::log_audit(&state.db, page.id, "create", user.id, None, None, None).await {
+        error!("Failed to log audit for page {}: {}", page.id, e);
+    }
 
     Ok(Json(page))
 }
@@ -122,8 +136,12 @@ pub async fn update_platform_page(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdatePageRequest>,
 ) -> PageResult<Json<Page>> {
-    // Verify system admin
-    if !is_system_admin(&state.db, user.id).await.unwrap_or(false) {
+    // Verify system admin (fail-fast on DB error for security)
+    let is_admin = is_system_admin(&state.db, user.id).await.map_err(|e| {
+        error!("Permission check failed: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Permission check failed".to_string())
+    })?;
+    if !is_admin {
         return Err((StatusCode::FORBIDDEN, "System admin required".to_string()));
     }
 
@@ -187,8 +205,12 @@ pub async fn delete_platform_page(
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> PageResult<StatusCode> {
-    // Verify system admin
-    if !is_system_admin(&state.db, user.id).await.unwrap_or(false) {
+    // Verify system admin (fail-fast on DB error for security)
+    let is_admin = is_system_admin(&state.db, user.id).await.map_err(|e| {
+        error!("Permission check failed: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Permission check failed".to_string())
+    })?;
+    if !is_admin {
         return Err((StatusCode::FORBIDDEN, "System admin required".to_string()));
     }
 
@@ -230,8 +252,12 @@ pub async fn reorder_platform_pages(
     user: AuthUser,
     Json(req): Json<ReorderRequest>,
 ) -> PageResult<StatusCode> {
-    // Verify system admin
-    if !is_system_admin(&state.db, user.id).await.unwrap_or(false) {
+    // Verify system admin (fail-fast on DB error for security)
+    let is_admin = is_system_admin(&state.db, user.id).await.map_err(|e| {
+        error!("Permission check failed: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Permission check failed".to_string())
+    })?;
+    if !is_admin {
         return Err((StatusCode::FORBIDDEN, "System admin required".to_string()));
     }
 
@@ -353,10 +379,10 @@ pub async fn create_guild_page(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Log audit
-    queries::log_audit(&state.db, page.id, "create", user.id, None, None, None)
-        .await
-        .ok();
+    // Log audit (non-blocking, log errors instead of failing)
+    if let Err(e) = queries::log_audit(&state.db, page.id, "create", user.id, None, None, None).await {
+        error!("Failed to log audit for page {}: {}", page.id, e);
+    }
 
     Ok(Json(page))
 }

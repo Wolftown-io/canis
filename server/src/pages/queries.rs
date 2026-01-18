@@ -18,18 +18,29 @@ pub fn hash_content(content: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
+/// Maximum slug length.
+const MAX_SLUG_LENGTH: usize = 100;
+
 /// Generate URL-friendly slug from title.
 #[must_use]
 pub fn slugify(title: &str) -> String {
-    title
+    let slug: String = title
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        // Only keep ASCII alphanumeric characters (matches frontend behavior)
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect::<String>()
         .split('-')
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
-        .join("-")
+        .join("-");
+
+    // Truncate to max length without breaking mid-word if possible
+    if slug.len() <= MAX_SLUG_LENGTH {
+        slug
+    } else {
+        slug.chars().take(MAX_SLUG_LENGTH).collect()
+    }
 }
 
 /// Check if slug is a reserved system path.
@@ -305,6 +316,8 @@ pub async fn restore_page(pool: &PgPool, id: Uuid) -> Result<Page, sqlx::Error> 
 }
 
 /// Reorder pages by updating their positions.
+///
+/// Verifies all page IDs belong to the specified scope before reordering.
 pub async fn reorder_pages(
     pool: &PgPool,
     guild_id: Option<Uuid>,
@@ -318,6 +331,37 @@ pub async fn reorder_pages(
         ));
     }
 
+    // Verify all provided page IDs actually belong to this scope (security check)
+    // Uses runtime query to avoid compile-time DATABASE_URL requirement
+    let valid_count: i64 = match guild_id {
+        Some(gid) => {
+            sqlx::query_scalar(
+                r#"SELECT COUNT(*) FROM pages
+                   WHERE id = ANY($1) AND guild_id = $2 AND deleted_at IS NULL"#,
+            )
+            .bind(page_ids)
+            .bind(gid)
+            .fetch_one(pool)
+            .await?
+        }
+        None => {
+            sqlx::query_scalar(
+                r#"SELECT COUNT(*) FROM pages
+                   WHERE id = ANY($1) AND guild_id IS NULL AND deleted_at IS NULL"#,
+            )
+            .bind(page_ids)
+            .fetch_one(pool)
+            .await?
+        }
+    };
+
+    if valid_count != page_ids.len() as i64 {
+        return Err(sqlx::Error::Protocol(
+            "Invalid page IDs: some pages do not belong to this scope".to_string(),
+        ));
+    }
+
+    // Now safe to update positions
     for (position, page_id) in page_ids.iter().enumerate() {
         sqlx::query!(
             r#"UPDATE pages SET position = $2 WHERE id = $1"#,
