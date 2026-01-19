@@ -25,6 +25,7 @@ pub struct CallStateResponse {
     pub channel_id: Uuid,
     #[serde(flatten)]
     pub state: CallState,
+    pub capabilities: Vec<String>,
 }
 
 /// Call API error response
@@ -150,9 +151,11 @@ pub async fn get_call(
     let call_service = CallService::new(state.redis.clone());
     let call_state = call_service.get_call_state(channel_id).await?;
 
-    Ok(Json(
-        call_state.map(|state| CallStateResponse { channel_id, state }),
-    ))
+    Ok(Json(call_state.map(|state| CallStateResponse {
+        channel_id,
+        state,
+        capabilities: vec!["audio".to_string()],
+    })))
 }
 
 /// Get username for a user ID
@@ -210,6 +213,7 @@ pub async fn start_call(
         Json(CallStateResponse {
             channel_id,
             state: call_state,
+            capabilities: vec!["audio".to_string()],
         }),
     ))
 }
@@ -246,6 +250,7 @@ pub async fn join_call(
     Ok(Json(CallStateResponse {
         channel_id,
         state: call_state,
+        capabilities: vec!["audio".to_string()],
     }))
 }
 
@@ -300,6 +305,7 @@ pub async fn decline_call(
     Ok(Json(CallStateResponse {
         channel_id,
         state: call_state,
+        capabilities: vec!["audio".to_string()],
     }))
 }
 
@@ -359,6 +365,7 @@ pub async fn leave_call(
     Ok(Json(CallStateResponse {
         channel_id,
         state: call_state,
+        capabilities: vec!["audio".to_string()],
     }))
 }
 
