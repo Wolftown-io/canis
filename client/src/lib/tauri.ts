@@ -20,10 +20,18 @@ import type {
   DMListItem,
   Page,
   PageListItem,
+  GuildRole,
+  ChannelOverride,
+  CreateRoleRequest,
+  UpdateRoleRequest,
+  SetChannelOverrideRequest,
+  AssignRoleResponse,
+  RemoveRoleResponse,
+  DeleteRoleResponse,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem };
+export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse };
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -1335,4 +1343,188 @@ export async function getPendingAcceptance(): Promise<PageListItem[]> {
   }
 
   return httpRequest<PageListItem[]>("GET", "/api/pages/pending-acceptance");
+}
+
+// ============================================================================
+// Role Commands
+// ============================================================================
+
+/**
+ * Get all roles for a guild.
+ */
+export async function getGuildRoles(guildId: string): Promise<GuildRole[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_guild_roles", { guildId });
+  }
+
+  return httpRequest<GuildRole[]>("GET", `/api/guilds/${guildId}/roles`);
+}
+
+/**
+ * Create a new role in a guild.
+ */
+export async function createGuildRole(
+  guildId: string,
+  request: CreateRoleRequest
+): Promise<GuildRole> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("create_guild_role", { guildId, request });
+  }
+
+  return httpRequest<GuildRole>("POST", `/api/guilds/${guildId}/roles`, request);
+}
+
+/**
+ * Update an existing role.
+ */
+export async function updateGuildRole(
+  guildId: string,
+  roleId: string,
+  request: UpdateRoleRequest
+): Promise<GuildRole> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("update_guild_role", { guildId, roleId, request });
+  }
+
+  return httpRequest<GuildRole>(
+    "PATCH",
+    `/api/guilds/${guildId}/roles/${roleId}`,
+    request
+  );
+}
+
+/**
+ * Delete a role from a guild.
+ */
+export async function deleteGuildRole(
+  guildId: string,
+  roleId: string
+): Promise<DeleteRoleResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("delete_guild_role", { guildId, roleId });
+  }
+
+  return httpRequest<DeleteRoleResponse>(
+    "DELETE",
+    `/api/guilds/${guildId}/roles/${roleId}`
+  );
+}
+
+/**
+ * Get all member role assignments for a guild.
+ * Returns a map of user_id -> list of role_ids.
+ */
+export async function getGuildMemberRoles(
+  guildId: string
+): Promise<Record<string, string[]>> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_guild_member_roles", { guildId });
+  }
+
+  return httpRequest<Record<string, string[]>>(
+    "GET",
+    `/api/guilds/${guildId}/member-roles`
+  );
+}
+
+/**
+ * Assign a role to a guild member.
+ */
+export async function assignMemberRole(
+  guildId: string,
+  userId: string,
+  roleId: string
+): Promise<AssignRoleResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("assign_member_role", { guildId, userId, roleId });
+  }
+
+  return httpRequest<AssignRoleResponse>(
+    "POST",
+    `/api/guilds/${guildId}/members/${userId}/roles/${roleId}`
+  );
+}
+
+/**
+ * Remove a role from a guild member.
+ */
+export async function removeMemberRole(
+  guildId: string,
+  userId: string,
+  roleId: string
+): Promise<RemoveRoleResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("remove_member_role", { guildId, userId, roleId });
+  }
+
+  return httpRequest<RemoveRoleResponse>(
+    "DELETE",
+    `/api/guilds/${guildId}/members/${userId}/roles/${roleId}`
+  );
+}
+
+// ============================================================================
+// Channel Override Commands
+// ============================================================================
+
+/**
+ * Get permission overrides for a channel.
+ */
+export async function getChannelOverrides(
+  channelId: string
+): Promise<ChannelOverride[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_channel_overrides", { channelId });
+  }
+
+  return httpRequest<ChannelOverride[]>(
+    "GET",
+    `/api/channels/${channelId}/overrides`
+  );
+}
+
+/**
+ * Set a permission override for a role in a channel.
+ */
+export async function setChannelOverride(
+  channelId: string,
+  roleId: string,
+  request: SetChannelOverrideRequest
+): Promise<ChannelOverride> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("set_channel_override", { channelId, roleId, request });
+  }
+
+  return httpRequest<ChannelOverride>(
+    "PUT",
+    `/api/channels/${channelId}/overrides/${roleId}`,
+    request
+  );
+}
+
+/**
+ * Delete a permission override for a role in a channel.
+ */
+export async function deleteChannelOverride(
+  channelId: string,
+  roleId: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("delete_channel_override", { channelId, roleId });
+  }
+
+  await httpRequest<void>(
+    "DELETE",
+    `/api/channels/${channelId}/overrides/${roleId}`
+  );
 }

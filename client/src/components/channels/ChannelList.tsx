@@ -6,10 +6,14 @@ import {
   voiceChannels,
   selectChannel,
 } from "@/stores/channels";
-import { guildsState } from "@/stores/guilds";
+import { guildsState, isGuildOwner } from "@/stores/guilds";
+import { authState } from "@/stores/auth";
 import { joinVoice, leaveVoice, isInChannel } from "@/stores/voice";
+import { memberHasPermission } from "@/stores/permissions";
+import { PermissionBits } from "@/lib/permissionConstants";
 import ChannelItem from "./ChannelItem";
 import CreateChannelModal from "./CreateChannelModal";
+import ChannelSettingsModal from "./ChannelSettingsModal";
 import MicrophoneTest from "../voice/MicrophoneTest";
 import VoiceParticipants from "../voice/VoiceParticipants";
 
@@ -17,6 +21,17 @@ const ChannelList: Component = () => {
   const [showMicTest, setShowMicTest] = createSignal(false);
   const [showCreateModal, setShowCreateModal] = createSignal(false);
   const [createModalType, setCreateModalType] = createSignal<"text" | "voice">("text");
+  const [settingsChannelId, setSettingsChannelId] = createSignal<string | null>(null);
+
+  // Check if current user can manage channels
+  const canManageChannels = () => {
+    const guildId = guildsState.activeGuildId;
+    const userId = authState.user?.id;
+    if (!guildId || !userId) return false;
+
+    const isOwner = isGuildOwner(guildId, userId);
+    return isOwner || memberHasPermission(guildId, userId, isOwner, PermissionBits.MANAGE_CHANNELS);
+  };
 
   const handleVoiceChannelClick = async (channelId: string) => {
     if (isInChannel(channelId)) {
@@ -70,6 +85,7 @@ const ChannelList: Component = () => {
                 channel={channel}
                 isSelected={channelsState.selectedChannelId === channel.id}
                 onClick={() => selectChannel(channel.id)}
+                onSettings={canManageChannels() ? () => setSettingsChannelId(channel.id) : undefined}
               />
             )}
           </For>
@@ -110,6 +126,7 @@ const ChannelList: Component = () => {
                   channel={channel}
                   isSelected={false}
                   onClick={() => handleVoiceChannelClick(channel.id)}
+                  onSettings={canManageChannels() ? () => setSettingsChannelId(channel.id) : undefined}
                 />
                 <VoiceParticipants channelId={channel.id} />
               </div>
@@ -150,6 +167,15 @@ const ChannelList: Component = () => {
           initialType={createModalType()}
           onClose={() => setShowCreateModal(false)}
           onCreated={handleChannelCreated}
+        />
+      </Show>
+
+      {/* Channel Settings Modal */}
+      <Show when={settingsChannelId() && guildsState.activeGuildId}>
+        <ChannelSettingsModal
+          channelId={settingsChannelId()!}
+          guildId={guildsState.activeGuildId!}
+          onClose={() => setSettingsChannelId(null)}
         />
       </Show>
     </nav>

@@ -1,10 +1,14 @@
 /**
- * MembersTab - Member list with search and kick functionality
+ * MembersTab - Member list with search, role badges, and role management
  */
 
 import { Component, createSignal, createMemo, For, Show, onMount } from "solid-js";
-import { Search, Crown, X } from "lucide-solid";
-import { guildsState, loadGuildMembers, getGuildMembers, kickMember } from "@/stores/guilds";
+import { Search, Crown } from "lucide-solid";
+import { guildsState, loadGuildMembers, getGuildMembers } from "@/stores/guilds";
+import { loadGuildRoles, loadMemberRoles, getMemberRoles, memberHasPermission } from "@/stores/permissions";
+import { PermissionBits } from "@/lib/permissionConstants";
+import { authState } from "@/stores/auth";
+import MemberRoleDropdown from "./MemberRoleDropdown";
 import type { GuildMember } from "@/lib/types";
 
 interface MembersTabProps {
@@ -14,11 +18,22 @@ interface MembersTabProps {
 
 const MembersTab: Component<MembersTabProps> = (props) => {
   const [search, setSearch] = createSignal("");
-  const [kickingId, setKickingId] = createSignal<string | null>(null);
 
   onMount(() => {
     loadGuildMembers(props.guildId);
+    loadGuildRoles(props.guildId);
+    loadMemberRoles(props.guildId);
   });
+
+  // Check if current user can manage roles
+  const canManageRoles = () =>
+    props.isOwner ||
+    memberHasPermission(
+      props.guildId,
+      authState.user?.id || "",
+      props.isOwner,
+      PermissionBits.MANAGE_ROLES
+    );
 
   const guild = () => guildsState.guilds.find((g) => g.id === props.guildId);
   const members = () => getGuildMembers(props.guildId);
@@ -32,22 +47,6 @@ const MembersTab: Component<MembersTabProps> = (props) => {
         m.username.toLowerCase().includes(query)
     );
   });
-
-  const handleKick = async (userId: string) => {
-    if (kickingId() === userId) {
-      // Confirmed, kick them
-      try {
-        await kickMember(props.guildId, userId);
-      } catch (err) {
-        console.error("Failed to kick member:", err);
-      }
-      setKickingId(null);
-    } else {
-      // First click, show confirmation
-      setKickingId(userId);
-      setTimeout(() => setKickingId(null), 3000);
-    }
-  };
 
   const formatLastSeen = (member: GuildMember): string => {
     if (member.status === "online") return "Online";
@@ -117,15 +116,15 @@ const MembersTab: Component<MembersTabProps> = (props) => {
         <div class="space-y-1">
           <For each={filteredMembers()}>
             {(member) => {
-              const isGuildOwner = member.user_id === guild()?.owner_id;
-              const canKick = props.isOwner && !isGuildOwner;
+              const isMemberOwner = () => member.user_id === guild()?.owner_id;
+              const memberRoles = () => getMemberRoles(props.guildId, member.user_id);
 
               return (
                 <div
                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group"
                 >
                   {/* Avatar with status indicator */}
-                  <div class="relative">
+                  <div class="relative flex-shrink-0">
                     <div class="w-10 h-10 rounded-full bg-accent-primary/20 flex items-center justify-center">
                       <Show
                         when={member.avatar_url}
@@ -158,7 +157,7 @@ const MembersTab: Component<MembersTabProps> = (props) => {
                       <span class="font-medium text-text-primary truncate">
                         {member.nickname || member.display_name}
                       </span>
-                      <Show when={isGuildOwner}>
+                      <Show when={isMemberOwner()}>
                         <span title="Server Owner">
                           <Crown class="w-4 h-4 text-yellow-500" />
                         </span>
@@ -172,24 +171,33 @@ const MembersTab: Component<MembersTabProps> = (props) => {
                     </div>
                   </div>
 
-                  {/* Kick button */}
-                  <Show when={canKick}>
-                    <button
-                      onClick={() => handleKick(member.user_id)}
-                      class="p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      classList={{
-                        "bg-accent-danger text-white": kickingId() === member.user_id,
-                        "text-text-secondary hover:text-accent-danger hover:bg-white/10": kickingId() !== member.user_id,
-                      }}
-                      title={kickingId() === member.user_id ? "Click to confirm" : "Kick member"}
-                    >
-                      <Show
-                        when={kickingId() === member.user_id}
-                        fallback={<X class="w-4 h-4" />}
-                      >
-                        <span class="text-xs px-1">Confirm?</span>
-                      </Show>
-                    </button>
+                  {/* Role badges */}
+                  <div class="flex items-center gap-1 flex-wrap flex-shrink-0">
+                    <For each={memberRoles()}>
+                      {(role) => (
+                        <span
+                          class="px-1.5 py-0.5 text-xs rounded-full"
+                          style={{
+                            "background-color": role.color ? `${role.color}20` : "var(--color-surface-layer1)",
+                            color: role.color || "var(--color-text-secondary)",
+                            border: `1px solid ${role.color || "var(--color-white-10)"}`,
+                          }}
+                        >
+                          {role.name}
+                        </span>
+                      )}
+                    </For>
+                    <Show when={memberRoles().length === 0}>
+                      <span class="text-xs text-text-secondary">(no roles)</span>
+                    </Show>
+                  </div>
+
+                  {/* Manage dropdown - replaces kick button */}
+                  <Show when={canManageRoles() && !isMemberOwner()}>
+                    <MemberRoleDropdown
+                      guildId={props.guildId}
+                      userId={member.user_id}
+                    />
                   </Show>
                 </div>
               );

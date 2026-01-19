@@ -90,6 +90,17 @@ pub fn run() {
             commands::pages::reorder_guild_pages,
             commands::pages::accept_page,
             commands::pages::get_pending_acceptance,
+            // Role commands
+            commands::roles::get_guild_roles,
+            commands::roles::create_guild_role,
+            commands::roles::update_guild_role,
+            commands::roles::delete_guild_role,
+            commands::roles::get_guild_member_roles,
+            commands::roles::assign_member_role,
+            commands::roles::remove_member_role,
+            commands::roles::get_channel_overrides,
+            commands::roles::set_channel_override,
+            commands::roles::delete_channel_override,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

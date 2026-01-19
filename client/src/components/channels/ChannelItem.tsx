@@ -5,11 +5,12 @@
  * - Appropriate icon (# for text, 🔊 for voice)
  * - Selection state highlighting
  * - Voice connection indicator
+ * - Settings button on hover (for users with manage permission)
  * - Smooth hover transitions
  */
 
 import { Component, Show, createSignal, createMemo } from "solid-js";
-import { Hash, Volume2 } from "lucide-solid";
+import { Hash, Volume2, Settings } from "lucide-solid";
 import type { Channel } from "@/lib/types";
 import { isInChannel, getParticipants, voiceState } from "@/stores/voice";
 import { authState } from "@/stores/auth";
@@ -18,6 +19,8 @@ interface ChannelItemProps {
   channel: Channel;
   isSelected: boolean;
   onClick: () => void;
+  /** Callback when settings button is clicked (only shown if provided) */
+  onSettings?: () => void;
 }
 
 const ChannelItem: Component<ChannelItemProps> = (props) => {
@@ -117,6 +120,23 @@ const ChannelItem: Component<ChannelItemProps> = (props) => {
             />
           </Show>
         </div>
+      </Show>
+
+      {/* Settings button - shown on hover when onSettings provided */}
+      <Show when={props.onSettings}>
+        <button
+          class="p-1 text-text-secondary hover:text-text-primary hover:bg-white/10 rounded opacity-0 group-hover:opacity-100 transition-all duration-200"
+          classList={{
+            "ml-auto": !isVoice() || participantCount() === 0,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onSettings?.();
+          }}
+          title="Channel Settings"
+        >
+          <Settings class="w-3.5 h-3.5" />
+        </button>
       </Show>
     </button>
 
