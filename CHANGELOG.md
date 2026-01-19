@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+- Prevented `@everyone` role from being assigned dangerous permissions (e.g., `MANAGE_GUILD`, `BAN_MEMBERS`) via API validation
 - XSS hardening for Mermaid SVG rendering (forbid foreignObject, style, script tags)
 - Ownership verification in page reorder operations prevents cross-guild attacks
 - Fail-fast permission checks on database errors (no silent auth bypass)
