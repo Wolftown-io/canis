@@ -45,6 +45,12 @@ const AdminDashboard: Component = () => {
   let timerInterval: ReturnType<typeof setInterval> | null = null;
 
   createEffect(() => {
+    // Always clear previous interval first to prevent race conditions
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
     // Start timer when elevated
     if (adminState.isElevated) {
       // Update immediately
@@ -55,11 +61,6 @@ const AdminDashboard: Component = () => {
         setTimeRemaining(getElevationTimeRemaining());
       }, 1000);
     } else {
-      // Clear timer when not elevated
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-      }
       setTimeRemaining("");
     }
   });
