@@ -1,7 +1,7 @@
 # DM Voice Calls - Design Document
 
-**Date:** 2026-01-14
-**Status:** Draft
+**Date:** 2026-01-14 (Updated: 2026-01-19)
+**Status:** Approved
 **Priority:** Latency > Simplicity/Stability > Privacy
 
 ## Overview
@@ -242,11 +242,56 @@ type CallState =
 - ✅ Audio ring notification
 - ✅ DND integration
 
-## Open Questions
+## Resolved Questions
 
-1. **Video calls:** Add later? Design for capability negotiation now?
-2. **Call recording:** Needed for compliance? Would require explicit consent.
-3. **Screen sharing:** In DM calls or only guild voice channels?
+1. **Video calls:** ✅ Design for capability negotiation now. Include `capabilities` in API responses so video can be enabled later without breaking changes.
+2. **Call recording:** Deferred. Not in initial scope.
+3. **Screen sharing:** ✅ Include in capabilities for future enablement.
+
+## Capability Flags
+
+Include capability negotiation in call state to future-proof for video/screen share:
+
+```rust
+/// Call capabilities (for future video/screen share support)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CallCapabilities {
+    pub audio: bool,       // Always true for now
+    pub video: bool,       // Future: video calls
+    pub screenshare: bool, // Future: screen sharing
+}
+
+impl CallCapabilities {
+    /// Default capabilities for audio-only calls
+    pub fn audio_only() -> Self {
+        Self {
+            audio: true,
+            video: false,
+            screenshare: false,
+        }
+    }
+}
+```
+
+API responses include capabilities:
+```json
+{
+  "channel_id": "...",
+  "status": "active",
+  "capabilities": { "audio": true, "video": false, "screenshare": false },
+  "participants": [...]
+}
+```
+
+WebSocket CallStarted event includes capabilities:
+```rust
+CallStarted {
+    channel_id: Uuid,
+    initiator: Uuid,
+    initiator_name: String,
+    capabilities: CallCapabilities,
+}
+```
 
 ## Implementation Estimate
 
