@@ -19,6 +19,7 @@ mod rate_limit;
 pub mod sfu;
 mod signaling;
 mod track;
+mod track_types;
 pub mod ws_handler;
 
 use axum::{routing::get, Router};
@@ -28,6 +29,7 @@ use crate::api::AppState;
 // Re-exports
 pub use error::VoiceError;
 pub use sfu::{ParticipantInfo, Room, SfuServer};
+pub use track_types::{TrackInfo, TrackKind, TrackSource};
 
 /// Create voice router.
 ///
