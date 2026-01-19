@@ -138,6 +138,7 @@ async fn verify_dm_participant(
 }
 
 /// GET /api/dm/:id/call - Get current call state
+#[tracing::instrument(skip(state, auth))]
 pub async fn get_call(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -163,6 +164,7 @@ async fn get_username(state: &AppState, user_id: Uuid) -> Result<String, CallHan
 }
 
 /// POST /api/dm/:id/call/start - Start a new call
+#[tracing::instrument(skip(state, auth))]
 pub async fn start_call(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -207,6 +209,7 @@ pub async fn start_call(
 }
 
 /// POST /api/dm/:id/call/join - Join an active call
+#[tracing::instrument(skip(state, auth))]
 pub async fn join_call(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -238,6 +241,7 @@ pub async fn join_call(
 }
 
 /// POST /api/dm/:id/call/decline - Decline a call
+#[tracing::instrument(skip(state, auth))]
 pub async fn decline_call(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -282,6 +286,7 @@ pub async fn decline_call(
 }
 
 /// POST /api/dm/:id/call/leave - Leave an active call
+#[tracing::instrument(skip(state, auth))]
 pub async fn leave_call(
     State(state): State<AppState>,
     auth: AuthUser,
