@@ -2,9 +2,9 @@
 
 This roadmap outlines the development path from the current prototype to a production-ready, multi-tenant SaaS platform.
 
-**Current Phase:** Phase 3 (Guild Architecture & Security) - In Progress
+**Current Phase:** Phase 4 (Advanced Features) - Planning
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-01-19
 
 ## Quick Status Overview
 
@@ -13,8 +13,8 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 0** | ✅ Complete | 100% | N+1 fix, WebRTC optimization, MFA encryption |
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
 | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
-| **Phase 3** | 🔄 In Progress | 90% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission system, Information Pages |
-| **Phase 4** | 📋 Planned | 0% | - |
+| **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
+| **Phase 4** | 🔄 Planning | 0% | - |
 | **Phase 5** | 📋 Planned | 0% | - |
 
 **Production Ready Features:**
@@ -25,9 +25,11 @@ This roadmap outlines the development path from the current prototype to a produ
 - ✅ Command Palette (Ctrl+K) for power users
 - ✅ Auto-retry voice join on connection conflicts
 - ✅ Participant list with instant local user display
-- ✅ Guild architecture preparation (Phase 3 ready)
+- ✅ Full guild architecture with role-based permissions
 - ✅ Automatic JWT token refresh (prevents session expiration)
 - ✅ File attachments with drag-and-drop upload and image previews
+- ✅ DM voice calls with join/decline flow
+- ✅ Admin dashboard with user/guild management
 
 ---
 
@@ -183,18 +185,23 @@ This roadmap outlines the development path from the current prototype to a produ
 - [x] **[Auth] Permission System Design** ✅
   - Comprehensive design document for role-based permissions.
   - **Location:** `docs/plans/permission-system-design-2026-01-13.md`
-- [ ] **[Auth] Permission System Implementation** `Backend Complete`
+- [x] **[Auth] Permission System Implementation** ✅
   - [x] Backend API handlers for admin, roles, and overrides (PR #17).
   - [x] Permission checking middleware and guild permission queries.
-  - [ ] Admin UI for role management and permission assignment.
-  - [ ] Role picker in guild settings.
+  - [x] Admin UI for role management and permission assignment (PR #20).
+  - [x] Role picker in guild settings, channel permission overrides.
+  - [x] Admin Dashboard with user/guild management and audit log.
   - **Design:** `docs/plans/permission-system-implementation-2026-01-13.md`
   - **Backend:** `server/src/permissions/`
-- [ ] **[Voice] DM Voice Calls** `New` `Designed`
-  - Voice calling in DM and group DM conversations.
+  - **Frontend:** `client/src/components/admin/`, `client/src/components/guilds/`
+- [x] **[Voice] DM Voice Calls** ✅
+  - Voice calling in DM and group DM conversations (PR #21).
   - Call signaling via Redis Streams, reuses existing SFU.
-  - Join/Decline flow with configurable notifications.
+  - Join/Decline flow with CallBanner UI component.
+  - CallCapabilities for future video/screenshare extensibility.
   - **Design:** `docs/plans/2026-01-14-dm-voice-calls-design.md`
+  - **Backend:** `server/src/voice/call.rs`, `server/src/voice/call_service.rs`
+  - **Frontend:** `client/src/stores/call.ts`, `client/src/components/call/`
 - [x] **[Content] Information Pages** ✅
   - Platform-wide pages (ToS, Privacy Policy) in Home view.
   - Guild-level pages (Rules, FAQ) in sidebar above channels.
