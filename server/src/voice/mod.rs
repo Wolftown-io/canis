@@ -18,6 +18,7 @@ mod peer;
 mod rate_limit;
 pub mod sfu;
 mod signaling;
+mod stats;
 mod track;
 pub mod ws_handler;
 
@@ -28,6 +29,7 @@ use crate::api::AppState;
 // Re-exports
 pub use error::VoiceError;
 pub use sfu::{ParticipantInfo, Room, SfuServer};
+pub use stats::{UserStats, VoiceStats};
 
 /// Create voice router.
 ///
