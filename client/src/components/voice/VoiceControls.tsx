@@ -3,6 +3,7 @@ import { Mic, MicOff, Headphones, VolumeX, Settings } from "lucide-solid";
 import { voiceState, toggleMute, toggleDeafen } from "@/stores/voice";
 import MicrophoneTest from "./MicrophoneTest";
 import ScreenShareButton from "./ScreenShareButton";
+import ScreenShareQualityPicker from "./ScreenShareQualityPicker";
 
 /**
  * Voice controls for mute/deafen/settings.
@@ -68,7 +69,10 @@ const VoiceControls: Component = () => {
         <MicrophoneTest onClose={() => setShowMicTest(false)} />
       </Show>
 
-      {/* Quality picker will be added in Task 6 */}
+      {/* Screen Share Quality Picker */}
+      <Show when={showQualityPicker()}>
+        <ScreenShareQualityPicker onClose={() => setShowQualityPicker(false)} />
+      </Show>
     </>
   );
 };
