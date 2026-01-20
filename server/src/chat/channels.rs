@@ -67,6 +67,8 @@ pub struct ChannelResponse {
     pub topic: Option<String>,
     pub user_limit: Option<i32>,
     pub position: i32,
+    /// Maximum concurrent screen shares (voice channels only).
+    pub max_screen_shares: i32,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -85,6 +87,7 @@ impl From<db::Channel> for ChannelResponse {
             topic: ch.topic,
             user_limit: ch.user_limit,
             position: ch.position,
+            max_screen_shares: ch.max_screen_shares,
             created_at: ch.created_at,
         }
     }
