@@ -735,29 +735,47 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
     // Remote track handler
     this.peerConnection.ontrack = (event) => {
-      console.log("[BrowserVoiceAdapter] Remote track received");
-
+      const track = event.track;
       const stream = event.streams[0];
-      // @future - Extract actual user ID from SDP metadata (requires backend coordination)
-      const userId = stream.id; // Using stream ID as temporary user identifier
 
-      this.remoteStreams.set(userId, stream);
+      console.log(`[BrowserVoiceAdapter] Remote ${track.kind} track received`);
 
-      const remoteTrack: RemoteTrack = {
-        trackId: event.track.id,
-        userId,
-        stream,
-        muted: false,
-      };
+      if (track.kind === "video") {
+        // Video track = screen share
+        // Extract user ID from stream ID (format: "userId-ScreenVideo" from server)
+        const userId = stream.id.split("-")[0] || stream.id;
 
-      this.eventHandlers.onRemoteTrack?.(remoteTrack);
+        console.log("[BrowserVoiceAdapter] Screen share video track from:", userId);
 
-      // Handle track ending
-      event.track.onended = () => {
-        console.log("[BrowserVoiceAdapter] Remote track ended");
-        this.remoteStreams.delete(userId);
-        this.eventHandlers.onRemoteTrackRemoved?.(userId);
-      };
+        this.eventHandlers.onScreenShareTrack?.(userId, track);
+
+        // Handle track ending
+        track.onended = () => {
+          console.log("[BrowserVoiceAdapter] Screen share track ended");
+          this.eventHandlers.onScreenShareTrackRemoved?.(userId);
+        };
+      } else {
+        // Audio track = voice or screen audio
+        const userId = stream.id;
+
+        this.remoteStreams.set(userId, stream);
+
+        const remoteTrack: RemoteTrack = {
+          trackId: track.id,
+          userId,
+          stream,
+          muted: false,
+        };
+
+        this.eventHandlers.onRemoteTrack?.(remoteTrack);
+
+        // Handle track ending
+        track.onended = () => {
+          console.log("[BrowserVoiceAdapter] Remote audio track ended");
+          this.remoteStreams.delete(userId);
+          this.eventHandlers.onRemoteTrackRemoved?.(userId);
+        };
+      }
     };
   }
 
