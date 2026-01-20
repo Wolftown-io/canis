@@ -1,5 +1,6 @@
 //! Screen sharing data types and state.
 
+use fred::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -78,6 +79,8 @@ pub enum ScreenShareError {
     QualityNotAllowed,
     /// WebRTC renegotiation failed
     RenegotiationFailed,
+    /// Internal server error (e.g., Redis failure)
+    InternalError,
 }
 
 impl ScreenShareCheckResponse {
@@ -98,6 +101,70 @@ impl ScreenShareCheckResponse {
             error: Some(error),
         }
     }
+}
+
+/// Check if screen share limit is reached for a channel (without incrementing).
+pub async fn check_limit(
+    redis: &RedisClient,
+    channel_id: Uuid,
+    max_shares: u32,
+) -> Result<(), ScreenShareError> {
+    let key = format!("screenshare:limit:{channel_id}");
+    
+    // Get current count
+    match redis.get::<Option<u32>, _>(&key).await {
+        Ok(Some(count)) => {
+            if count >= max_shares {
+                return Err(ScreenShareError::LimitReached);
+            }
+        }
+        Ok(None) => {
+            // No active shares, so limit not reached (unless max_shares is 0)
+            if max_shares == 0 {
+                return Err(ScreenShareError::LimitReached);
+            }
+        }
+        Err(_) => return Err(ScreenShareError::InternalError),
+    }
+
+    Ok(())
+}
+
+/// Try to start screen sharing, incrementing the limit counter.
+pub async fn try_start_screen_share(
+    redis: &RedisClient,
+    channel_id: Uuid,
+    max_shares: u32,
+) -> Result<(), ScreenShareError> {
+    let key = format!("screenshare:limit:{channel_id}");
+    
+    // Use INCR
+    let count: i64 = redis.incr(&key).await.map_err(|_| ScreenShareError::InternalError)?;
+    
+    // Convert to u32
+    if count as u32 > max_shares {
+        // Decrement back since we exceeded limit
+        let _: () = redis.decr(&key).await.unwrap_or(());
+        return Err(ScreenShareError::LimitReached);
+    }
+    
+    // Set expiration (1 hour to prevent stale keys if server crashes)
+    let _: () = redis.expire(&key, 3600).await.unwrap_or(());
+    
+    Ok(())
+}
+
+/// Stop screen sharing, decrementing the limit counter.
+pub async fn stop_screen_share(
+    redis: &RedisClient,
+    channel_id: Uuid,
+) {
+    let key = format!("screenshare:limit:{channel_id}");
+    
+    // DECR counter
+    // Ignore errors as we can't do much about them during cleanup
+    // We rely on the 1-hour expiration to clean up any desyncs eventually
+    let _: () = redis.decr(&key).await.unwrap_or(());
 }
 
 #[cfg(test)]

@@ -8,9 +8,11 @@ use sqlx::{PgPool, Row};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
+use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 
 use super::error::VoiceError;
 use super::sfu::SfuServer;
+use super::track_types::TrackSource;
 use crate::ws::{ClientEvent, ServerEvent, VoiceParticipant};
 
 /// Handle a voice-related client event.
@@ -73,11 +75,8 @@ async fn handle_join(
 
     // Create peer connection for this user
     let peer = sfu
-        .create_peer(user_id, username, display_name, channel_id, tx.clone())
+        .create_peer(user_id, username.clone(), display_name.clone(), channel_id, tx.clone())
         .await?;
-
-    // Add recvonly transceiver for receiving audio from client
-    peer.add_recv_transceiver().await?;
 
     // Set up ICE candidate handler
     sfu.setup_ice_handler(&peer);
@@ -87,6 +86,37 @@ async fn handle_join(
 
     // Add peer to room
     room.add_peer(peer.clone()).await?;
+
+    // Subscribe to existing tracks from other peers
+    let other_peers = room.get_other_peers(user_id).await;
+    for other_peer in other_peers {
+        let incoming_tracks = other_peer.incoming_tracks.read().await;
+        for (source_type, track) in incoming_tracks.iter() {
+            if let Ok(local_track) = room.track_router.create_subscriber_track(
+                other_peer.user_id,
+                *source_type,
+                &peer,
+                track
+            ).await {
+                if let Err(e) = peer.add_outgoing_track(other_peer.user_id, *source_type, local_track).await {
+                     warn!("Failed to add outgoing track: {}", e);
+                } else {
+                    // If video, send PLI to source
+                    if *source_type == TrackSource::ScreenVideo {
+                        let pli = PictureLossIndication {
+                            sender_ssrc: 0,
+                            media_ssrc: track.ssrc(),
+                        };
+                        if let Err(e) = other_peer.peer_connection.write_rtcp(&[Box::new(pli)]).await {
+                             warn!("Failed to send PLI: {}", e);
+                        } else {
+                             debug!("Sent PLI to source {}", other_peer.user_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Create and send offer to client
     let offer = sfu.create_offer(&peer).await?;
@@ -107,13 +137,16 @@ async fn handle_join(
             username: p.username,
             display_name: p.display_name,
             muted: p.muted,
-            screen_sharing: false,
+            screen_sharing: p.screen_sharing,
         })
         .collect();
+        
+    let screen_shares = room.get_screen_shares().await;
 
     tx.send(ServerEvent::VoiceRoomState {
         channel_id,
         participants,
+        screen_shares,
     })
     .await
     .map_err(|e| VoiceError::Signaling(e.to_string()))?;

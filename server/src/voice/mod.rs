@@ -17,7 +17,7 @@ mod handlers;
 mod peer;
 mod quality;
 mod rate_limit;
-mod screen_share;
+pub mod screen_share;
 pub mod sfu;
 mod signaling;
 mod track;

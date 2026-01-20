@@ -27,6 +27,8 @@ use super::error::VoiceError;
 use super::peer::Peer;
 use super::rate_limit::VoiceRateLimiter;
 use super::track::{spawn_rtp_forwarder, TrackRouter};
+use super::track_types::TrackSource;
+use super::screen_share::ScreenShareInfo;
 use crate::config::Config;
 use crate::ws::ServerEvent;
 
@@ -46,6 +48,9 @@ pub struct ParticipantInfo {
     pub display_name: Option<String>,
     /// Whether the user is muted.
     pub muted: bool,
+    /// Whether the user is screen sharing.
+    #[serde(default)]
+    pub screen_sharing: bool,
 }
 
 /// Voice channel room with all participants.
@@ -58,6 +63,8 @@ pub struct Room {
     pub track_router: Arc<TrackRouter>,
     /// Maximum participants allowed.
     pub max_participants: usize,
+    /// Active screen shares.
+    pub screen_shares: RwLock<HashMap<Uuid, ScreenShareInfo>>,
 }
 
 impl Room {
@@ -69,6 +76,7 @@ impl Room {
             peers: RwLock::new(HashMap::new()),
             track_router: Arc::new(TrackRouter::new()),
             max_participants,
+            screen_shares: RwLock::new(HashMap::new()),
         }
     }
 
@@ -120,9 +128,28 @@ impl Room {
             .collect()
     }
 
+    /// Add a screen share session.
+    pub async fn add_screen_share(&self, info: ScreenShareInfo) {
+        let mut shares = self.screen_shares.write().await;
+        shares.insert(info.user_id, info);
+    }
+
+    /// Remove a screen share session.
+    pub async fn remove_screen_share(&self, user_id: Uuid) -> Option<ScreenShareInfo> {
+        let mut shares = self.screen_shares.write().await;
+        shares.remove(&user_id)
+    }
+
+    /// Get all screen shares.
+    pub async fn get_screen_shares(&self) -> Vec<ScreenShareInfo> {
+        let shares = self.screen_shares.read().await;
+        shares.values().cloned().collect()
+    }
+
     /// Get participant info for all peers.
     pub async fn get_participant_info(&self) -> Vec<ParticipantInfo> {
         let peers = self.peers.read().await;
+        let shares = self.screen_shares.read().await;
         let mut info = Vec::with_capacity(peers.len());
 
         for (user_id, peer) in peers.iter() {
@@ -131,6 +158,7 @@ impl Room {
                 username: Some(peer.username.clone()),
                 display_name: Some(peer.display_name.clone()),
                 muted: peer.is_muted().await,
+                screen_sharing: shares.contains_key(user_id),
             });
         }
 
@@ -415,6 +443,12 @@ impl SfuServer {
         .await?;
         let peer = Arc::new(peer);
 
+        // Add recvonly transceivers
+        // Always add Audio (mic)
+        peer.add_recv_transceiver(RTPCodecType::Audio).await?;
+        // Always add Video (screen) to prepare m-lines
+        peer.add_recv_transceiver(RTPCodecType::Video).await?;
+
         // Set up connection state handler
         let peer_weak = Arc::downgrade(&peer);
         let uid = user_id;
@@ -469,23 +503,33 @@ impl SfuServer {
                         "Received track from peer"
                     );
 
+                    // Determine source type based on track kind
+                    let source_type = match track.kind() {
+                        RTPCodecType::Audio => TrackSource::Microphone,
+                        RTPCodecType::Video => TrackSource::ScreenVideo,
+                        _ => {
+                            warn!("Unknown track kind: {:?}", track.kind());
+                            return;
+                        }
+                    };
+
                     if let (Some(peer), Some(room)) = (pw.upgrade(), rw.upgrade()) {
                         // Store incoming track
-                        peer.set_incoming_track(track.clone()).await;
+                        peer.set_incoming_track(source_type, track.clone()).await;
 
                         // Start RTP forwarder
-                        spawn_rtp_forwarder(uid, track.clone(), room.track_router.clone());
+                        spawn_rtp_forwarder(uid, source_type, track.clone(), room.track_router.clone());
 
                         // Create subscriber tracks for all existing peers
                         let other_peers = room.get_other_peers(uid).await;
                         for other_peer in other_peers {
                             if let Ok(local_track) = room
                                 .track_router
-                                .create_subscriber_track(uid, &other_peer, &track)
+                                .create_subscriber_track(uid, source_type, &other_peer, &track)
                                 .await
                             {
                                 if let Err(e) =
-                                    other_peer.add_outgoing_track(uid, local_track).await
+                                    other_peer.add_outgoing_track(uid, source_type, local_track).await
                                 {
                                     warn!(
                                         source = %uid,

@@ -4,7 +4,7 @@
 
 mod models;
 mod queries;
-mod user_features;
+pub mod user_features;
 
 #[cfg(test)]
 mod tests;

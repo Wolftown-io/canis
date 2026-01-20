@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{api::AppState, auth::jwt, db};
+use crate::{api::AppState, auth::jwt, db, voice::ScreenShareInfo, voice::Quality};
 
 /// WebSocket connection query params.
 #[derive(Debug, Deserialize)]
@@ -236,6 +236,9 @@ pub enum ServerEvent {
         channel_id: Uuid,
         /// Current participants.
         participants: Vec<VoiceParticipant>,
+        /// Active screen shares.
+        #[serde(default)]
+        screen_shares: Vec<ScreenShareInfo>,
     },
     /// Voice error
     VoiceError {
@@ -243,6 +246,43 @@ pub enum ServerEvent {
         code: String,
         /// Error message.
         message: String,
+    },
+
+    // Screen Share events
+    /// Screen share started
+    ScreenShareStarted {
+        /// Channel ID.
+        channel_id: Uuid,
+        /// User who started sharing.
+        user_id: Uuid,
+        /// Username of sharer.
+        username: String,
+        /// Label of shared source.
+        source_label: String,
+        /// Whether audio is included.
+        has_audio: bool,
+        /// Quality tier.
+        quality: Quality,
+    },
+    /// Screen share stopped
+    ScreenShareStopped {
+        /// Channel ID.
+        channel_id: Uuid,
+        /// User who stopped sharing.
+        user_id: Uuid,
+        /// Reason for stop.
+        reason: String,
+    },
+    /// Screen share quality changed
+    ScreenShareQualityChanged {
+        /// Channel ID.
+        channel_id: Uuid,
+        /// User whose quality changed.
+        user_id: Uuid,
+        /// New quality tier.
+        new_quality: Quality,
+        /// Reason for change (e.g. "bandwidth").
+        reason: String,
     },
 
     // Call events (DM voice calls)
