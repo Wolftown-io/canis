@@ -20,6 +20,7 @@ use webrtc::{
         sdp::session_description::RTCSessionDescription,
     },
     rtp_transceiver::rtp_codec::{RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType},
+    rtp_transceiver::RTCPFeedback,
 };
 
 use super::error::VoiceError;
@@ -205,6 +206,111 @@ impl SfuServer {
                     ..Default::default()
                 },
                 RTPCodecType::Audio,
+            )
+            .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
+
+        // Register VP9 video codec (preferred)
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/VP9".to_string(),
+                        clock_rate: 90000,
+                        channels: 0,
+                        sdp_fmtp_line: "profile-id=0".to_string(),
+                        rtcp_feedback: vec![
+                            RTCPFeedback {
+                                typ: "goog-remb".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "ccm".to_string(),
+                                parameter: "fir".to_string(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: "pli".to_string(),
+                            },
+                        ],
+                    },
+                    payload_type: 98,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
+            )
+            .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
+
+        // Register VP8 video codec (fallback)
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/VP8".to_string(),
+                        clock_rate: 90000,
+                        channels: 0,
+                        sdp_fmtp_line: String::new(),
+                        rtcp_feedback: vec![
+                            RTCPFeedback {
+                                typ: "goog-remb".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "ccm".to_string(),
+                                parameter: "fir".to_string(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: "pli".to_string(),
+                            },
+                        ],
+                    },
+                    payload_type: 96,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
+            )
+            .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
+
+        // Register H.264 video codec (for desktop clients with hardware encoding)
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/H264".to_string(),
+                        clock_rate: 90000,
+                        channels: 0,
+                        sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f".to_string(),
+                        rtcp_feedback: vec![
+                            RTCPFeedback {
+                                typ: "goog-remb".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "ccm".to_string(),
+                                parameter: "fir".to_string(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: "pli".to_string(),
+                            },
+                        ],
+                    },
+                    payload_type: 102,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
             )
             .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
 
