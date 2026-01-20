@@ -17,6 +17,7 @@ mod handlers;
 mod peer;
 mod quality;
 mod rate_limit;
+mod screen_share;
 pub mod sfu;
 mod signaling;
 mod track;
@@ -30,6 +31,9 @@ use crate::api::AppState;
 // Re-exports
 pub use error::VoiceError;
 pub use quality::Quality;
+pub use screen_share::{
+    ScreenShareCheckResponse, ScreenShareError, ScreenShareInfo, ScreenShareStartRequest,
+};
 pub use sfu::{ParticipantInfo, Room, SfuServer};
 pub use track_types::{TrackInfo, TrackKind, TrackSource};
 
