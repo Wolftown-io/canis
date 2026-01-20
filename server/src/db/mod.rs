@@ -4,6 +4,7 @@
 
 mod models;
 mod queries;
+mod user_features;
 
 #[cfg(test)]
 mod tests;
@@ -14,6 +15,7 @@ use tracing::info;
 
 pub use models::*;
 pub use queries::*;
+pub use user_features::UserFeatures;
 
 /// Create `PostgreSQL` connection pool.
 pub async fn create_pool(database_url: &str) -> Result<PgPool> {
