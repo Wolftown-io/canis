@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket};
 use axum::{
@@ -18,6 +19,26 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{api::AppState, auth::jwt, db, voice::ScreenShareInfo, voice::Quality};
+
+/// Minimum interval between activity updates (10 seconds).
+const ACTIVITY_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
+
+/// State for activity rate limiting and deduplication.
+struct ActivityState {
+    /// Last activity update timestamp.
+    last_update: Option<Instant>,
+    /// Last activity data for deduplication.
+    last_activity: Option<crate::presence::Activity>,
+}
+
+impl Default for ActivityState {
+    fn default() -> Self {
+        Self {
+            last_update: None,
+            last_activity: None,
+        }
+    }
+}
 
 /// WebSocket connection query params.
 #[derive(Debug, Deserialize)]
@@ -538,12 +559,15 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
         }
     });
 
+    // Activity rate limiting state
+    let mut activity_state = ActivityState::default();
+
     // Handle incoming messages
     while let Some(msg) = ws_receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
                 if let Err(e) =
-                    handle_client_message(&text, user_id, &state, &tx, &subscribed_channels).await
+                    handle_client_message(&text, user_id, &state, &tx, &subscribed_channels, &mut activity_state).await
                 {
                     warn!("Error handling message: {}", e);
                     let _ = tx
@@ -589,6 +613,7 @@ async fn handle_client_message(
     state: &AppState,
     tx: &mpsc::Sender<ServerEvent>,
     subscribed_channels: &Arc<tokio::sync::RwLock<HashSet<Uuid>>>,
+    activity_state: &mut ActivityState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let event: ClientEvent = serde_json::from_str(text)?;
 
@@ -673,6 +698,30 @@ async fn handle_client_message(
         }
 
         ClientEvent::SetActivity { activity } => {
+            // Validate activity data if present
+            if let Some(ref act) = activity {
+                act.validate().map_err(|e| format!("Invalid activity: {}", e))?;
+            }
+
+            // Rate limiting: enforce minimum interval between updates
+            let now = Instant::now();
+            if let Some(last_update) = activity_state.last_update {
+                let elapsed = now.duration_since(last_update);
+                if elapsed < ACTIVITY_UPDATE_INTERVAL {
+                    let remaining = ACTIVITY_UPDATE_INTERVAL - elapsed;
+                    return Err(format!(
+                        "Rate limited: wait {} seconds before next activity update",
+                        remaining.as_secs() + 1
+                    ).into());
+                }
+            }
+
+            // Deduplication: skip update if activity is unchanged
+            if activity == activity_state.last_activity {
+                debug!("Skipping activity update: unchanged for user={}", user_id);
+                return Ok(());
+            }
+
             // Update database
             sqlx::query("UPDATE users SET activity = $1 WHERE id = $2")
                 .bind(serde_json::to_value(&activity).ok())
@@ -680,6 +729,10 @@ async fn handle_client_message(
                 .execute(&state.db)
                 .await
                 .map_err(|e| format!("Failed to update activity: {}", e))?;
+
+            // Update state for rate limiting and deduplication
+            activity_state.last_update = Some(now);
+            activity_state.last_activity = activity.clone();
 
             // Broadcast to user's presence subscribers
             let event = ServerEvent::RichPresenceUpdate { user_id, activity };

@@ -14,7 +14,7 @@ impl ProcessScanner {
     pub fn new() -> Self {
         Self {
             system: System::new_with_specifics(
-                RefreshKind::new().with_processes(ProcessRefreshKind::new())
+                RefreshKind::new().with_processes(ProcessRefreshKind::everything())
             ),
             games_db: GamesDatabase::load(),
         }
@@ -22,12 +22,15 @@ impl ProcessScanner {
 
     /// Refresh process list and find matching game.
     /// Returns the first matching game found.
+    /// Uses match_args filtering for games that require command line argument checking.
     pub fn scan(&mut self) -> Option<GameEntry> {
         self.system.refresh_processes();
 
         for process in self.system.processes().values() {
             let name = process.name();
-            if let Some(game) = self.games_db.find_by_process(name) {
+            let cmd_args = process.cmd();
+
+            if let Some(game) = self.games_db.find_by_process_and_args(name, cmd_args) {
                 return Some(game.clone());
             }
         }
@@ -35,6 +38,7 @@ impl ProcessScanner {
     }
 
     /// Scan and return all detected games (not just first).
+    /// Uses match_args filtering for games that require command line argument checking.
     pub fn scan_all(&mut self) -> Vec<GameEntry> {
         self.system.refresh_processes();
 
@@ -43,7 +47,9 @@ impl ProcessScanner {
 
         for process in self.system.processes().values() {
             let name = process.name();
-            if let Some(game) = self.games_db.find_by_process(name) {
+            let cmd_args = process.cmd();
+
+            if let Some(game) = self.games_db.find_by_process_and_args(name, cmd_args) {
                 if seen_names.insert(game.name.clone()) {
                     found.push(game.clone());
                 }
