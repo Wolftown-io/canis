@@ -13,6 +13,7 @@ import AdminDashboard from "./views/AdminDashboard";
 // Components
 import AuthGuard from "./components/auth/AuthGuard";
 import { AcceptanceManager } from "./components/pages";
+import { ToastContainer } from "./components/ui/Toast";
 
 // Theme
 import { initTheme } from "./stores/theme";
@@ -26,6 +27,7 @@ const Layout: Component<ParentProps> = (props) => {
   return (
     <div class="h-screen bg-background-tertiary text-text-primary">
       {props.children}
+      <ToastContainer />
     </div>
   );
 };

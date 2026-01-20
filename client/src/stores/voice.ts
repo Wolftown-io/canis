@@ -9,6 +9,7 @@ import { createVoiceAdapter, getVoiceAdapter, type VoiceError, type ConnectionMe
 import type { VoiceParticipant } from "@/lib/types";
 import { channelsState } from "@/stores/channels";
 import * as tauri from "@/lib/tauri";
+import { showToast, dismissToast } from "@/components/ui/Toast";
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -84,6 +85,11 @@ let unlisteners: UnlistenFn[] = [];
 // Metrics collection interval
 let metricsInterval: number | null = null;
 
+// Notification state for packet loss incidents
+let currentIncidentStart: number | null = null;
+let goodQualityStartTime: number | null = null;
+const INCIDENT_RECOVERY_THRESHOLD = 10_000; // 10s of good quality to clear incident
+
 /**
  * Convert QualityLevel to numeric value for server transmission.
  */
@@ -109,6 +115,70 @@ function numberToQuality(n: number): QualityLevel {
 }
 
 /**
+ * Check packet loss thresholds and show/dismiss notifications.
+ * - >= 3%: Warning notification
+ * - >= 7%: Critical (error) notification
+ * - < 3% for 10s: Clear incident
+ */
+function checkPacketLossThresholds(metrics: ConnectionMetrics): void {
+  const now = Date.now();
+  const isBadQuality = metrics.packetLoss >= 3;
+
+  if (isBadQuality) {
+    // Reset recovery tracking when quality is bad
+    goodQualityStartTime = null;
+
+    if (!currentIncidentStart) {
+      // New incident started
+      currentIncidentStart = now;
+
+      if (metrics.packetLoss >= 7) {
+        // Critical packet loss - persistent error toast
+        showToast({
+          type: 'error',
+          title: 'Connection severely degraded',
+          message: `${metrics.packetLoss.toFixed(1)}% packet loss`,
+          duration: 0,
+          id: 'connection-critical',
+        });
+      } else {
+        // Warning level packet loss
+        showToast({
+          type: 'warning',
+          title: 'Your connection is unstable',
+          message: `${metrics.packetLoss.toFixed(1)}% packet loss`,
+          duration: 5000,
+          id: 'connection-warning',
+        });
+      }
+    } else if (metrics.packetLoss >= 7) {
+      // Escalate from warning to critical
+      dismissToast('connection-warning');
+      showToast({
+        type: 'error',
+        title: 'Connection severely degraded',
+        message: `${metrics.packetLoss.toFixed(1)}% packet loss`,
+        duration: 0,
+        id: 'connection-critical',
+      });
+    }
+  } else {
+    // Quality is good - track recovery
+    if (!goodQualityStartTime) {
+      goodQualityStartTime = now; // Start tracking recovery
+    }
+
+    // Check if we should clear the incident (quality good for 10s)
+    if (currentIncidentStart && now - goodQualityStartTime > INCIDENT_RECOVERY_THRESHOLD) {
+      currentIncidentStart = null;
+      goodQualityStartTime = null;
+      dismissToast('connection-critical');
+      dismissToast('connection-warning');
+    }
+  }
+}
+
+/**
  * Start the metrics collection loop.
  * Collects local WebRTC stats every 3 seconds and sends to server.
  */
@@ -123,6 +193,9 @@ function startMetricsLoop(): void {
       const metrics = await adapter.getConnectionMetrics();
       if (metrics) {
         setVoiceState('localMetrics', metrics);
+
+        // Check packet loss thresholds and show notifications
+        checkPacketLossThresholds(metrics);
 
         // Send to server
         const sessionId = voiceState.sessionId;
@@ -303,6 +376,12 @@ export async function leaveVoice(): Promise<void> {
 
   // Stop metrics collection first
   stopMetricsLoop();
+
+  // Reset notification state and dismiss any active connection toasts
+  currentIncidentStart = null;
+  goodQualityStartTime = null;
+  dismissToast('connection-critical');
+  dismissToast('connection-warning');
 
   const adapter = await createVoiceAdapter();
   const result = await adapter.leave();
