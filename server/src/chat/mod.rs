@@ -5,6 +5,7 @@
 mod channels;
 mod dm;
 mod messages;
+mod screenshare;
 pub mod overrides;
 pub mod s3;
 mod uploads;
@@ -35,6 +36,10 @@ pub fn channels_router() -> Router<AppState> {
             "/:id/overrides/:role_id",
             put(overrides::set_override).delete(overrides::delete_override),
         )
+        // Screen Share
+        .route("/:id/screenshare/check", post(screenshare::check))
+        .route("/:id/screenshare/start", post(screenshare::start))
+        .route("/:id/screenshare/stop", post(screenshare::stop))
 }
 
 /// Create messages router (protected routes).

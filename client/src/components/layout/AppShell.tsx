@@ -16,6 +16,7 @@ import { Component, ParentProps, Show } from "solid-js";
 import ServerRail from "./ServerRail";
 import Sidebar from "./Sidebar";
 import VoiceIsland from "./VoiceIsland";
+import ScreenShareViewer from "@/components/voice/ScreenShareViewer";
 import { voiceState } from "@/stores/voice";
 
 interface AppShellProps extends ParentProps {
@@ -49,6 +50,9 @@ const AppShell: Component<AppShellProps> = (props) => {
       <Show when={voiceState.channelId}>
         <VoiceIsland />
       </Show>
+
+      {/* Screen Share Viewer (Portal overlay) */}
+      <ScreenShareViewer />
     </div>
   );
 };

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Screen sharing capability in browser clients with quality selection (480p/720p/1080p)
+- Screen share button in voice controls with quality picker dialog
+- Screen share indicator on participant avatars in voice panel
+- WebSocket event handlers for screen share state synchronization
+- User feature flags system for premium feature control (PREMIUM_VIDEO)
+- Quality enum for screen share quality tiers (Low/Medium/High/Premium)
 - User Connectivity Monitor for real-time voice connection quality tracking
   - Live quality indicators (latency, packet loss, jitter) in VoiceIsland and participant list
   - Toast notifications for connection issues (warning at 3% loss, critical at 7%)
@@ -30,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AdminQuickModal for quick admin access with elevation status and stats
 - Session elevation system with MFA verification and 15-minute expiry
 - Ban/unban users and suspend/unsuspend guilds (requires elevation)
+- Screen share viewer with three view modes (Spotlight, PiP, Theater)
+- Volume control for screen share audio
+- Screen share list in voice panel showing active shares
+- Click-to-view screen shares from participant indicators
 
 ### Changed
 

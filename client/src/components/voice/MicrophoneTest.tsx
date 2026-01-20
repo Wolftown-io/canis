@@ -113,6 +113,10 @@ function MicrophoneTest(props: Props) {
       case "device_in_use":
         return "Microphone is being used by another app.";
       case "ice_failed":
+      case "cancelled":
+      case "not_found":
+      case "hardware_error":
+      case "constraint_error":
       case "unknown":
         return error.message;
       case "server_rejected":

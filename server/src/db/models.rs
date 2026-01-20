@@ -58,6 +58,11 @@ pub enum UserStatus {
     Offline,
 }
 
+/// Default value for max_screen_shares field.
+fn default_max_screen_shares() -> i32 {
+    1
+}
+
 /// Channel model.
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Channel {
@@ -77,6 +82,9 @@ pub struct Channel {
     pub user_limit: Option<i32>,
     /// Display position in channel list.
     pub position: i32,
+    /// Maximum concurrent screen shares (voice channels only).
+    #[serde(default = "default_max_screen_shares")]
+    pub max_screen_shares: i32,
     /// When the channel was created.
     pub created_at: DateTime<Utc>,
     /// When the channel was last updated.

@@ -21,6 +21,7 @@ use webrtc::{
 };
 
 use super::error::VoiceError;
+use super::track_types::TrackSource;
 use crate::ws::ServerEvent;
 
 /// Represents a user's WebRTC connection to the SFU.
@@ -35,11 +36,12 @@ pub struct Peer {
     pub channel_id: Uuid,
     /// The WebRTC peer connection.
     pub peer_connection: Arc<RTCPeerConnection>,
-    /// The audio track this user is sending (their microphone).
-    pub incoming_track: RwLock<Option<Arc<TrackRemote>>>,
-    /// Audio tracks forwarded to this user (other participants' audio).
-    /// Map: `source_user_id` -> local track
-    pub outgoing_tracks: RwLock<HashMap<Uuid, Arc<TrackLocalStaticRTP>>>,
+    /// The incoming tracks from this peer (mic, screen).
+    /// Map: `TrackSource` -> remote track
+    pub incoming_tracks: RwLock<HashMap<TrackSource, Arc<TrackRemote>>>,
+    /// Tracks forwarded to this user (other participants' media).
+    /// Map: `(source_user_id, source_type)` -> local track
+    pub outgoing_tracks: RwLock<HashMap<(Uuid, TrackSource), Arc<TrackLocalStaticRTP>>>,
     /// Whether the user is muted.
     pub muted: RwLock<bool>,
     /// Channel to send signaling messages back to the user.
@@ -69,7 +71,7 @@ impl Peer {
             display_name,
             channel_id,
             peer_connection: Arc::new(peer_connection),
-            incoming_track: RwLock::new(None),
+            incoming_tracks: RwLock::new(HashMap::new()),
             outgoing_tracks: RwLock::new(HashMap::new()),
             muted: RwLock::new(false),
             signal_tx,
@@ -78,11 +80,12 @@ impl Peer {
         })
     }
 
-    /// Add a recvonly transceiver for receiving audio from the client.
-    pub async fn add_recv_transceiver(&self) -> Result<(), VoiceError> {
+    /// Add a recvonly transceiver for receiving media from the client.
+    /// Used for pre-negotiating slots (e.g. for initial mic).
+    pub async fn add_recv_transceiver(&self, kind: RTPCodecType) -> Result<(), VoiceError> {
         self.peer_connection
             .add_transceiver_from_kind(
-                RTPCodecType::Audio,
+                kind,
                 Some(RTCRtpTransceiverInit {
                     direction: RTCRtpTransceiverDirection::Recvonly,
                     send_encodings: vec![],
@@ -92,16 +95,17 @@ impl Peer {
         Ok(())
     }
 
-    /// Set the incoming track from this peer.
-    pub async fn set_incoming_track(&self, track: Arc<TrackRemote>) {
-        let mut incoming = self.incoming_track.write().await;
-        *incoming = Some(track);
+    /// Set an incoming track from this peer.
+    pub async fn set_incoming_track(&self, source: TrackSource, track: Arc<TrackRemote>) {
+        let mut incoming = self.incoming_tracks.write().await;
+        incoming.insert(source, track);
     }
 
-    /// Add an outgoing track to forward audio from another user.
+    /// Add an outgoing track to forward media from another user.
     pub async fn add_outgoing_track(
         &self,
         source_user_id: Uuid,
+        source_type: TrackSource,
         track: Arc<TrackLocalStaticRTP>,
     ) -> Result<(), VoiceError> {
         // Add track to peer connection
@@ -113,16 +117,21 @@ impl Peer {
 
         // Store reference
         let mut tracks = self.outgoing_tracks.write().await;
-        tracks.insert(source_user_id, track);
+        tracks.insert((source_user_id, source_type), track);
 
         Ok(())
     }
 
-    /// Remove an outgoing track when a user leaves.
-    pub async fn remove_outgoing_track(&self, source_user_id: Uuid) {
+    /// Remove an outgoing track.
+    pub async fn remove_outgoing_track(
+        &self,
+        source_user_id: Uuid,
+        source_type: TrackSource,
+    ) {
         let mut tracks = self.outgoing_tracks.write().await;
-        tracks.remove(&source_user_id);
-        // Note: Track removal from PeerConnection requires renegotiation
+        tracks.remove(&(source_user_id, source_type));
+        // Note: Track removal from PeerConnection requires renegotiation, 
+        // which usually happens via the SFU logic.
     }
 
     /// Check if the peer connection is connected.

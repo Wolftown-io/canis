@@ -20,12 +20,15 @@ use webrtc::{
         sdp::session_description::RTCSessionDescription,
     },
     rtp_transceiver::rtp_codec::{RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType},
+    rtp_transceiver::RTCPFeedback,
 };
 
 use super::error::VoiceError;
 use super::peer::Peer;
 use super::rate_limit::VoiceRateLimiter;
 use super::track::{spawn_rtp_forwarder, TrackRouter};
+use super::track_types::TrackSource;
+use super::screen_share::ScreenShareInfo;
 use crate::config::Config;
 use crate::ws::ServerEvent;
 
@@ -45,6 +48,9 @@ pub struct ParticipantInfo {
     pub display_name: Option<String>,
     /// Whether the user is muted.
     pub muted: bool,
+    /// Whether the user is screen sharing.
+    #[serde(default)]
+    pub screen_sharing: bool,
 }
 
 /// Voice channel room with all participants.
@@ -57,6 +63,8 @@ pub struct Room {
     pub track_router: Arc<TrackRouter>,
     /// Maximum participants allowed.
     pub max_participants: usize,
+    /// Active screen shares.
+    pub screen_shares: RwLock<HashMap<Uuid, ScreenShareInfo>>,
 }
 
 impl Room {
@@ -68,6 +76,7 @@ impl Room {
             peers: RwLock::new(HashMap::new()),
             track_router: Arc::new(TrackRouter::new()),
             max_participants,
+            screen_shares: RwLock::new(HashMap::new()),
         }
     }
 
@@ -119,9 +128,28 @@ impl Room {
             .collect()
     }
 
+    /// Add a screen share session.
+    pub async fn add_screen_share(&self, info: ScreenShareInfo) {
+        let mut shares = self.screen_shares.write().await;
+        shares.insert(info.user_id, info);
+    }
+
+    /// Remove a screen share session.
+    pub async fn remove_screen_share(&self, user_id: Uuid) -> Option<ScreenShareInfo> {
+        let mut shares = self.screen_shares.write().await;
+        shares.remove(&user_id)
+    }
+
+    /// Get all screen shares.
+    pub async fn get_screen_shares(&self) -> Vec<ScreenShareInfo> {
+        let shares = self.screen_shares.read().await;
+        shares.values().cloned().collect()
+    }
+
     /// Get participant info for all peers.
     pub async fn get_participant_info(&self) -> Vec<ParticipantInfo> {
         let peers = self.peers.read().await;
+        let shares = self.screen_shares.read().await;
         let mut info = Vec::with_capacity(peers.len());
 
         for (user_id, peer) in peers.iter() {
@@ -130,6 +158,7 @@ impl Room {
                 username: Some(peer.username.clone()),
                 display_name: Some(peer.display_name.clone()),
                 muted: peer.is_muted().await,
+                screen_sharing: shares.contains_key(user_id),
             });
         }
 
@@ -205,6 +234,111 @@ impl SfuServer {
                     ..Default::default()
                 },
                 RTPCodecType::Audio,
+            )
+            .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
+
+        // Register VP9 video codec (preferred)
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/VP9".to_string(),
+                        clock_rate: 90000,
+                        channels: 0,
+                        sdp_fmtp_line: "profile-id=0".to_string(),
+                        rtcp_feedback: vec![
+                            RTCPFeedback {
+                                typ: "goog-remb".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "ccm".to_string(),
+                                parameter: "fir".to_string(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: "pli".to_string(),
+                            },
+                        ],
+                    },
+                    payload_type: 98,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
+            )
+            .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
+
+        // Register VP8 video codec (fallback)
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/VP8".to_string(),
+                        clock_rate: 90000,
+                        channels: 0,
+                        sdp_fmtp_line: String::new(),
+                        rtcp_feedback: vec![
+                            RTCPFeedback {
+                                typ: "goog-remb".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "ccm".to_string(),
+                                parameter: "fir".to_string(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: "pli".to_string(),
+                            },
+                        ],
+                    },
+                    payload_type: 96,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
+            )
+            .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
+
+        // Register H.264 video codec (for desktop clients with hardware encoding)
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/H264".to_string(),
+                        clock_rate: 90000,
+                        channels: 0,
+                        sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f".to_string(),
+                        rtcp_feedback: vec![
+                            RTCPFeedback {
+                                typ: "goog-remb".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "ccm".to_string(),
+                                parameter: "fir".to_string(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: String::new(),
+                            },
+                            RTCPFeedback {
+                                typ: "nack".to_string(),
+                                parameter: "pli".to_string(),
+                            },
+                        ],
+                    },
+                    payload_type: 102,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
             )
             .map_err(|e| VoiceError::WebRtc(e.to_string()))?;
 
@@ -309,6 +443,12 @@ impl SfuServer {
         .await?;
         let peer = Arc::new(peer);
 
+        // Add recvonly transceivers
+        // Always add Audio (mic)
+        peer.add_recv_transceiver(RTPCodecType::Audio).await?;
+        // Always add Video (screen) to prepare m-lines
+        peer.add_recv_transceiver(RTPCodecType::Video).await?;
+
         // Set up connection state handler
         let peer_weak = Arc::downgrade(&peer);
         let uid = user_id;
@@ -363,23 +503,33 @@ impl SfuServer {
                         "Received track from peer"
                     );
 
+                    // Determine source type based on track kind
+                    let source_type = match track.kind() {
+                        RTPCodecType::Audio => TrackSource::Microphone,
+                        RTPCodecType::Video => TrackSource::ScreenVideo,
+                        RTPCodecType::Unspecified => {
+                            warn!("Unspecified track kind: {:?}", track.kind());
+                            return;
+                        }
+                    };
+
                     if let (Some(peer), Some(room)) = (pw.upgrade(), rw.upgrade()) {
                         // Store incoming track
-                        peer.set_incoming_track(track.clone()).await;
+                        peer.set_incoming_track(source_type, track.clone()).await;
 
                         // Start RTP forwarder
-                        spawn_rtp_forwarder(uid, track.clone(), room.track_router.clone());
+                        spawn_rtp_forwarder(uid, source_type, track.clone(), room.track_router.clone());
 
                         // Create subscriber tracks for all existing peers
                         let other_peers = room.get_other_peers(uid).await;
                         for other_peer in other_peers {
                             if let Ok(local_track) = room
                                 .track_router
-                                .create_subscriber_track(uid, &other_peer, &track)
+                                .create_subscriber_track(uid, source_type, &other_peer, &track)
                                 .await
                             {
                                 if let Err(e) =
-                                    other_peer.add_outgoing_track(uid, local_track).await
+                                    other_peer.add_outgoing_track(uid, source_type, local_track).await
                                 {
                                     warn!(
                                         source = %uid,
@@ -410,12 +560,19 @@ impl SfuServer {
                         match c.to_json() {
                             Ok(json) => {
                                 if let Ok(candidate_str) = serde_json::to_string(&json) {
-                                    let _ = tx
+                                    if let Err(e) = tx
                                         .send(ServerEvent::VoiceIceCandidate {
                                             channel_id: cid,
                                             candidate: candidate_str,
                                         })
-                                        .await;
+                                        .await
+                                    {
+                                        tracing::error!(
+                                            channel_id = %cid,
+                                            error = %e,
+                                            "Failed to send ICE candidate - connection may fail"
+                                        );
+                                    }
                                 }
                             }
                             Err(e) => {

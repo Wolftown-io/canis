@@ -13,6 +13,7 @@ import type {
   VoiceResult,
   VoiceAdapterEvents,
   AudioDeviceList,
+  ScreenShareOptions,
   ConnectionMetrics,
 } from "./types";
 
@@ -22,6 +23,7 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   private muted = false;
   private deafened = false;
   private noiseSuppression = false;
+  private screenSharing = false;
 
   // Event handlers
   private eventHandlers: Partial<VoiceAdapterEvents> = {};
@@ -238,6 +240,41 @@ export class TauriVoiceAdapter implements VoiceAdapter {
       await invoke("set_output_device", { deviceId });
       return { ok: true, value: undefined };
     } catch (err) {
+      return { ok: false, error: this.mapTauriError(err) };
+    }
+  }
+
+  // Screen sharing
+
+  isScreenSharing(): boolean {
+    return this.screenSharing;
+  }
+
+  async startScreenShare(options?: ScreenShareOptions): Promise<VoiceResult<void>> {
+    console.log("[TauriVoiceAdapter] Starting screen share", options);
+
+    try {
+      await invoke("start_screen_share", {
+        quality: options?.quality ?? "medium",
+        withAudio: options?.withAudio ?? false,
+      });
+      this.screenSharing = true;
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[TauriVoiceAdapter] Failed to start screen share:", err);
+      return { ok: false, error: this.mapTauriError(err) };
+    }
+  }
+
+  async stopScreenShare(): Promise<VoiceResult<void>> {
+    console.log("[TauriVoiceAdapter] Stopping screen share");
+
+    try {
+      await invoke("stop_screen_share");
+      this.screenSharing = false;
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[TauriVoiceAdapter] Failed to stop screen share:", err);
       return { ok: false, error: this.mapTauriError(err) };
     }
   }

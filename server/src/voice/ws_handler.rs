@@ -8,10 +8,14 @@ use sqlx::{PgPool, Row};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
+use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
+use fred::clients::RedisClient;
 
 use super::error::VoiceError;
 use super::metrics::{finalize_session, get_guild_id, store_metrics};
 use super::sfu::SfuServer;
+use super::track_types::TrackSource;
+use super::screen_share::stop_screen_share;
 use super::stats::VoiceStats;
 use crate::ws::{ClientEvent, ServerEvent, VoiceParticipant};
 
@@ -19,6 +23,7 @@ use crate::ws::{ClientEvent, ServerEvent, VoiceParticipant};
 pub async fn handle_voice_event(
     sfu: &Arc<SfuServer>,
     pool: &PgPool,
+    redis: &RedisClient,
     user_id: Uuid,
     event: ClientEvent,
     tx: &mpsc::Sender<ServerEvent>,
@@ -28,7 +33,7 @@ pub async fn handle_voice_event(
             handle_join(sfu, pool, user_id, channel_id, tx).await
         }
         ClientEvent::VoiceLeave { channel_id } => {
-            handle_leave(sfu, pool, user_id, channel_id).await
+            handle_leave(sfu, pool, redis, user_id, channel_id).await
         }
         ClientEvent::VoiceAnswer { channel_id, sdp } => {
             handle_answer(sfu, user_id, channel_id, &sdp).await
@@ -74,10 +79,8 @@ async fn handle_join(
 ) -> Result<(), VoiceError> {
     info!(user_id = %user_id, channel_id = %channel_id, "User joining voice channel");
 
-    // Rate limit check (max 1 join per second per user)
     sfu.check_rate_limit(user_id).await?;
 
-    // Fetch user info from database
     let user = sqlx::query("SELECT username, display_name FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(pool)
@@ -91,27 +94,45 @@ async fn handle_join(
         .try_get("display_name")
         .map_err(|e| VoiceError::Signaling(format!("Failed to get display_name: {e}")))?;
 
-    // Get or create the room
     let room = sfu.get_or_create_room(channel_id).await;
 
-    // Create peer connection for this user
     let peer = sfu
-        .create_peer(user_id, username, display_name, channel_id, tx.clone())
+        .create_peer(user_id, username.clone(), display_name.clone(), channel_id, tx.clone())
         .await?;
 
-    // Add recvonly transceiver for receiving audio from client
-    peer.add_recv_transceiver().await?;
-
-    // Set up ICE candidate handler
     sfu.setup_ice_handler(&peer);
-
-    // Set up track handler (will be called when client sends audio)
     sfu.setup_track_handler(&peer, &room);
 
-    // Add peer to room
     room.add_peer(peer.clone()).await?;
 
-    // Create and send offer to client
+    let other_peers = room.get_other_peers(user_id).await;
+    for other_peer in other_peers {
+        let incoming_tracks = other_peer.incoming_tracks.read().await;
+        for (source_type, track) in incoming_tracks.iter() {
+            if let Ok(local_track) = room.track_router.create_subscriber_track(
+                other_peer.user_id,
+                *source_type,
+                &peer,
+                track
+            ).await {
+                if let Err(e) = peer.add_outgoing_track(other_peer.user_id, *source_type, local_track).await {
+                    warn!("Failed to add outgoing track: {}", e);
+                } else if *source_type == TrackSource::ScreenVideo {
+                    // Send PLI to request keyframe for late joiners
+                    let pli = PictureLossIndication {
+                        sender_ssrc: 0,
+                        media_ssrc: track.ssrc(),
+                    };
+                    if let Err(e) = other_peer.peer_connection.write_rtcp(&[Box::new(pli)]).await {
+                        warn!("Failed to send PLI: {}", e);
+                    } else {
+                        debug!("Sent PLI to source {}", other_peer.user_id);
+                    }
+                }
+            }
+        }
+    }
+
     let offer = sfu.create_offer(&peer).await?;
     tx.send(ServerEvent::VoiceOffer {
         channel_id,
@@ -120,7 +141,6 @@ async fn handle_join(
     .await
     .map_err(|e| VoiceError::Signaling(e.to_string()))?;
 
-    // Send current room state to joining user
     let participants: Vec<VoiceParticipant> = room
         .get_participant_info()
         .await
@@ -130,24 +150,27 @@ async fn handle_join(
             username: p.username,
             display_name: p.display_name,
             muted: p.muted,
+            screen_sharing: p.screen_sharing,
         })
         .collect();
+        
+    let screen_shares = room.get_screen_shares().await;
 
     tx.send(ServerEvent::VoiceRoomState {
         channel_id,
         participants,
+        screen_shares,
     })
     .await
     .map_err(|e| VoiceError::Signaling(e.to_string()))?;
 
-    // Notify other participants
     room.broadcast_except(
         user_id,
         ServerEvent::VoiceUserJoined {
             channel_id,
             user_id,
-            username: peer.username.clone(),
-            display_name: peer.display_name.clone(),
+            username,
+            display_name,
         },
     )
     .await;
@@ -165,6 +188,7 @@ async fn handle_join(
 async fn handle_leave(
     sfu: &Arc<SfuServer>,
     pool: &PgPool,
+    redis: &RedisClient,
     user_id: Uuid,
     channel_id: Uuid,
 ) -> Result<(), VoiceError> {
@@ -174,6 +198,20 @@ async fn handle_leave(
         .get_room(channel_id)
         .await
         .ok_or(VoiceError::RoomNotFound(channel_id))?;
+
+    // Check if sharing screen and stop it
+    if room.remove_screen_share(user_id).await.is_some() {
+        stop_screen_share(redis, channel_id).await;
+        
+        room.broadcast_except(
+            user_id,
+            ServerEvent::ScreenShareStopped {
+                channel_id,
+                user_id,
+                reason: "disconnected".to_string(),
+            },
+        ).await;
+    }
 
     // Remove peer from room
     if let Some(peer) = room.remove_peer(user_id).await {
@@ -209,7 +247,6 @@ async fn handle_leave(
         }
     }
 
-    // Notify other participants
     room.broadcast_except(
         user_id,
         ServerEvent::VoiceUserLeft {
@@ -219,7 +256,6 @@ async fn handle_leave(
     )
     .await;
 
-    // Cleanup empty room
     sfu.cleanup_room_if_empty(channel_id).await;
 
     info!(
