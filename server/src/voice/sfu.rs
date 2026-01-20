@@ -560,12 +560,19 @@ impl SfuServer {
                         match c.to_json() {
                             Ok(json) => {
                                 if let Ok(candidate_str) = serde_json::to_string(&json) {
-                                    let _ = tx
+                                    if let Err(e) = tx
                                         .send(ServerEvent::VoiceIceCandidate {
                                             channel_id: cid,
                                             candidate: candidate_str,
                                         })
-                                        .await;
+                                        .await
+                                    {
+                                        tracing::error!(
+                                            channel_id = %cid,
+                                            error = %e,
+                                            "Failed to send ICE candidate - connection may fail"
+                                        );
+                                    }
                                 }
                             }
                             Err(e) => {
