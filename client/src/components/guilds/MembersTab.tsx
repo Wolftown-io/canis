@@ -6,9 +6,11 @@ import { Component, createSignal, createMemo, For, Show, onMount } from "solid-j
 import { Search, Crown } from "lucide-solid";
 import { guildsState, loadGuildMembers, getGuildMembers } from "@/stores/guilds";
 import { loadGuildRoles, loadMemberRoles, getMemberRoles, memberHasPermission } from "@/stores/permissions";
+import { getUserActivity } from "@/stores/presence";
 import { PermissionBits } from "@/lib/permissionConstants";
 import { authState } from "@/stores/auth";
 import MemberRoleDropdown from "./MemberRoleDropdown";
+import { ActivityIndicator } from "../ui";
 import type { GuildMember } from "@/lib/types";
 
 interface MembersTabProps {
@@ -169,6 +171,13 @@ const MembersTab: Component<MembersTabProps> = (props) => {
                     <div class="text-xs text-text-secondary mt-0.5">
                       Joined {formatJoinDate(member.joined_at)} &bull; {formatLastSeen(member)}
                     </div>
+                    {/* Activity indicator */}
+                    <Show when={getUserActivity(member.user_id)}>
+                      <ActivityIndicator
+                        activity={getUserActivity(member.user_id)!}
+                        compact
+                      />
+                    </Show>
                   </div>
 
                   {/* Role badges */}
