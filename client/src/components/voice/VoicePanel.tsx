@@ -58,7 +58,16 @@ const VoicePanel: Component = () => {
                     <div class="w-4 h-4 rounded-full bg-primary/50" />
                     <span class="truncate max-w-20">{participant.user_id.slice(0, 8)}</span>
                     {participant.screen_sharing && (
-                      <MonitorUp class="w-3 h-3 text-success" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log("[VoicePanel] Want to view screen share from:", participant.user_id);
+                        }}
+                        class="p-0.5 hover:bg-success/30 rounded transition-colors"
+                        title="View screen share"
+                      >
+                        <MonitorUp class="w-3 h-3 text-success" />
+                      </button>
                     )}
                   </div>
                 )}
