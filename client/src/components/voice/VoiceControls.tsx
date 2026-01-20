@@ -2,12 +2,14 @@ import { Component, createSignal, Show } from "solid-js";
 import { Mic, MicOff, Headphones, VolumeX, Settings } from "lucide-solid";
 import { voiceState, toggleMute, toggleDeafen } from "@/stores/voice";
 import MicrophoneTest from "./MicrophoneTest";
+import ScreenShareButton from "./ScreenShareButton";
 
 /**
  * Voice controls for mute/deafen/settings.
  */
 const VoiceControls: Component = () => {
   const [showMicTest, setShowMicTest] = createSignal(false);
+  const [showQualityPicker, setShowQualityPicker] = createSignal(false);
 
   return (
     <>
@@ -48,6 +50,9 @@ const VoiceControls: Component = () => {
           )}
         </button>
 
+        {/* Screen share button */}
+        <ScreenShareButton onShowQualityPicker={() => setShowQualityPicker(true)} />
+
         {/* Settings button */}
         <button
           onClick={() => setShowMicTest(true)}
@@ -62,6 +67,8 @@ const VoiceControls: Component = () => {
       <Show when={showMicTest()}>
         <MicrophoneTest onClose={() => setShowMicTest(false)} />
       </Show>
+
+      {/* Quality picker will be added in Task 6 */}
     </>
   );
 };
