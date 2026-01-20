@@ -425,13 +425,17 @@ pub async fn list_messages(
     limit: i64,
 ) -> sqlx::Result<Vec<Message>> {
     if let Some(before_id) = before {
+        // Use (created_at, id) tuple comparison for correct cursor pagination
+        // This works with UUIDv4 (random) since we compare by timestamp first
         sqlx::query_as::<_, Message>(
             r"
-            SELECT * FROM messages
-            WHERE channel_id = $1
-              AND deleted_at IS NULL
-              AND id < $2
-            ORDER BY created_at DESC, id DESC
+            SELECT m.* FROM messages m
+            WHERE m.channel_id = $1
+              AND m.deleted_at IS NULL
+              AND (m.created_at, m.id) < (
+                SELECT created_at, id FROM messages WHERE id = $2
+              )
+            ORDER BY m.created_at DESC, m.id DESC
             LIMIT $3
             ",
         )
