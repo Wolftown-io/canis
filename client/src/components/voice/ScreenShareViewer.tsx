@@ -27,6 +27,13 @@ const ScreenShareViewer: Component = () => {
     }
   });
 
+  // Apply volume to video element when it changes
+  createEffect(() => {
+    if (videoRef) {
+      videoRef.volume = viewerState.screenVolume / 100;
+    }
+  });
+
   // Cleanup on unmount
   onCleanup(() => {
     if (videoRef) {
