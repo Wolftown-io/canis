@@ -83,6 +83,16 @@ pub async fn ws_ping(state: State<'_, AppState>) -> Result<(), String> {
     send_event(&state, ClientEvent::Ping).await
 }
 
+/// Send activity update to server via WebSocket.
+#[command]
+pub async fn ws_send_activity(
+    state: State<'_, AppState>,
+    activity: Option<serde_json::Value>,
+) -> Result<(), String> {
+    debug!("Sending activity update: {:?}", activity);
+    send_event(&state, ClientEvent::SetActivity { activity }).await
+}
+
 /// Helper to send an event.
 async fn send_event(state: &State<'_, AppState>, event: ClientEvent) -> Result<(), String> {
     let ws = state.websocket.read().await;

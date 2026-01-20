@@ -6,7 +6,8 @@
 
 import { createStore } from "solid-js/store";
 import * as tauri from "@/lib/tauri";
-import type { Message, ServerEvent, UserStatus } from "@/lib/types";
+import type { Activity, Message, ServerEvent, UserStatus } from "@/lib/types";
+import { updateUserActivity } from "./presence";
 import { addMessage, removeMessage } from "./messages";
 import {
   receiveIncomingCall,
@@ -140,6 +141,17 @@ export async function initWebSocket(): Promise<void> {
       })
     );
 
+    // Rich presence events
+    unlisteners.push(
+      await listen<{ user_id: string; activity: Activity | null }>(
+        "ws:rich_presence_update",
+        (event) => {
+          console.log("Rich presence update:", event.payload.user_id, event.payload.activity);
+          updateUserActivity(event.payload.user_id, event.payload.activity);
+        }
+      )
+    );
+
     // Error events
     unlisteners.push(
       await listen<{ code: string; message: string }>("ws:error", (event) => {
@@ -260,6 +272,11 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
     case "presence_update":
       console.log("Presence update:", event.user_id, event.status);
+      break;
+
+    case "rich_presence_update":
+      console.log("Rich presence update:", event.user_id, event.activity);
+      updateUserActivity(event.user_id, event.activity);
       break;
 
     case "voice_offer":

@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket};
 use axum::{
@@ -18,6 +19,26 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{api::AppState, auth::jwt, db, voice::ScreenShareInfo, voice::Quality};
+
+/// Minimum interval between activity updates (10 seconds).
+const ACTIVITY_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
+
+/// State for activity rate limiting and deduplication.
+struct ActivityState {
+    /// Last activity update timestamp.
+    last_update: Option<Instant>,
+    /// Last activity data for deduplication.
+    last_activity: Option<crate::presence::Activity>,
+}
+
+impl Default for ActivityState {
+    fn default() -> Self {
+        Self {
+            last_update: None,
+            last_activity: None,
+        }
+    }
+}
 
 /// WebSocket connection query params.
 #[derive(Debug, Deserialize)]
@@ -104,6 +125,11 @@ pub enum ClientEvent {
         quality: u8,
         /// Timestamp when stats were collected (Unix epoch ms).
         timestamp: i64,
+    },
+
+    /// Set rich presence activity (game, music, etc).
+    SetActivity {
+        activity: Option<crate::presence::Activity>,
     },
 }
 
@@ -374,6 +400,12 @@ pub enum ServerEvent {
         /// User who declined.
         user_id: Uuid,
     },
+
+    /// Rich presence activity update.
+    RichPresenceUpdate {
+        user_id: Uuid,
+        activity: Option<crate::presence::Activity>,
+    },
 }
 
 /// Redis pub/sub channels.
@@ -412,6 +444,24 @@ pub async fn broadcast_to_channel(
         .await?;
 
     Ok(())
+}
+
+/// Broadcast a presence update to all users who should see it.
+async fn broadcast_presence_update(state: &AppState, user_id: Uuid, event: &ServerEvent) {
+    let json = match serde_json::to_string(event) {
+        Ok(j) => j,
+        Err(e) => {
+            error!("Failed to serialize presence event: {}", e);
+            return;
+        }
+    };
+
+    // Broadcast on presence channel
+    let channel = format!("presence:{}", user_id);
+    let result: Result<(), RedisError> = state.redis.publish(&channel, &json).await;
+    if let Err(e) = result {
+        error!("Failed to broadcast presence update: {}", e);
+    }
 }
 
 /// WebSocket upgrade handler.
@@ -467,12 +517,28 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
     // Send ready event
     let _ = tx.send(ServerEvent::Ready { user_id }).await;
 
+    // Fetch user's friends for presence subscriptions
+    let friend_ids = match get_user_friends(&state.db, user_id).await {
+        Ok(friends) => {
+            debug!(
+                "User {} has {} friends for presence subscriptions",
+                user_id,
+                friends.len()
+            );
+            friends
+        }
+        Err(e) => {
+            warn!("Failed to fetch friends for user {}: {}", user_id, e);
+            Vec::new()
+        }
+    };
+
     // Spawn task to handle Redis pub/sub
     let redis_client = state.redis.clone();
     let tx_clone = tx.clone();
     let subscribed_clone = subscribed_channels.clone();
     let pubsub_handle = tokio::spawn(async move {
-        handle_pubsub(redis_client, tx_clone, subscribed_clone).await;
+        handle_pubsub(redis_client, tx_clone, subscribed_clone, friend_ids).await;
     });
 
     // Spawn task to forward events to WebSocket
@@ -493,12 +559,15 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
         }
     });
 
+    // Activity rate limiting state
+    let mut activity_state = ActivityState::default();
+
     // Handle incoming messages
     while let Some(msg) = ws_receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
                 if let Err(e) =
-                    handle_client_message(&text, user_id, &state, &tx, &subscribed_channels).await
+                    handle_client_message(&text, user_id, &state, &tx, &subscribed_channels, &mut activity_state).await
                 {
                     warn!("Error handling message: {}", e);
                     let _ = tx
@@ -544,6 +613,7 @@ async fn handle_client_message(
     state: &AppState,
     tx: &mpsc::Sender<ServerEvent>,
     subscribed_channels: &Arc<tokio::sync::RwLock<HashSet<Uuid>>>,
+    activity_state: &mut ActivityState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let event: ClientEvent = serde_json::from_str(text)?;
 
@@ -626,6 +696,48 @@ async fn handle_client_message(
                 .await?;
             }
         }
+
+        ClientEvent::SetActivity { activity } => {
+            // Validate activity data if present
+            if let Some(ref act) = activity {
+                act.validate().map_err(|e| format!("Invalid activity: {}", e))?;
+            }
+
+            // Rate limiting: enforce minimum interval between updates
+            let now = Instant::now();
+            if let Some(last_update) = activity_state.last_update {
+                let elapsed = now.duration_since(last_update);
+                if elapsed < ACTIVITY_UPDATE_INTERVAL {
+                    let remaining = ACTIVITY_UPDATE_INTERVAL - elapsed;
+                    return Err(format!(
+                        "Rate limited: wait {} seconds before next activity update",
+                        remaining.as_secs() + 1
+                    ).into());
+                }
+            }
+
+            // Deduplication: skip update if activity is unchanged
+            if activity == activity_state.last_activity {
+                debug!("Skipping activity update: unchanged for user={}", user_id);
+                return Ok(());
+            }
+
+            // Update database
+            sqlx::query("UPDATE users SET activity = $1 WHERE id = $2")
+                .bind(serde_json::to_value(&activity).ok())
+                .bind(user_id)
+                .execute(&state.db)
+                .await
+                .map_err(|e| format!("Failed to update activity: {}", e))?;
+
+            // Update state for rate limiting and deduplication
+            activity_state.last_update = Some(now);
+            activity_state.last_activity = activity.clone();
+
+            // Broadcast to user's presence subscribers
+            let event = ServerEvent::RichPresenceUpdate { user_id, activity };
+            broadcast_presence_update(state, user_id, &event).await;
+        }
     }
 
     Ok(())
@@ -636,6 +748,7 @@ async fn handle_pubsub(
     redis: RedisClient,
     tx: mpsc::Sender<ServerEvent>,
     subscribed_channels: Arc<tokio::sync::RwLock<HashSet<Uuid>>>,
+    friend_ids: Vec<Uuid>,
 ) {
     // Create a subscriber client
     let subscriber = redis.clone_new();
@@ -657,9 +770,23 @@ async fn handle_pubsub(
         return;
     }
 
+    // Subscribe to friends' presence channels
+    for friend_id in &friend_ids {
+        let presence_channel = channels::user_presence(*friend_id);
+        if let Err(e) = subscriber.subscribe(&presence_channel).await {
+            warn!(
+                "Failed to subscribe to presence channel for friend {}: {}",
+                friend_id, e
+            );
+        } else {
+            debug!("Subscribed to presence channel: {}", presence_channel);
+        }
+    }
+
     while let Ok(message) = pubsub_stream.recv().await {
-        // Extract channel ID from the channel name (channel:{uuid})
         let channel_name = message.channel.to_string();
+
+        // Handle channel events (channel:{uuid})
         if let Some(uuid_str) = channel_name.strip_prefix("channel:") {
             if let Ok(channel_id) = Uuid::parse_str(uuid_str) {
                 // Check if we're subscribed to this channel
@@ -671,6 +798,17 @@ async fn handle_pubsub(
                                 break;
                             }
                         }
+                    }
+                }
+            }
+        }
+        // Handle presence events (presence:{uuid})
+        else if channel_name.starts_with("presence:") {
+            // Forward presence updates from friends directly
+            if let Some(payload) = message.value.as_str() {
+                if let Ok(event) = serde_json::from_str::<ServerEvent>(&payload) {
+                    if tx.send(event).await.is_err() {
+                        break;
                     }
                 }
             }
@@ -687,4 +825,24 @@ async fn update_presence(state: &AppState, user_id: Uuid, status: &str) -> Resul
         .await?;
 
     Ok(())
+}
+
+/// Get list of user's accepted friend IDs.
+async fn get_user_friends(db: &sqlx::PgPool, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    let friends: Vec<(Uuid,)> = sqlx::query_as(
+        r#"
+        SELECT CASE
+            WHEN user1_id = $1 THEN user2_id
+            ELSE user1_id
+        END as friend_id
+        FROM friendships
+        WHERE (user1_id = $1 OR user2_id = $1)
+        AND status = 'accepted'
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(db)
+    .await?;
+
+    Ok(friends.into_iter().map(|(id,)| id).collect())
 }

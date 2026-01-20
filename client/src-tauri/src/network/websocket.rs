@@ -48,6 +48,9 @@ pub enum ClientEvent {
     VoiceUnmute {
         channel_id: String,
     },
+    SetActivity {
+        activity: Option<serde_json::Value>,
+    },
 }
 
 /// Server events received from the server.
@@ -89,6 +92,10 @@ pub enum ServerEvent {
     PresenceUpdate {
         user_id: String,
         status: String,
+    },
+    RichPresenceUpdate {
+        user_id: String,
+        activity: Option<serde_json::Value>,
     },
     VoiceOffer {
         channel_id: String,
@@ -346,6 +353,7 @@ fn handle_server_message(app: &AppHandle, text: &str) {
                 ServerEvent::TypingStart { .. } => "ws:typing_start",
                 ServerEvent::TypingStop { .. } => "ws:typing_stop",
                 ServerEvent::PresenceUpdate { .. } => "ws:presence_update",
+                ServerEvent::RichPresenceUpdate { .. } => "ws:rich_presence_update",
                 ServerEvent::VoiceOffer { .. } => "ws:voice_offer",
                 ServerEvent::VoiceIceCandidate { .. } => "ws:voice_ice_candidate",
                 ServerEvent::VoiceUserJoined { .. } => "ws:voice_user_joined",

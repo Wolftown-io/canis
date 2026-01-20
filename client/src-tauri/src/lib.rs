@@ -6,6 +6,7 @@ mod audio;
 mod commands;
 mod crypto;
 mod network;
+mod presence;
 mod webrtc;
 
 use audio::AudioHandle;
@@ -35,6 +36,9 @@ pub fn run() {
 
             // Store app state
             app.manage(AppState::new());
+
+            // Start presence polling service
+            presence::start_presence_service(app.handle().clone());
 
             Ok(())
         })
@@ -75,6 +79,7 @@ pub fn run() {
             commands::websocket::ws_typing,
             commands::websocket::ws_stop_typing,
             commands::websocket::ws_ping,
+            commands::websocket::ws_send_activity,
             // Pages commands
             commands::pages::list_platform_pages,
             commands::pages::get_platform_page,
@@ -119,6 +124,12 @@ pub fn run() {
             commands::crypto::generate_recovery_key,
             commands::crypto::create_backup,
             commands::crypto::restore_backup,
+            // Presence commands
+            commands::presence::scan_processes,
+            commands::presence::scan_all_processes,
+            commands::presence::get_known_games,
+            commands::presence::set_activity_sharing_enabled,
+            commands::presence::is_activity_sharing_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

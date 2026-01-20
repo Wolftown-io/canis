@@ -8,6 +8,31 @@
 
 export type UserStatus = "online" | "away" | "busy" | "offline";
 
+/** Type of activity the user is engaged in. */
+export type ActivityType = "game" | "listening" | "watching" | "coding" | "custom";
+
+/** Rich presence activity data. */
+export interface Activity {
+  /** Type of activity. */
+  type: ActivityType;
+  /** Display name (e.g., "Minecraft", "VS Code"). */
+  name: string;
+  /** ISO timestamp when the activity started. */
+  started_at: string;
+  /** Optional details (e.g., "Creative Mode"). */
+  details?: string;
+}
+
+/** Extended presence data with activity. */
+export interface UserPresence {
+  /** Current user status. */
+  status: UserStatus;
+  /** Current activity, if any. */
+  activity?: Activity | null;
+  /** ISO timestamp of when the user was last seen (for offline users). */
+  lastSeen?: string;
+}
+
 export interface UserProfile {
   id: string;
   username: string;
@@ -186,6 +211,7 @@ export type ServerEvent =
   | { type: "typing_start"; channel_id: string; user_id: string }
   | { type: "typing_stop"; channel_id: string; user_id: string }
   | { type: "presence_update"; user_id: string; status: UserStatus }
+  | { type: "rich_presence_update"; user_id: string; activity: Activity | null }
   | { type: "voice_offer"; channel_id: string; sdp: string }
   | { type: "voice_ice_candidate"; channel_id: string; candidate: string }
   | { type: "voice_user_joined"; channel_id: string; user_id: string; username: string; display_name: string }

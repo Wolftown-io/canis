@@ -7,6 +7,7 @@ pub mod auth;
 pub mod chat;
 pub mod crypto;
 pub mod pages;
+pub mod presence;
 pub mod roles;
 pub mod settings;
 pub mod voice;

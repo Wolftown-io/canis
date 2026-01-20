@@ -6,17 +6,18 @@
 
 import { Component, createSignal, For, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import { X, Palette, Volume2, Mic, Shield } from "lucide-solid";
+import { X, Palette, Volume2, Mic, Shield, Eye } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
 import AppearanceSettings from "./AppearanceSettings";
 import SecuritySettings from "./SecuritySettings";
+import PrivacySettings from "./PrivacySettings";
 import RecoveryKeyModal from "./RecoveryKeyModal";
 
 interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabId = "appearance" | "audio" | "voice" | "security";
+type TabId = "appearance" | "audio" | "voice" | "privacy" | "security";
 
 interface TabDefinition {
   id: TabId;
@@ -28,6 +29,7 @@ const tabs: TabDefinition[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "audio", label: "Audio", icon: Volume2 },
   { id: "voice", label: "Voice", icon: Mic },
+  { id: "privacy", label: "Privacy", icon: Eye },
   { id: "security", label: "Security", icon: Shield },
 ];
 
@@ -169,6 +171,10 @@ const SettingsModal: Component<SettingsModalProps> = (props) => {
                   </h3>
                   <p>Voice processing settings coming soon...</p>
                 </div>
+              </Show>
+
+              <Show when={activeTab() === "privacy"}>
+                <PrivacySettings />
               </Show>
 
               <Show when={activeTab() === "security"}>
