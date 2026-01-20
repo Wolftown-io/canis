@@ -120,6 +120,10 @@ pub fn run() {
             commands::crypto::generate_recovery_key,
             commands::crypto::create_backup,
             commands::crypto::restore_backup,
+            // Presence commands
+            commands::presence::scan_processes,
+            commands::presence::scan_all_processes,
+            commands::presence::get_known_games,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
