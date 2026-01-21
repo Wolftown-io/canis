@@ -18,6 +18,10 @@ use crate::{
 
 use super::channels::{ChannelError, ChannelResponse};
 
+struct UsernameRecord {
+    username: String,
+}
+
 // ============================================================================
 // Request/Response Types
 // ============================================================================
@@ -101,7 +105,8 @@ pub async fn get_or_create_dm(
     let channel_id = Uuid::now_v7();
 
     // Generate name from usernames
-    let names = sqlx::query!(
+    let names: Vec<UsernameRecord> = sqlx::query_as!(
+        UsernameRecord,
         "SELECT username FROM users WHERE id = $1 OR id = $2 ORDER BY username",
         user1_id,
         user2_id
@@ -162,7 +167,8 @@ pub async fn create_group_dm(
         let mut all_ids = vec![creator_id];
         all_ids.extend_from_slice(participant_ids);
 
-        let names = sqlx::query!(
+        let names: Vec<UsernameRecord> = sqlx::query_as!(
+            UsernameRecord,
             "SELECT username FROM users WHERE id = ANY($1) ORDER BY username",
             &all_ids[..]
         )
@@ -354,7 +360,7 @@ pub async fn list_dms(
         .await?;
 
         let unread_count = if let Some(read_state) = read_state_row {
-            sqlx::query!(
+            sqlx::query_scalar!(
                 r#"SELECT COUNT(*) as "count!" FROM messages
                    WHERE channel_id = $1 AND created_at > $2"#,
                 channel.id,
@@ -362,16 +368,14 @@ pub async fn list_dms(
             )
             .fetch_one(&state.db)
             .await?
-            .count
         } else {
             // No read state = all messages are unread
-            sqlx::query!(
+            sqlx::query_scalar!(
                 r#"SELECT COUNT(*) as "count!" FROM messages WHERE channel_id = $1"#,
                 channel.id
             )
             .fetch_one(&state.db)
             .await?
-            .count
         };
 
         responses.push(DMListResponse {
@@ -409,14 +413,13 @@ pub async fn get_dm(
     }
 
     // Verify auth user is a participant
-    let is_participant = sqlx::query!(
-        "SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2) as \"exists!\"",
+    let is_participant = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2) as "exists!""#,
         channel_id,
         auth.id
     )
     .fetch_one(&state.db)
-    .await?
-    .exists;
+    .await?;
 
     if !is_participant {
         return Err(ChannelError::Forbidden);
@@ -447,27 +450,27 @@ pub async fn leave_dm(
     }
 
     // Remove user from participants
-    let removed = sqlx::query!(
+    let result: sqlx::postgres::PgQueryResult = sqlx::query!(
         "DELETE FROM dm_participants WHERE channel_id = $1 AND user_id = $2",
         channel_id,
         auth.id
     )
     .execute(&state.db)
-    .await?
-    .rows_affected();
+    .await?;
+    
+    let removed = result.rows_affected();
 
     if removed == 0 {
         return Err(ChannelError::NotFound);
     }
 
     // Check if channel is now empty
-    let participant_count = sqlx::query!(
-        "SELECT COUNT(*) as \"count!\" FROM dm_participants WHERE channel_id = $1",
+    let participant_count = sqlx::query_scalar!(
+        r#"SELECT COUNT(*) as "count!" FROM dm_participants WHERE channel_id = $1"#,
         channel_id
     )
     .fetch_one(&state.db)
-    .await?
-    .count;
+    .await?;
 
     // If channel is empty, delete it
     if participant_count == 0 {
@@ -513,14 +516,13 @@ pub async fn mark_as_read(
         return Err(ChannelError::NotFound);
     }
 
-    let is_participant = sqlx::query!(
-        "SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2) as \"exists!\"",
+    let is_participant = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM dm_participants WHERE channel_id = $1 AND user_id = $2) as "exists!""#,
         channel_id,
         auth.id
     )
     .fetch_one(&state.db)
-    .await?
-    .exists;
+    .await?;
 
     if !is_participant {
         return Err(ChannelError::Forbidden);

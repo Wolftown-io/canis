@@ -1,15 +1,13 @@
 //! Authentication HTTP Handlers
 
 use axum::{
-    extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, State},
+    extract::{ConnectInfo, Multipart, Path, State},
     http::{header::USER_AGENT, HeaderMap},
     Extension, Json,
 };
-use bytes::Bytes;
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::io::Cursor;
 use std::net::SocketAddr;
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;

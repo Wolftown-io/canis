@@ -12,6 +12,15 @@ use crate::permissions::queries::get_system_admin;
 
 use super::types::{AdminError, ElevatedAdmin, SystemAdminUser};
 
+struct ElevatedSessionRecord {
+    #[allow(dead_code)]
+    id: uuid::Uuid,
+    user_id: uuid::Uuid,
+    elevated_at: chrono::DateTime<chrono::Utc>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+    reason: Option<String>,
+}
+
 /// Middleware that requires the user to be a system admin.
 #[tracing::instrument(skip(state, request, next))]
 pub async fn require_system_admin(
@@ -52,7 +61,8 @@ pub async fn require_elevated(
         .cloned()
         .ok_or(AdminError::NotAdmin)?;
 
-    let elevated = sqlx::query!(
+    let elevated = sqlx::query_as!(
+        ElevatedSessionRecord,
         r#"SELECT id, user_id, elevated_at, expires_at, reason
            FROM elevated_sessions
            WHERE user_id = $1 AND expires_at > NOW()

@@ -51,7 +51,7 @@ pub fn is_reserved_slug(slug: &str) -> bool {
 
 /// Count active pages in a scope (guild or platform).
 pub async fn count_pages(pool: &PgPool, guild_id: Option<Uuid>) -> Result<i64, sqlx::Error> {
-    let count = match guild_id {
+    let count: i64 = match guild_id {
         Some(gid) => {
             sqlx::query_scalar!(
                 r#"SELECT COUNT(*) as "count!" FROM pages WHERE guild_id = $1 AND deleted_at IS NULL"#,
@@ -78,7 +78,7 @@ pub async fn slug_exists(
     slug: &str,
     exclude_id: Option<Uuid>,
 ) -> Result<bool, sqlx::Error> {
-    let exists = match guild_id {
+    let exists: bool = match guild_id {
         Some(gid) => {
             sqlx::query_scalar!(
                 r#"SELECT EXISTS(
@@ -118,7 +118,7 @@ pub async fn slug_recently_deleted(
 ) -> Result<bool, sqlx::Error> {
     let cutoff = Utc::now() - Duration::days(DELETED_SLUG_COOLDOWN_DAYS);
 
-    let exists = match guild_id {
+    let exists: bool = match guild_id {
         Some(gid) => {
             sqlx::query_scalar!(
                 r#"SELECT EXISTS(
@@ -155,7 +155,7 @@ pub async fn list_pages(
     pool: &PgPool,
     guild_id: Option<Uuid>,
 ) -> Result<Vec<PageListItem>, sqlx::Error> {
-    let pages = match guild_id {
+    let pages: Vec<PageListItem> = match guild_id {
         Some(gid) => {
             sqlx::query_as!(
                 PageListItem,
@@ -187,7 +187,7 @@ pub async fn get_page_by_slug(
     guild_id: Option<Uuid>,
     slug: &str,
 ) -> Result<Option<Page>, sqlx::Error> {
-    let page = match guild_id {
+    let page: Option<Page> = match guild_id {
         Some(gid) => {
             sqlx::query_as!(
                 Page,
@@ -213,9 +213,10 @@ pub async fn get_page_by_slug(
 
 /// Get page by ID.
 pub async fn get_page_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Page>, sqlx::Error> {
-    sqlx::query_as!(Page, r#"SELECT * FROM pages WHERE id = $1"#, id)
+    let page: Option<Page> = sqlx::query_as!(Page, r#"SELECT * FROM pages WHERE id = $1"#, id)
         .fetch_optional(pool)
-        .await
+        .await?;
+    Ok(page)
 }
 
 /// Create a new page.
@@ -232,7 +233,7 @@ pub async fn create_page(
     let content_hash = hash_content(content);
     let position = count_pages(pool, guild_id).await? as i32;
 
-    sqlx::query_as!(
+    let page: Page = sqlx::query_as!(
         Page,
         r#"INSERT INTO pages (guild_id, title, slug, content, content_hash, position, requires_acceptance, created_by, updated_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
@@ -247,7 +248,9 @@ pub async fn create_page(
         created_by
     )
     .fetch_one(pool)
-    .await
+    .await?;
+    
+    Ok(page)
 }
 
 /// Update an existing page.
@@ -275,7 +278,7 @@ pub async fn update_page(
         page.content_hash.clone()
     };
 
-    sqlx::query_as!(
+    let updated_page: Page = sqlx::query_as!(
         Page,
         r#"UPDATE pages SET
             title = $2, slug = $3, content = $4, content_hash = $5,
@@ -290,7 +293,9 @@ pub async fn update_page(
         updated_by
     )
     .fetch_one(pool)
-    .await
+    .await?;
+    
+    Ok(updated_page)
 }
 
 /// Soft delete a page.
@@ -306,13 +311,15 @@ pub async fn soft_delete_page(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error
 
 /// Restore a soft-deleted page.
 pub async fn restore_page(pool: &PgPool, id: Uuid) -> Result<Page, sqlx::Error> {
-    sqlx::query_as!(
+    let page: Page = sqlx::query_as!(
         Page,
         r#"UPDATE pages SET deleted_at = NULL WHERE id = $1 RETURNING *"#,
         id
     )
     .fetch_one(pool)
-    .await
+    .await?;
+    
+    Ok(page)
 }
 
 /// Reorder pages by updating their positions.
@@ -425,14 +432,16 @@ pub async fn get_acceptance(
     user_id: Uuid,
     page_id: Uuid,
 ) -> Result<Option<PageAcceptance>, sqlx::Error> {
-    sqlx::query_as!(
+    let acceptance: Option<PageAcceptance> = sqlx::query_as!(
         PageAcceptance,
         r#"SELECT * FROM page_acceptances WHERE user_id = $1 AND page_id = $2"#,
         user_id,
         page_id
     )
     .fetch_optional(pool)
-    .await
+    .await?;
+    
+    Ok(acceptance)
 }
 
 /// Get pages requiring acceptance that user hasn't accepted (or accepted old version).
@@ -440,7 +449,7 @@ pub async fn get_pending_acceptance(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<PageListItem>, sqlx::Error> {
-    sqlx::query_as!(
+    let pages: Vec<PageListItem> = sqlx::query_as!(
         PageListItem,
         r#"SELECT p.id, p.guild_id, p.title, p.slug, p.position, p.requires_acceptance, p.updated_at
         FROM pages p
@@ -453,7 +462,9 @@ pub async fn get_pending_acceptance(
         user_id
     )
     .fetch_all(pool)
-    .await
+    .await?;
+    
+    Ok(pages)
 }
 
 /// Check if scope has reached maximum pages limit.

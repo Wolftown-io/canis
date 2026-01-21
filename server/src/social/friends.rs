@@ -20,12 +20,12 @@ pub async fn send_friend_request(
         .map_err(|e| SocialError::Validation(e.to_string()))?;
 
     // Find the target user by username
-    let target_user = sqlx::query!("SELECT id FROM users WHERE username = $1", body.username)
+    let target_user: Uuid = sqlx::query_scalar!("SELECT id FROM users WHERE username = $1", body.username)
         .fetch_optional(&state.db)
         .await?
         .ok_or(SocialError::UserNotFound)?;
 
-    let target_id = target_user.id;
+    let target_id = target_user;
 
     // Cannot friend yourself
     if target_id == auth.id {
@@ -33,14 +33,13 @@ pub async fn send_friend_request(
     }
 
     // Check if friendship already exists (in either direction)
-    let existing = sqlx::query!(
-        r#"SELECT id, requester_id, addressee_id, status as "status: FriendshipStatus"
-           FROM friendships
+    let existing = sqlx::query_as::<_, Friendship>(
+        r#"SELECT * FROM friendships
            WHERE (requester_id = $1 AND addressee_id = $2)
-              OR (requester_id = $2 AND addressee_id = $1)"#,
-        auth.id,
-        target_id
+              OR (requester_id = $2 AND addressee_id = $1)"#
     )
+    .bind(auth.id)
+    .bind(target_id)
     .fetch_optional(&state.db)
     .await?;
 
@@ -225,12 +224,10 @@ pub async fn reject_friend_request(
     Path(friendship_id): Path<Uuid>,
 ) -> Result<Json<()>, SocialError> {
     // Verify that auth.id is the addressee of this friendship
-    let friendship = sqlx::query!(
-        r#"SELECT requester_id, addressee_id, status as "status: FriendshipStatus"
-           FROM friendships
-           WHERE id = $1"#,
-        friendship_id
+    let friendship = sqlx::query_as::<_, Friendship>(
+        "SELECT * FROM friendships WHERE id = $1"
     )
+    .bind(friendship_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or(SocialError::FriendshipNotFound)?;
@@ -266,7 +263,7 @@ pub async fn block_user(
     }
 
     // Check if user exists
-    let target_exists = sqlx::query!("SELECT id FROM users WHERE id = $1", user_id)
+    let target_exists: bool = sqlx::query_scalar!("SELECT id FROM users WHERE id = $1", user_id)
         .fetch_optional(&state.db)
         .await?
         .is_some();
@@ -276,14 +273,13 @@ pub async fn block_user(
     }
 
     // Check if friendship already exists
-    let existing = sqlx::query!(
-        r#"SELECT id, requester_id, addressee_id, status as "status: FriendshipStatus"
-           FROM friendships
+    let existing = sqlx::query_as::<_, Friendship>(
+        r#"SELECT * FROM friendships
            WHERE (requester_id = $1 AND addressee_id = $2)
-              OR (requester_id = $2 AND addressee_id = $1)"#,
-        auth.id,
-        user_id
+              OR (requester_id = $2 AND addressee_id = $1)"#
     )
+    .bind(auth.id)
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await?;
 
@@ -332,12 +328,10 @@ pub async fn remove_friend(
     Path(friendship_id): Path<Uuid>,
 ) -> Result<Json<()>, SocialError> {
     // Verify that auth.id is part of this friendship
-    let friendship = sqlx::query!(
-        r#"SELECT requester_id, addressee_id, status as "status: FriendshipStatus"
-           FROM friendships
-           WHERE id = $1"#,
-        friendship_id
+    let friendship = sqlx::query_as::<_, Friendship>(
+        "SELECT * FROM friendships WHERE id = $1"
     )
+    .bind(friendship_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or(SocialError::FriendshipNotFound)?;
