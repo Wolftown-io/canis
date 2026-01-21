@@ -15,6 +15,7 @@ import {
   unbanUser,
 } from "@/stores/admin";
 import Avatar from "@/components/ui/Avatar";
+import TableRowSkeleton from "./TableRowSkeleton";
 
 const PAGE_SIZE = 20;
 
@@ -23,6 +24,9 @@ const UsersPanel: Component = () => {
   const [banReason, setBanReason] = createSignal("");
   const [showBanDialog, setShowBanDialog] = createSignal(false);
   const [actionLoading, setActionLoading] = createSignal(false);
+  const [focusedIndex, setFocusedIndex] = createSignal(-1);
+
+  let listRef: HTMLDivElement | undefined;
 
   // Load users on mount
   onMount(() => {
@@ -96,6 +100,40 @@ const UsersPanel: Component = () => {
     });
   };
 
+  // Handle keyboard navigation
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const users = filteredUsers();
+    if (users.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const next = prev < users.length - 1 ? prev + 1 : prev;
+          selectUser(users[next].id);
+          return next;
+        });
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : 0;
+          selectUser(users[next].id);
+          return next;
+        });
+        break;
+      case "Enter":
+        if (focusedIndex() >= 0 && focusedIndex() < users.length) {
+          selectUser(users[focusedIndex()].id);
+        }
+        break;
+      case "Escape":
+        selectUser(null);
+        setFocusedIndex(-1);
+        break;
+    }
+  };
+
   return (
     <div class="flex flex-1 h-full overflow-hidden">
       {/* User List */}
@@ -118,7 +156,12 @@ const UsersPanel: Component = () => {
         </div>
 
         {/* User Table */}
-        <div class="flex-1 overflow-auto">
+        <div
+          ref={listRef}
+          class="flex-1 overflow-auto focus:outline-none"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+        >
           {/* Table Header */}
           <div class="grid grid-cols-4 gap-4 px-4 py-3 border-b border-white/10 bg-white/5 text-xs font-medium text-text-secondary uppercase tracking-wide sticky top-0">
             <div>Username</div>
@@ -129,9 +172,7 @@ const UsersPanel: Component = () => {
 
           {/* Loading State */}
           <Show when={adminState.isUsersLoading}>
-            <div class="flex items-center justify-center py-12">
-              <div class="text-text-secondary">Loading users...</div>
-            </div>
+            <TableRowSkeleton columns={4} rows={8} showAvatar />
           </Show>
 
           {/* User Rows */}
@@ -144,18 +185,23 @@ const UsersPanel: Component = () => {
                 </div>
               }
             >
-              {(user) => (
+              {(user, index) => (
                 <div
-                  onClick={() => selectUser(user.id)}
+                  onClick={() => {
+                    selectUser(user.id);
+                    setFocusedIndex(index());
+                  }}
                   class="grid grid-cols-4 gap-4 px-4 py-3 border-b border-white/5 cursor-pointer transition-colors"
                   classList={{
                     "bg-accent-primary/20": adminState.selectedUserId === user.id,
                     "hover:bg-white/5": adminState.selectedUserId !== user.id,
+                    "ring-2 ring-accent-primary/50 ring-inset": focusedIndex() === index() && adminState.selectedUserId !== user.id,
                   }}
                 >
                   {/* Username */}
                   <div class="flex items-center gap-3 min-w-0 relative z-10">
                     <Avatar
+                      src={user.avatar_url}
                       alt={user.display_name || user.username}
                       size="sm"
                     />
@@ -269,6 +315,7 @@ const UsersPanel: Component = () => {
               {/* Profile Section */}
               <div class="flex flex-col items-center text-center space-y-3">
                 <Avatar
+                  src={user().avatar_url}
                   alt={user().display_name || user().username}
                   size="lg"
                 />

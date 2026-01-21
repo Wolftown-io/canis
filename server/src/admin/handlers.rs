@@ -83,6 +83,7 @@ pub struct UserSummary {
     pub username: String,
     pub display_name: String,
     pub email: Option<String>,
+    pub avatar_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub is_banned: bool,
 }
@@ -93,6 +94,7 @@ pub struct GuildSummary {
     pub id: Uuid,
     pub name: String,
     pub owner_id: Uuid,
+    pub icon_url: Option<String>,
     pub member_count: i64,
     pub created_at: DateTime<Utc>,
     pub suspended_at: Option<DateTime<Utc>>,
@@ -223,13 +225,14 @@ pub async fn list_users(
         .await?;
 
     // Get users with ban status
-    let users = sqlx::query_as::<_, (Uuid, String, String, Option<String>, DateTime<Utc>, bool)>(
+    let users = sqlx::query_as::<_, (Uuid, String, String, Option<String>, Option<String>, DateTime<Utc>, bool)>(
         r"
         SELECT
             u.id,
             u.username,
             u.display_name,
             u.email,
+            u.avatar_url,
             u.created_at,
             EXISTS(SELECT 1 FROM global_bans gb WHERE gb.user_id = u.id AND (gb.expires_at IS NULL OR gb.expires_at > NOW())) as is_banned
         FROM users u
@@ -244,11 +247,12 @@ pub async fn list_users(
 
     let items: Vec<UserSummary> = users
         .into_iter()
-        .map(|(id, username, display_name, email, created_at, is_banned)| UserSummary {
+        .map(|(id, username, display_name, email, avatar_url, created_at, is_banned)| UserSummary {
             id,
             username,
             display_name,
             email,
+            avatar_url,
             created_at,
             is_banned,
         })
@@ -281,12 +285,13 @@ pub async fn list_guilds(
         .await?;
 
     // Get guilds with member count
-    let guilds = sqlx::query_as::<_, (Uuid, String, Uuid, i64, DateTime<Utc>, Option<DateTime<Utc>>)>(
+    let guilds = sqlx::query_as::<_, (Uuid, String, Uuid, Option<String>, i64, DateTime<Utc>, Option<DateTime<Utc>>)>(
         r"
         SELECT
             g.id,
             g.name,
             g.owner_id,
+            g.icon_url,
             COALESCE((SELECT COUNT(*) FROM guild_members gm WHERE gm.guild_id = g.id), 0) as member_count,
             g.created_at,
             g.suspended_at
@@ -302,10 +307,11 @@ pub async fn list_guilds(
 
     let items: Vec<GuildSummary> = guilds
         .into_iter()
-        .map(|(id, name, owner_id, member_count, created_at, suspended_at)| GuildSummary {
+        .map(|(id, name, owner_id, icon_url, member_count, created_at, suspended_at)| GuildSummary {
             id,
             name,
             owner_id,
+            icon_url,
             member_count,
             created_at,
             suspended_at,

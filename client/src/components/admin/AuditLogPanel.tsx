@@ -16,6 +16,7 @@ import {
   FileText,
 } from "lucide-solid";
 import { adminState, loadAuditLog } from "@/stores/admin";
+import TableRowSkeleton from "./TableRowSkeleton";
 
 const PAGE_SIZE = 20;
 
@@ -187,9 +188,7 @@ const AuditLogPanel: Component = () => {
 
           {/* Loading State */}
           <Show when={adminState.isAuditLogLoading}>
-            <div class="flex items-center justify-center py-12">
-              <div class="text-text-secondary">Loading audit log...</div>
-            </div>
+            <TableRowSkeleton columns={5} rows={10} />
           </Show>
 
           {/* Audit Log Rows */}

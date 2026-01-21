@@ -8,7 +8,6 @@
 import { Component, Show, For, onMount, createSignal, createMemo } from "solid-js";
 import {
   Search,
-  Building2,
   Ban,
   CheckCircle,
   ChevronLeft,
@@ -23,6 +22,8 @@ import {
   suspendGuild,
   unsuspendGuild,
 } from "@/stores/admin";
+import Avatar from "@/components/ui/Avatar";
+import TableRowSkeleton from "./TableRowSkeleton";
 
 const PAGE_SIZE = 20;
 
@@ -31,6 +32,9 @@ const GuildsPanel: Component = () => {
   const [suspendReason, setSuspendReason] = createSignal("");
   const [showSuspendDialog, setShowSuspendDialog] = createSignal(false);
   const [actionLoading, setActionLoading] = createSignal(false);
+  const [focusedIndex, setFocusedIndex] = createSignal(-1);
+
+  let listRef: HTMLDivElement | undefined;
 
   // Load guilds on mount
   onMount(() => {
@@ -104,6 +108,40 @@ const GuildsPanel: Component = () => {
     return id.slice(0, 8) + "...";
   };
 
+  // Handle keyboard navigation
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const guilds = filteredGuilds();
+    if (guilds.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const next = prev < guilds.length - 1 ? prev + 1 : prev;
+          selectGuild(guilds[next].id);
+          return next;
+        });
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : 0;
+          selectGuild(guilds[next].id);
+          return next;
+        });
+        break;
+      case "Enter":
+        if (focusedIndex() >= 0 && focusedIndex() < guilds.length) {
+          selectGuild(guilds[focusedIndex()].id);
+        }
+        break;
+      case "Escape":
+        selectGuild(null);
+        setFocusedIndex(-1);
+        break;
+    }
+  };
+
   return (
     <div class="flex flex-1 h-full overflow-hidden">
       {/* Guild List */}
@@ -126,7 +164,12 @@ const GuildsPanel: Component = () => {
         </div>
 
         {/* Guild Table */}
-        <div class="flex-1 overflow-auto">
+        <div
+          ref={listRef}
+          class="flex-1 overflow-auto focus:outline-none"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+        >
           {/* Table Header */}
           <div class="grid grid-cols-4 gap-4 px-4 py-3 border-b border-white/10 bg-white/5 text-xs font-medium text-text-secondary uppercase tracking-wide sticky top-0">
             <div>Name</div>
@@ -137,9 +180,7 @@ const GuildsPanel: Component = () => {
 
           {/* Loading State */}
           <Show when={adminState.isGuildsLoading}>
-            <div class="flex items-center justify-center py-12">
-              <div class="text-text-secondary">Loading guilds...</div>
-            </div>
+            <TableRowSkeleton columns={4} rows={8} showAvatar />
           </Show>
 
           {/* Guild Rows */}
@@ -152,32 +193,26 @@ const GuildsPanel: Component = () => {
                 </div>
               }
             >
-              {(guild) => (
+              {(guild, index) => (
                 <div
-                  onClick={() => selectGuild(guild.id)}
+                  onClick={() => {
+                    selectGuild(guild.id);
+                    setFocusedIndex(index());
+                  }}
                   class="grid grid-cols-4 gap-4 px-4 py-3 border-b border-white/5 cursor-pointer transition-colors"
                   classList={{
                     "bg-accent-primary/20": adminState.selectedGuildId === guild.id,
                     "hover:bg-white/5": adminState.selectedGuildId !== guild.id,
+                    "ring-2 ring-accent-primary/50 ring-inset": focusedIndex() === index() && adminState.selectedGuildId !== guild.id,
                   }}
                 >
                   {/* Name */}
                   <div class="flex items-center gap-3 min-w-0">
-                    <div
-                      class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{
-                        "background-color": adminState.selectedGuildId === guild.id
-                          ? "rgba(255, 255, 255, 0.2)"
-                          : "rgba(136, 192, 208, 0.2)"
-                      }}
-                    >
-                      <Building2
-                        class="w-4 h-4"
-                        style={{
-                          color: adminState.selectedGuildId === guild.id ? "#FFFFFF" : "#88C0D0"
-                        }}
-                      />
-                    </div>
+                    <Avatar
+                      src={guild.icon_url}
+                      alt={guild.name}
+                      size="sm"
+                    />
                     <div class="text-sm font-medium text-text-primary truncate">
                       {guild.name}
                     </div>
@@ -277,9 +312,11 @@ const GuildsPanel: Component = () => {
             <div class="flex-1 p-4 space-y-6 overflow-auto">
               {/* Profile Section */}
               <div class="flex flex-col items-center text-center space-y-3">
-                <div class="w-16 h-16 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                  <Building2 class="w-8 h-8 text-blue-400" />
-                </div>
+                <Avatar
+                  src={guild().icon_url}
+                  alt={guild().name}
+                  size="lg"
+                />
                 <div class="text-lg font-bold text-text-primary">
                   {guild().name}
                 </div>
