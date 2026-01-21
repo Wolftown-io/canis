@@ -21,8 +21,9 @@ pub use types::{AdminError, ElevatedAdmin, SystemAdminUser};
 
 /// Create the admin router.
 ///
-/// All routes require system admin privileges (applied via middleware).
+/// Most routes require system admin privileges (applied via middleware).
 /// Routes under the elevated router additionally require an elevated session.
+/// The `/status` endpoint is accessible to any authenticated user.
 pub fn router(state: AppState) -> Router<AppState> {
     // Elevated routes (require both system admin and elevated session)
     let elevated_routes = Router::new()
@@ -30,16 +31,19 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/users/:id/ban",
             post(handlers::ban_user).delete(handlers::unban_user),
         )
+        .route("/users/:id/unban", post(handlers::unban_user))
         .route(
             "/guilds/:id/suspend",
             post(handlers::suspend_guild).delete(handlers::unsuspend_guild),
         )
+        .route("/guilds/:id/unsuspend", post(handlers::unsuspend_guild))
         .route("/announcements", post(handlers::create_announcement))
         .layer(from_fn_with_state(state.clone(), require_elevated));
 
-    // Non-elevated admin routes
-    let base_routes = Router::new()
+    // Non-elevated admin routes (require system admin)
+    let admin_routes = Router::new()
         .route("/health", get(|| async { "admin ok" }))
+        .route("/stats", get(handlers::get_admin_stats))
         .route("/users", get(handlers::list_users))
         .route("/guilds", get(handlers::list_guilds))
         .route("/audit-log", get(handlers::get_audit_log))
@@ -47,8 +51,12 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/elevate",
             post(handlers::elevate_session).delete(handlers::de_elevate_session),
         )
-        .merge(elevated_routes);
+        .merge(elevated_routes)
+        .layer(from_fn_with_state(state, require_system_admin));
 
-    // Apply system admin middleware to all routes
-    base_routes.layer(from_fn_with_state(state, require_system_admin))
+    // Public admin routes (any authenticated user)
+    // /status endpoint allows users to check their own admin status
+    Router::new()
+        .route("/status", get(handlers::get_admin_status))
+        .merge(admin_routes)
 }

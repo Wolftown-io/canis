@@ -149,12 +149,12 @@ const UsersPanel: Component = () => {
                   onClick={() => selectUser(user.id)}
                   class="grid grid-cols-4 gap-4 px-4 py-3 border-b border-white/5 cursor-pointer transition-colors"
                   classList={{
-                    "bg-accent-primary/10": adminState.selectedUserId === user.id,
+                    "bg-accent-primary/20": adminState.selectedUserId === user.id,
                     "hover:bg-white/5": adminState.selectedUserId !== user.id,
                   }}
                 >
                   {/* Username */}
-                  <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex items-center gap-3 min-w-0 relative z-10">
                     <Avatar
                       alt={user.display_name || user.username}
                       size="sm"
@@ -163,19 +163,37 @@ const UsersPanel: Component = () => {
                       <div class="text-sm font-medium text-text-primary truncate">
                         {user.display_name}
                       </div>
-                      <div class="text-xs text-text-secondary truncate">
+                      <div
+                        class="text-xs truncate"
+                        classList={{
+                          "text-text-primary": adminState.selectedUserId === user.id,
+                          "text-text-secondary": adminState.selectedUserId !== user.id,
+                        }}
+                      >
                         @{user.username}
                       </div>
                     </div>
                   </div>
 
                   {/* Email */}
-                  <div class="flex items-center text-sm text-text-secondary truncate">
+                  <div
+                    class="flex items-center text-sm truncate"
+                    classList={{
+                      "text-text-primary": adminState.selectedUserId === user.id,
+                      "text-text-secondary": adminState.selectedUserId !== user.id,
+                    }}
+                  >
                     {user.email || "-"}
                   </div>
 
                   {/* Joined */}
-                  <div class="flex items-center text-sm text-text-secondary">
+                  <div
+                    class="flex items-center text-sm"
+                    classList={{
+                      "text-text-primary": adminState.selectedUserId === user.id,
+                      "text-text-secondary": adminState.selectedUserId !== user.id,
+                    }}
+                  >
                     {formatDate(user.created_at)}
                   </div>
 

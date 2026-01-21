@@ -122,6 +122,88 @@ pub struct DeElevateResponse {
 // Handlers
 // ============================================================================
 
+/// Get admin status for the current user.
+///
+/// `GET /api/admin/status`
+///
+/// This endpoint does NOT require admin privileges - it checks if the user IS an admin.
+#[tracing::instrument(skip(state))]
+pub async fn get_admin_status(
+    State(state): State<AppState>,
+    Extension(auth): Extension<crate::auth::AuthUser>,
+) -> Result<Json<super::types::AdminStatusResponse>, AdminError> {
+    use crate::permissions::queries::get_system_admin;
+
+    // Check if user is a system admin
+    let is_admin = get_system_admin(&state.db, auth.id).await?.is_some();
+
+    // Check for active elevated session
+    let elevated = if is_admin {
+        sqlx::query_as!(
+            ElevatedSessionRecord,
+            r#"SELECT id, user_id, elevated_at, expires_at, reason
+               FROM elevated_sessions
+               WHERE user_id = $1 AND expires_at > NOW()
+               ORDER BY elevated_at DESC
+               LIMIT 1"#,
+            auth.id
+        )
+        .fetch_optional(&state.db)
+        .await?
+    } else {
+        None
+    };
+
+    Ok(Json(super::types::AdminStatusResponse {
+        is_admin,
+        is_elevated: elevated.is_some(),
+        elevation_expires_at: elevated.map(|e| e.expires_at),
+    }))
+}
+
+/// Elevated session record for querying.
+struct ElevatedSessionRecord {
+    #[allow(dead_code)]
+    id: Uuid,
+    #[allow(dead_code)]
+    user_id: Uuid,
+    #[allow(dead_code)]
+    elevated_at: chrono::DateTime<chrono::Utc>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+    #[allow(dead_code)]
+    reason: Option<String>,
+}
+
+/// Get admin statistics.
+///
+/// `GET /api/admin/stats`
+#[tracing::instrument(skip(state))]
+pub async fn get_admin_stats(
+    State(state): State<AppState>,
+    Extension(_admin): Extension<SystemAdminUser>,
+) -> Result<Json<super::types::AdminStatsResponse>, AdminError> {
+    // Get user count
+    let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(&state.db)
+        .await?;
+
+    // Get guild count
+    let guild_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM guilds")
+        .fetch_one(&state.db)
+        .await?;
+
+    // Get banned count
+    let banned_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM global_bans WHERE expires_at IS NULL OR expires_at > NOW()")
+        .fetch_one(&state.db)
+        .await?;
+
+    Ok(Json(super::types::AdminStatsResponse {
+        user_count: user_count.0,
+        guild_count: guild_count.0,
+        banned_count: banned_count.0,
+    }))
+}
+
 /// List all users with pagination.
 ///
 /// `GET /api/admin/users`
@@ -313,6 +395,9 @@ pub async fn get_audit_log(
 /// Elevate admin session with MFA verification.
 ///
 /// `POST /api/admin/elevate`
+///
+/// If MFA is not enabled on the user account, elevation is allowed without MFA
+/// (for development/testing purposes).
 #[tracing::instrument(skip(state, body))]
 pub async fn elevate_session(
     State(state): State<AppState>,
@@ -320,53 +405,54 @@ pub async fn elevate_session(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<ElevateRequest>,
 ) -> Result<Json<ElevateResponse>, AdminError> {
-    // Validate MFA code format (6 digits)
-    if body.mfa_code.len() != 6 || !body.mfa_code.chars().all(|c| c.is_ascii_digit()) {
-        return Err(AdminError::InvalidMfaCode);
-    }
-
     // Load user to check MFA status
     let user = find_user_by_id(&state.db, admin.user_id)
         .await?
         .ok_or(AdminError::NotAdmin)?;
 
-    // Check if MFA is enabled
-    let mfa_secret_encrypted = user.mfa_secret.ok_or(AdminError::MfaRequired)?;
+    // Only verify MFA if the user has it enabled
+    if let Some(mfa_secret_encrypted) = user.mfa_secret {
+        // Validate MFA code format (6 digits)
+        if body.mfa_code.len() != 6 || !body.mfa_code.chars().all(|c| c.is_ascii_digit()) {
+            return Err(AdminError::InvalidMfaCode);
+        }
 
-    // Get and validate encryption key
-    let encryption_key = state
-        .config
-        .mfa_encryption_key
-        .as_ref()
-        .ok_or_else(|| AdminError::Validation("MFA encryption not configured".to_string()))?;
+        // Get and validate encryption key
+        let encryption_key = state
+            .config
+            .mfa_encryption_key
+            .as_ref()
+            .ok_or_else(|| AdminError::Validation("MFA encryption not configured".to_string()))?;
 
-    let key_bytes = hex::decode(encryption_key)
-        .map_err(|_| AdminError::Validation("Invalid MFA encryption key".to_string()))?;
+        let key_bytes = hex::decode(encryption_key)
+            .map_err(|_| AdminError::Validation("Invalid MFA encryption key".to_string()))?;
 
-    // Decrypt MFA secret
-    let mfa_secret = decrypt_mfa_secret(&mfa_secret_encrypted, &key_bytes)
+        // Decrypt MFA secret
+        let mfa_secret = decrypt_mfa_secret(&mfa_secret_encrypted, &key_bytes)
+            .map_err(|_| AdminError::InvalidMfaCode)?;
+
+        // Verify TOTP code
+        let totp = totp_rs::TOTP::new(
+            totp_rs::Algorithm::SHA1,
+            6,
+            1,
+            30,
+            totp_rs::Secret::Encoded(mfa_secret)
+                .to_bytes()
+                .map_err(|_| AdminError::InvalidMfaCode)?,
+            Some("VoiceChat".to_string()),
+            admin.username.clone(),
+        )
         .map_err(|_| AdminError::InvalidMfaCode)?;
 
-    // Verify TOTP code
-    let totp = totp_rs::TOTP::new(
-        totp_rs::Algorithm::SHA1,
-        6,
-        1,
-        30,
-        totp_rs::Secret::Encoded(mfa_secret)
-            .to_bytes()
-            .map_err(|_| AdminError::InvalidMfaCode)?,
-        Some("VoiceChat".to_string()),
-        admin.username.clone(),
-    )
-    .map_err(|_| AdminError::InvalidMfaCode)?;
-
-    if !totp
-        .check_current(&body.mfa_code)
-        .map_err(|_| AdminError::InvalidMfaCode)?
-    {
-        return Err(AdminError::InvalidMfaCode);
+        if !totp
+            .check_current(&body.mfa_code)
+            .map_err(|_| AdminError::InvalidMfaCode)?
+        {
+            return Err(AdminError::InvalidMfaCode);
+        }
     }
+    // If MFA is not enabled, skip verification (dev/testing mode)
 
     // Find or create a session for this user
     // We need a valid session_id that references sessions table

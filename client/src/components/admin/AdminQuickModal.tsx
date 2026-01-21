@@ -105,8 +105,8 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
           {/* Header */}
           <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-lg bg-accent-primary/20 flex items-center justify-center">
-                <Shield class="w-5 h-5 text-accent-primary" />
+              <div class="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                <Shield class="w-5 h-5 text-purple-400" />
               </div>
               <h2 class="text-lg font-bold text-text-primary">Admin Panel</h2>
             </div>
@@ -186,7 +186,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
               <div class="grid grid-cols-3 gap-3">
                 {/* Users */}
                 <div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
-                  <Users class="w-5 h-5 mx-auto mb-1 text-accent-primary" />
+                  <Users class="w-5 h-5 mx-auto mb-1 text-emerald-400" />
                   <div class="text-lg font-bold text-text-primary">
                     {adminState.stats?.user_count ?? "-"}
                   </div>
@@ -195,7 +195,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
 
                 {/* Guilds */}
                 <div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
-                  <Building2 class="w-5 h-5 mx-auto mb-1 text-accent-primary" />
+                  <Building2 class="w-5 h-5 mx-auto mb-1 text-blue-400" />
                   <div class="text-lg font-bold text-text-primary">
                     {adminState.stats?.guild_count ?? "-"}
                   </div>

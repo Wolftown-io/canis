@@ -157,8 +157,8 @@ const AdminDashboard: Component = () => {
                       {/* Users Card */}
                       <div class="p-4 rounded-xl bg-white/5 border border-white/10">
                         <div class="flex items-center gap-3 mb-2">
-                          <div class="w-10 h-10 rounded-lg bg-accent-primary/20 flex items-center justify-center">
-                            <Users class="w-5 h-5 text-accent-primary" />
+                          <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                            <Users class="w-5 h-5 text-emerald-400" />
                           </div>
                           <div class="text-sm text-text-secondary">Users</div>
                         </div>

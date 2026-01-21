@@ -44,6 +44,12 @@ export default defineConfig({
       success: "#A3BE8C",
       warning: "#EBCB8B",
       danger: "var(--color-accent-danger)",
+      // Status colors for admin panels
+      status: {
+        success: "#A3BE8C",
+        error: "#BF616A",
+        warning: "#EBCB8B",
+      },
     },
   },
   shortcuts: {
@@ -71,13 +77,24 @@ export default defineConfig({
     "bg-surface-layer1",
     "bg-surface-layer2",
     "bg-surface-highlight",
+    "bg-white/30",
+    "bg-accent-primary/20",
     "text-text-primary",
     "text-text-secondary",
     "text-text-input",
     "text-accent-primary",
     "text-accent-danger",
+    "text-white",
     "border-white/5",
     "border-white/10",
+    "relative",
+    "z-10",
+    "bg-status-success/20",
+    "bg-status-error/20",
+    "bg-status-warning/10",
+    "text-status-success",
+    "text-status-error",
+    "text-status-warning",
   ],
   rules: [
     [/^animate-\[slideUp/, () => ({

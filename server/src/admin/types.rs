@@ -120,3 +120,19 @@ pub struct CreateAnnouncementRequest {
 fn default_severity() -> String {
     "info".to_string()
 }
+
+/// Admin status response for checking current user's admin state.
+#[derive(Debug, Serialize)]
+pub struct AdminStatusResponse {
+    pub is_admin: bool,
+    pub is_elevated: bool,
+    pub elevation_expires_at: Option<DateTime<Utc>>,
+}
+
+/// Admin statistics response.
+#[derive(Debug, Serialize)]
+pub struct AdminStatsResponse {
+    pub user_count: i64,
+    pub guild_count: i64,
+    pub banned_count: i64,
+}

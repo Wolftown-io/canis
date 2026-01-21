@@ -34,11 +34,14 @@ const AdminSidebar: Component<AdminSidebarProps> = (props) => {
             onClick={() => props.onSelectPanel(item.id)}
             class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
             classList={{
-              "bg-accent-primary/10 text-accent-primary": props.activePanel === item.id,
+              "bg-accent-primary/20 text-text-primary": props.activePanel === item.id,
               "text-text-secondary hover:text-text-primary hover:bg-white/5": props.activePanel !== item.id,
             }}
           >
-            <item.icon class="w-4 h-4" />
+            <item.icon
+              class="w-4 h-4"
+              style={{ color: props.activePanel === item.id ? "#FFFFFF" : undefined }}
+            />
             {item.label}
           </button>
         )}

@@ -157,14 +157,26 @@ const GuildsPanel: Component = () => {
                   onClick={() => selectGuild(guild.id)}
                   class="grid grid-cols-4 gap-4 px-4 py-3 border-b border-white/5 cursor-pointer transition-colors"
                   classList={{
-                    "bg-accent-primary/10": adminState.selectedGuildId === guild.id,
+                    "bg-accent-primary/20": adminState.selectedGuildId === guild.id,
                     "hover:bg-white/5": adminState.selectedGuildId !== guild.id,
                   }}
                 >
                   {/* Name */}
                   <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-8 h-8 rounded-lg bg-accent-primary/20 flex items-center justify-center flex-shrink-0">
-                      <Building2 class="w-4 h-4 text-accent-primary" />
+                    <div
+                      class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{
+                        "background-color": adminState.selectedGuildId === guild.id
+                          ? "rgba(255, 255, 255, 0.2)"
+                          : "rgba(136, 192, 208, 0.2)"
+                      }}
+                    >
+                      <Building2
+                        class="w-4 h-4"
+                        style={{
+                          color: adminState.selectedGuildId === guild.id ? "#FFFFFF" : "#88C0D0"
+                        }}
+                      />
                     </div>
                     <div class="text-sm font-medium text-text-primary truncate">
                       {guild.name}
@@ -172,13 +184,25 @@ const GuildsPanel: Component = () => {
                   </div>
 
                   {/* Members */}
-                  <div class="flex items-center gap-2 text-sm text-text-secondary">
+                  <div
+                    class="flex items-center gap-2 text-sm"
+                    classList={{
+                      "text-text-primary": adminState.selectedGuildId === guild.id,
+                      "text-text-secondary": adminState.selectedGuildId !== guild.id,
+                    }}
+                  >
                     <Users class="w-4 h-4" />
                     {guild.member_count}
                   </div>
 
                   {/* Created */}
-                  <div class="flex items-center text-sm text-text-secondary">
+                  <div
+                    class="flex items-center text-sm"
+                    classList={{
+                      "text-text-primary": adminState.selectedGuildId === guild.id,
+                      "text-text-secondary": adminState.selectedGuildId !== guild.id,
+                    }}
+                  >
                     {formatDate(guild.created_at)}
                   </div>
 
@@ -253,8 +277,8 @@ const GuildsPanel: Component = () => {
             <div class="flex-1 p-4 space-y-6 overflow-auto">
               {/* Profile Section */}
               <div class="flex flex-col items-center text-center space-y-3">
-                <div class="w-16 h-16 rounded-xl bg-accent-primary/20 flex items-center justify-center">
-                  <Building2 class="w-8 h-8 text-accent-primary" />
+                <div class="w-16 h-16 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                  <Building2 class="w-8 h-8 text-blue-400" />
                 </div>
                 <div class="text-lg font-bold text-text-primary">
                   {guild().name}
