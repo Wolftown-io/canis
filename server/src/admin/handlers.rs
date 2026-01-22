@@ -128,6 +128,63 @@ pub struct DeElevateResponse {
     pub elevated: bool,
 }
 
+/// User guild membership info for detail view.
+#[derive(Debug, Serialize)]
+pub struct UserGuildMembership {
+    pub guild_id: Uuid,
+    pub guild_name: String,
+    pub guild_icon_url: Option<String>,
+    pub joined_at: DateTime<Utc>,
+    pub is_owner: bool,
+}
+
+/// Detailed user information response.
+#[derive(Debug, Serialize)]
+pub struct UserDetailsResponse {
+    pub id: Uuid,
+    pub username: String,
+    pub display_name: String,
+    pub email: Option<String>,
+    pub avatar_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub is_banned: bool,
+    pub last_login: Option<DateTime<Utc>>,
+    pub guild_count: i64,
+    pub guilds: Vec<UserGuildMembership>,
+}
+
+/// Guild member info for detail view.
+#[derive(Debug, Serialize)]
+pub struct GuildMemberInfo {
+    pub user_id: Uuid,
+    pub username: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub joined_at: DateTime<Utc>,
+}
+
+/// Guild owner info for detail view.
+#[derive(Debug, Serialize)]
+pub struct GuildOwnerInfo {
+    pub user_id: Uuid,
+    pub username: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+}
+
+/// Detailed guild information response.
+#[derive(Debug, Serialize)]
+pub struct GuildDetailsResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub icon_url: Option<String>,
+    pub member_count: i64,
+    pub created_at: DateTime<Utc>,
+    pub suspended_at: Option<DateTime<Utc>>,
+    pub owner: GuildOwnerInfo,
+    pub top_members: Vec<GuildMemberInfo>,
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -1047,5 +1104,163 @@ pub async fn create_announcement(
         id: announcement_id,
         title: body.title,
         created: true,
+    }))
+}
+
+// ============================================================================
+// Detail View Handlers
+// ============================================================================
+
+/// Get detailed user information.
+///
+/// `GET /api/admin/users/:id/details`
+#[tracing::instrument(skip(state))]
+pub async fn get_user_details(
+    State(state): State<AppState>,
+    Extension(_admin): Extension<SystemAdminUser>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<UserDetailsResponse>, AdminError> {
+    // Get basic user info
+    let user = sqlx::query!(
+        r#"
+        SELECT id, username, display_name, email, avatar_url, created_at,
+               EXISTS(SELECT 1 FROM global_bans gb WHERE gb.user_id = users.id AND (gb.expires_at IS NULL OR gb.expires_at > NOW())) as "is_banned!"
+        FROM users
+        WHERE id = $1
+        "#,
+        user_id
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AdminError::NotFound("User not found".to_string()))?;
+
+    // Get last login from sessions table
+    let last_login: Option<DateTime<Utc>> = sqlx::query_scalar!(
+        r#"
+        SELECT MAX(created_at) as "last_login"
+        FROM sessions
+        WHERE user_id = $1
+        "#,
+        user_id
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    // Get guild memberships
+    let guild_memberships = sqlx::query!(
+        r#"
+        SELECT g.id as guild_id, g.name as guild_name, g.icon_url as guild_icon_url,
+               gm.joined_at, g.owner_id = $1 as "is_owner!"
+        FROM guild_members gm
+        JOIN guilds g ON gm.guild_id = g.id
+        WHERE gm.user_id = $1
+        ORDER BY gm.joined_at DESC
+        "#,
+        user_id
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let guilds: Vec<UserGuildMembership> = guild_memberships
+        .into_iter()
+        .map(|row| UserGuildMembership {
+            guild_id: row.guild_id,
+            guild_name: row.guild_name,
+            guild_icon_url: row.guild_icon_url,
+            joined_at: row.joined_at,
+            is_owner: row.is_owner,
+        })
+        .collect();
+
+    Ok(Json(UserDetailsResponse {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        email: user.email,
+        avatar_url: user.avatar_url,
+        created_at: user.created_at,
+        is_banned: user.is_banned,
+        last_login,
+        guild_count: guilds.len() as i64,
+        guilds,
+    }))
+}
+
+/// Get detailed guild information.
+///
+/// `GET /api/admin/guilds/:id/details`
+#[tracing::instrument(skip(state))]
+pub async fn get_guild_details(
+    State(state): State<AppState>,
+    Extension(_admin): Extension<SystemAdminUser>,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<GuildDetailsResponse>, AdminError> {
+    // Get basic guild info with member count
+    let guild = sqlx::query!(
+        r#"
+        SELECT g.id, g.name, g.icon_url, g.owner_id, g.created_at, g.suspended_at,
+               (SELECT COUNT(*) FROM guild_members WHERE guild_id = g.id) as "member_count!"
+        FROM guilds g
+        WHERE g.id = $1
+        "#,
+        guild_id
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AdminError::NotFound("Guild not found".to_string()))?;
+
+    // Get owner info
+    let owner = sqlx::query!(
+        r#"
+        SELECT id, username, display_name, avatar_url
+        FROM users
+        WHERE id = $1
+        "#,
+        guild.owner_id
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    // Get top 5 members (excluding owner, most recent first)
+    let top_members_rows = sqlx::query!(
+        r#"
+        SELECT u.id as user_id, u.username, u.display_name, u.avatar_url, gm.joined_at
+        FROM guild_members gm
+        JOIN users u ON gm.user_id = u.id
+        WHERE gm.guild_id = $1 AND gm.user_id != $2
+        ORDER BY gm.joined_at DESC
+        LIMIT 5
+        "#,
+        guild_id,
+        guild.owner_id
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let top_members: Vec<GuildMemberInfo> = top_members_rows
+        .into_iter()
+        .map(|row| GuildMemberInfo {
+            user_id: row.user_id,
+            username: row.username,
+            display_name: row.display_name,
+            avatar_url: row.avatar_url,
+            joined_at: row.joined_at,
+        })
+        .collect();
+
+    Ok(Json(GuildDetailsResponse {
+        id: guild.id,
+        name: guild.name,
+        icon_url: guild.icon_url,
+        member_count: guild.member_count,
+        created_at: guild.created_at,
+        suspended_at: guild.suspended_at,
+        owner: GuildOwnerInfo {
+            user_id: owner.id,
+            username: owner.username,
+            display_name: owner.display_name,
+            avatar_url: owner.avatar_url,
+        },
+        top_members,
     }))
 }

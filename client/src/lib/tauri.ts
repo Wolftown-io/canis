@@ -35,12 +35,14 @@ import type {
   AuditLogEntry,
   PaginatedResponse,
   ElevateResponse,
+  UserDetailsResponse,
+  GuildDetailsResponse,
   CallEndReason,
   CallStateResponse,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, CallEndReason, CallStateResponse };
+export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, CallEndReason, CallStateResponse };
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -1643,6 +1645,44 @@ export async function adminListGuilds(
   return httpRequest<PaginatedResponse<GuildSummary>>(
     "GET",
     `/api/admin/guilds${query ? `?${query}` : ""}`
+  );
+}
+
+/**
+ * Get detailed user information (admin only).
+ */
+export async function adminGetUserDetails(
+  userId: string
+): Promise<UserDetailsResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<UserDetailsResponse>("admin_get_user_details", {
+      user_id: userId,
+    });
+  }
+
+  return httpRequest<UserDetailsResponse>(
+    "GET",
+    `/api/admin/users/${userId}/details`
+  );
+}
+
+/**
+ * Get detailed guild information (admin only).
+ */
+export async function adminGetGuildDetails(
+  guildId: string
+): Promise<GuildDetailsResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<GuildDetailsResponse>("admin_get_guild_details", {
+      guild_id: guildId,
+    });
+  }
+
+  return httpRequest<GuildDetailsResponse>(
+    "GET",
+    `/api/admin/guilds/${guildId}/details`
   );
 }
 

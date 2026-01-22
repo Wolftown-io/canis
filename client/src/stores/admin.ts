@@ -12,6 +12,8 @@ import type {
   GuildSummary,
   AuditLogEntry,
   PaginatedResponse,
+  UserDetailsResponse,
+  GuildDetailsResponse,
 } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import type { AuditLogFilters } from "@/lib/tauri";
@@ -56,12 +58,14 @@ interface AdminStoreState {
   usersPagination: PaginationState;
   usersSearch: string;
   selectedUserId: string | null;
+  selectedUserDetails: UserDetailsResponse | null;
 
   // Guilds list
   guilds: GuildSummary[];
   guildsPagination: PaginationState;
   guildsSearch: string;
   selectedGuildId: string | null;
+  selectedGuildDetails: GuildDetailsResponse | null;
 
   // Audit log
   auditLog: AuditLogEntry[];
@@ -73,7 +77,9 @@ interface AdminStoreState {
   isStatusLoading: boolean;
   isStatsLoading: boolean;
   isUsersLoading: boolean;
+  isUserDetailsLoading: boolean;
   isGuildsLoading: boolean;
+  isGuildDetailsLoading: boolean;
   isAuditLogLoading: boolean;
   isElevating: boolean;
 
@@ -99,12 +105,14 @@ const [adminState, setAdminState] = createStore<AdminStoreState>({
   usersPagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0 },
   usersSearch: "",
   selectedUserId: null,
+  selectedUserDetails: null,
 
   // Guilds list
   guilds: [],
   guildsPagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0 },
   guildsSearch: "",
   selectedGuildId: null,
+  selectedGuildDetails: null,
 
   // Audit log
   auditLog: [],
@@ -121,7 +129,9 @@ const [adminState, setAdminState] = createStore<AdminStoreState>({
   isStatusLoading: false,
   isStatsLoading: false,
   isUsersLoading: false,
+  isUserDetailsLoading: false,
   isGuildsLoading: false,
+  isGuildDetailsLoading: false,
   isAuditLogLoading: false,
   isElevating: false,
 
@@ -424,7 +434,28 @@ export async function unbanUser(userId: string): Promise<boolean> {
  * Select a user in the list
  */
 export function selectUser(userId: string | null): void {
-  setAdminState({ selectedUserId: userId });
+  setAdminState({ selectedUserId: userId, selectedUserDetails: null });
+}
+
+/**
+ * Load detailed user information
+ */
+export async function loadUserDetails(userId: string): Promise<void> {
+  setAdminState({ isUserDetailsLoading: true });
+
+  try {
+    const details = await tauri.adminGetUserDetails(userId);
+    setAdminState({
+      selectedUserDetails: details,
+      isUserDetailsLoading: false,
+    });
+  } catch (err) {
+    console.error("[Admin] Failed to load user details:", err);
+    setAdminState({
+      error: err instanceof Error ? err.message : "Failed to load user details",
+      isUserDetailsLoading: false,
+    });
+  }
 }
 
 // ============================================================================
@@ -542,7 +573,28 @@ export async function unsuspendGuild(guildId: string): Promise<boolean> {
  * Select a guild in the list
  */
 export function selectGuild(guildId: string | null): void {
-  setAdminState({ selectedGuildId: guildId });
+  setAdminState({ selectedGuildId: guildId, selectedGuildDetails: null });
+}
+
+/**
+ * Load detailed guild information
+ */
+export async function loadGuildDetails(guildId: string): Promise<void> {
+  setAdminState({ isGuildDetailsLoading: true });
+
+  try {
+    const details = await tauri.adminGetGuildDetails(guildId);
+    setAdminState({
+      selectedGuildDetails: details,
+      isGuildDetailsLoading: false,
+    });
+  } catch (err) {
+    console.error("[Admin] Failed to load guild details:", err);
+    setAdminState({
+      error: err instanceof Error ? err.message : "Failed to load guild details",
+      isGuildDetailsLoading: false,
+    });
+  }
 }
 
 // ============================================================================
@@ -650,10 +702,12 @@ export function resetAdminState(): void {
     usersPagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0 },
     usersSearch: "",
     selectedUserId: null,
+    selectedUserDetails: null,
     guilds: [],
     guildsPagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0 },
     guildsSearch: "",
     selectedGuildId: null,
+    selectedGuildDetails: null,
     auditLog: [],
     auditLogPagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0 },
     auditLogFilter: null,
@@ -666,7 +720,9 @@ export function resetAdminState(): void {
     isStatusLoading: false,
     isStatsLoading: false,
     isUsersLoading: false,
+    isUserDetailsLoading: false,
     isGuildsLoading: false,
+    isGuildDetailsLoading: false,
     isAuditLogLoading: false,
     isElevating: false,
     error: null,

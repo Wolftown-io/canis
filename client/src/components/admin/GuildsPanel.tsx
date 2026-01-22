@@ -5,7 +5,7 @@
  * Actions require session elevation (two-tier privilege model).
  */
 
-import { Component, Show, For, onMount, createSignal, createMemo, onCleanup } from "solid-js";
+import { Component, Show, For, onMount, createSignal, createMemo, onCleanup, createEffect } from "solid-js";
 import {
   Search,
   Ban,
@@ -14,11 +14,14 @@ import {
   ChevronRight,
   Users,
   X,
+  Crown,
+  Loader2,
 } from "lucide-solid";
 import {
   adminState,
   loadGuilds,
   selectGuild,
+  loadGuildDetails,
   suspendGuild,
   unsuspendGuild,
   searchGuilds,
@@ -71,6 +74,14 @@ const GuildsPanel: Component = () => {
   const selectedGuild = createMemo(() =>
     adminState.guilds.find((g) => g.id === adminState.selectedGuildId) ?? null
   );
+
+  // Load guild details when a guild is selected
+  createEffect(() => {
+    const guildId = adminState.selectedGuildId;
+    if (guildId) {
+      loadGuildDetails(guildId);
+    }
+  });
 
   // Guilds are now filtered server-side
   const filteredGuilds = createMemo(() => adminState.guilds);
@@ -356,13 +367,45 @@ const GuildsPanel: Component = () => {
                   </div>
                 </div>
 
-                <div class="space-y-1">
+                {/* Owner Info - from guild details */}
+                <div class="space-y-2">
                   <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
-                    Owner ID
+                    Owner
                   </div>
-                  <div class="text-sm text-text-primary font-mono">
-                    {truncateId(guild().owner_id)}
-                  </div>
+                  <Show
+                    when={!adminState.isGuildDetailsLoading && adminState.selectedGuildDetails?.owner}
+                    fallback={
+                      <Show
+                        when={adminState.isGuildDetailsLoading}
+                        fallback={
+                          <div class="text-sm text-text-primary font-mono">
+                            {truncateId(guild().owner_id)}
+                          </div>
+                        }
+                      >
+                        <Loader2 class="w-4 h-4 animate-spin text-text-secondary" />
+                      </Show>
+                    }
+                  >
+                    <div class="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                      <Avatar
+                        src={adminState.selectedGuildDetails!.owner.avatar_url}
+                        alt={adminState.selectedGuildDetails!.owner.display_name}
+                        size="sm"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-sm font-medium text-text-primary truncate">
+                            {adminState.selectedGuildDetails!.owner.display_name}
+                          </span>
+                          <Crown class="w-3 h-3 text-amber-400 flex-shrink-0" />
+                        </div>
+                        <div class="text-xs text-text-secondary">
+                          @{adminState.selectedGuildDetails!.owner.username}
+                        </div>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
 
                 <div class="space-y-1">
@@ -406,6 +449,77 @@ const GuildsPanel: Component = () => {
                     </div>
                   </div>
                 </Show>
+
+                {/* Member Preview - from guild details */}
+                <div class="space-y-2">
+                  <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+                    Members Preview
+                  </div>
+                  <Show
+                    when={!adminState.isGuildDetailsLoading}
+                    fallback={<Loader2 class="w-4 h-4 animate-spin text-text-secondary" />}
+                  >
+                    {/* Stacked Avatars */}
+                    <div class="flex items-center">
+                      <div class="flex -space-x-2">
+                        <Show when={adminState.selectedGuildDetails?.owner}>
+                          <div
+                            class="relative ring-2 ring-[var(--color-surface-layer1)] rounded-full"
+                            title={`${adminState.selectedGuildDetails!.owner.display_name} (@${adminState.selectedGuildDetails!.owner.username}) - Owner`}
+                          >
+                            <Avatar
+                              src={adminState.selectedGuildDetails!.owner.avatar_url}
+                              alt={adminState.selectedGuildDetails!.owner.display_name}
+                              size="sm"
+                            />
+                          </div>
+                        </Show>
+                        <For each={adminState.selectedGuildDetails?.top_members.slice(0, 5)}>
+                          {(member) => (
+                            <div
+                              class="relative ring-2 ring-[var(--color-surface-layer1)] rounded-full"
+                              title={`${member.display_name} (@${member.username})`}
+                            >
+                              <Avatar
+                                src={member.avatar_url}
+                                alt={member.display_name}
+                                size="sm"
+                              />
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                      <Show when={adminState.selectedGuildDetails!.member_count > 6}>
+                        <span class="ml-2 text-xs text-text-secondary">
+                          +{adminState.selectedGuildDetails!.member_count - 6} more
+                        </span>
+                      </Show>
+                    </div>
+
+                    {/* Member List */}
+                    <div class="space-y-2 max-h-40 overflow-y-auto">
+                      <For each={adminState.selectedGuildDetails?.top_members}>
+                        {(member) => (
+                          <div class="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                            <Avatar
+                              src={member.avatar_url}
+                              alt={member.display_name}
+                              size="sm"
+                            />
+                            <div class="flex-1 min-w-0">
+                              <div class="text-sm font-medium text-text-primary truncate">
+                                {member.display_name}
+                              </div>
+                              <div class="text-xs text-text-secondary">
+                                Joined {formatDate(member.joined_at)}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
               </div>
 
               {/* Actions Section */}

@@ -5,12 +5,13 @@
  * Actions require session elevation (two-tier privilege model).
  */
 
-import { Component, Show, For, onMount, createSignal, createMemo, onCleanup } from "solid-js";
-import { Search, Ban, CheckCircle, ChevronLeft, ChevronRight, X } from "lucide-solid";
+import { Component, Show, For, onMount, createSignal, createMemo, onCleanup, createEffect } from "solid-js";
+import { Search, Ban, CheckCircle, ChevronLeft, ChevronRight, X, Clock, Crown, Loader2 } from "lucide-solid";
 import {
   adminState,
   loadUsers,
   selectUser,
+  loadUserDetails,
   banUser,
   unbanUser,
   searchUsers,
@@ -64,6 +65,14 @@ const UsersPanel: Component = () => {
   const selectedUser = createMemo(() =>
     adminState.users.find((u) => u.id === adminState.selectedUserId) ?? null
   );
+
+  // Load user details when a user is selected
+  createEffect(() => {
+    const userId = adminState.selectedUserId;
+    if (userId) {
+      loadUserDetails(userId);
+    }
+  });
 
   // Users are now filtered server-side
   const filteredUsers = createMemo(() => adminState.users);
@@ -385,6 +394,69 @@ const UsersPanel: Component = () => {
                       </span>
                     </Show>
                   </div>
+                </div>
+
+                {/* Last Login - from user details */}
+                <div class="space-y-1">
+                  <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+                    Last Login
+                  </div>
+                  <div class="flex items-center gap-2 text-sm text-text-primary">
+                    <Clock class="w-4 h-4 text-text-secondary" />
+                    <Show
+                      when={!adminState.isUserDetailsLoading}
+                      fallback={<Loader2 class="w-4 h-4 animate-spin text-text-secondary" />}
+                    >
+                      {adminState.selectedUserDetails?.last_login
+                        ? formatDate(adminState.selectedUserDetails.last_login)
+                        : "Never"}
+                    </Show>
+                  </div>
+                </div>
+
+                {/* Guild Memberships - from user details */}
+                <div class="space-y-2">
+                  <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+                    Guilds ({adminState.selectedUserDetails?.guild_count ?? "-"})
+                  </div>
+                  <Show
+                    when={!adminState.isUserDetailsLoading}
+                    fallback={<Loader2 class="w-4 h-4 animate-spin text-text-secondary" />}
+                  >
+                    <Show
+                      when={adminState.selectedUserDetails?.guilds.length}
+                      fallback={
+                        <div class="text-sm text-text-secondary">No guild memberships</div>
+                      }
+                    >
+                      <div class="space-y-2 max-h-32 overflow-y-auto">
+                        <For each={adminState.selectedUserDetails?.guilds}>
+                          {(guild) => (
+                            <div class="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                              <Avatar
+                                src={guild.guild_icon_url}
+                                alt={guild.guild_name}
+                                size="sm"
+                              />
+                              <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                  <span class="text-sm font-medium text-text-primary truncate">
+                                    {guild.guild_name}
+                                  </span>
+                                  <Show when={guild.is_owner}>
+                                    <Crown class="w-3 h-3 text-amber-400 flex-shrink-0" />
+                                  </Show>
+                                </div>
+                                <div class="text-xs text-text-secondary">
+                                  Joined {formatDate(guild.joined_at)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </Show>
                 </div>
               </div>
 

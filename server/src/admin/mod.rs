@@ -45,7 +45,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/health", get(|| async { "admin ok" }))
         .route("/stats", get(handlers::get_admin_stats))
         .route("/users", get(handlers::list_users))
+        .route("/users/:id/details", get(handlers::get_user_details))
         .route("/guilds", get(handlers::list_guilds))
+        .route("/guilds/:id/details", get(handlers::get_guild_details))
         .route("/audit-log", get(handlers::get_audit_log))
         .route(
             "/elevate",
