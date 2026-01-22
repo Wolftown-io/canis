@@ -25,6 +25,7 @@ import {
 } from "@/stores/admin";
 import Avatar from "@/components/ui/Avatar";
 import TableRowSkeleton from "./TableRowSkeleton";
+import { showToast } from "@/components/ui/Toast";
 
 const PAGE_SIZE = 20;
 
@@ -130,6 +131,29 @@ const UsersPanel: Component = () => {
       await banUser(user.id, banReason());
       setShowBanDialog(false);
       setBanReason("");
+
+      // Show undo toast
+      const username = user.username;
+      const userId = user.id;
+      showToast({
+        id: `ban-undo-${userId}`,
+        type: "success",
+        title: "User banned",
+        message: `@${username} has been banned`,
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await unbanUser(userId);
+            showToast({
+              type: "info",
+              title: "Ban reversed",
+              message: `@${username} has been unbanned`,
+              duration: 3000,
+            });
+          },
+        },
+      });
     } finally {
       setActionLoading(false);
     }
@@ -143,6 +167,12 @@ const UsersPanel: Component = () => {
     setActionLoading(true);
     try {
       await unbanUser(user.id);
+      showToast({
+        type: "success",
+        title: "User unbanned",
+        message: `@${user.username} has been unbanned`,
+        duration: 3000,
+      });
     } finally {
       setActionLoading(false);
     }

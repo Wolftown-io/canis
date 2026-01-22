@@ -19,6 +19,35 @@ use crate::api::AppState;
 pub use middleware::{require_elevated, require_system_admin};
 pub use types::{AdminError, ElevatedAdmin, SystemAdminUser};
 
+use fred::prelude::*;
+use uuid::Uuid;
+
+/// Check if a user is an elevated admin (for WebSocket subscription check).
+/// This checks both system admin status and elevated session validity.
+pub async fn is_elevated_admin(redis: &RedisClient, user_id: Uuid) -> bool {
+    // Check cache first
+    let cache_key = format!("admin:elevated:{}", user_id);
+    let cached: Option<String> = redis.get(&cache_key).await.ok().flatten();
+
+    if let Some(value) = cached {
+        return value == "1";
+    }
+
+    // If not cached, we default to false - the proper check happens when they call elevate
+    // The WebSocket handler will receive an error if they try to subscribe without elevation
+    false
+}
+
+/// Cache elevated admin status in Redis (called after elevation).
+pub async fn cache_elevated_status(redis: &RedisClient, user_id: Uuid, is_elevated: bool, ttl_secs: i64) {
+    let cache_key = format!("admin:elevated:{}", user_id);
+    let value = if is_elevated { "1" } else { "0" };
+
+    let _: Result<(), _> = redis
+        .set(&cache_key, value, Some(Expiration::EX(ttl_secs)), None, false)
+        .await;
+}
+
 /// Create the admin router.
 ///
 /// Most routes require system admin privileges (applied via middleware).

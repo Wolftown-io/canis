@@ -938,6 +938,7 @@ export function clearError(): void {
  */
 export function resetAdminState(): void {
   stopElevationTimer();
+  unsubscribeFromAdminEvents();
 
   setAdminState({
     isAdmin: false,
@@ -977,6 +978,230 @@ export function resetAdminState(): void {
     isExporting: false,
     error: null,
   });
+}
+
+// ============================================================================
+// Admin Event Subscription
+// ============================================================================
+
+let isAdminSubscribed = false;
+
+/**
+ * Subscribe to admin events via WebSocket
+ */
+export async function subscribeToAdminEvents(): Promise<void> {
+  if (isAdminSubscribed) return;
+
+  try {
+    await tauri.wsAdminSubscribe();
+    isAdminSubscribed = true;
+    console.log("[Admin] Subscribed to admin events");
+  } catch (err) {
+    console.error("[Admin] Failed to subscribe to admin events:", err);
+  }
+}
+
+/**
+ * Unsubscribe from admin events
+ */
+export async function unsubscribeFromAdminEvents(): Promise<void> {
+  if (!isAdminSubscribed) return;
+
+  try {
+    await tauri.wsAdminUnsubscribe();
+    isAdminSubscribed = false;
+    console.log("[Admin] Unsubscribed from admin events");
+  } catch (err) {
+    console.error("[Admin] Failed to unsubscribe from admin events:", err);
+  }
+}
+
+// ============================================================================
+// WebSocket Event Handlers
+// ============================================================================
+
+/**
+ * Handle user banned event from WebSocket
+ */
+export function handleUserBannedEvent(userId: string, username: string): void {
+  console.log(`[Admin] User banned event: ${username} (${userId})`);
+
+  // Update user in local state if present
+  setAdminState("users", (users) =>
+    users.map((u) => (u.id === userId ? { ...u, is_banned: true } : u))
+  );
+
+  // Update stats
+  if (adminState.stats) {
+    setAdminState("stats", {
+      ...adminState.stats,
+      banned_count: adminState.stats.banned_count + 1,
+    });
+  }
+}
+
+/**
+ * Handle user unbanned event from WebSocket
+ */
+export function handleUserUnbannedEvent(userId: string, username: string): void {
+  console.log(`[Admin] User unbanned event: ${username} (${userId})`);
+
+  // Update user in local state if present
+  setAdminState("users", (users) =>
+    users.map((u) => (u.id === userId ? { ...u, is_banned: false } : u))
+  );
+
+  // Update stats
+  if (adminState.stats && adminState.stats.banned_count > 0) {
+    setAdminState("stats", {
+      ...adminState.stats,
+      banned_count: adminState.stats.banned_count - 1,
+    });
+  }
+}
+
+/**
+ * Handle guild suspended event from WebSocket
+ */
+export function handleGuildSuspendedEvent(guildId: string, guildName: string): void {
+  console.log(`[Admin] Guild suspended event: ${guildName} (${guildId})`);
+
+  // Update guild in local state if present
+  setAdminState("guilds", (guilds) =>
+    guilds.map((g) =>
+      g.id === guildId ? { ...g, suspended_at: new Date().toISOString() } : g
+    )
+  );
+}
+
+/**
+ * Handle guild unsuspended event from WebSocket
+ */
+export function handleGuildUnsuspendedEvent(guildId: string, guildName: string): void {
+  console.log(`[Admin] Guild unsuspended event: ${guildName} (${guildId})`);
+
+  // Update guild in local state if present
+  setAdminState("guilds", (guilds) =>
+    guilds.map((g) => (g.id === guildId ? { ...g, suspended_at: null } : g))
+  );
+}
+
+// ============================================================================
+// Undo Functionality
+// ============================================================================
+
+/** Pending undo action type */
+interface PendingUndo {
+  id: string;
+  type: "ban" | "suspend";
+  targetId: string;
+  targetName: string;
+  executeAt: number;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+/** Map of pending undo actions */
+const pendingUndos = new Map<string, PendingUndo>();
+
+/** Undo delay in milliseconds (5 seconds) */
+const UNDO_DELAY_MS = 5000;
+
+/**
+ * Schedule a ban action with undo capability.
+ * Returns the undo ID for cancellation.
+ */
+export function scheduleBanWithUndo(
+  userId: string,
+  username: string,
+  reason: string,
+  onExecute: () => void,
+  _onUndo: () => void
+): string {
+  const undoId = `ban-${userId}-${Date.now()}`;
+
+  const timer = setTimeout(async () => {
+    // Execute the ban
+    const success = await banUser(userId, reason);
+    if (success) {
+      onExecute();
+    }
+    pendingUndos.delete(undoId);
+  }, UNDO_DELAY_MS);
+
+  pendingUndos.set(undoId, {
+    id: undoId,
+    type: "ban",
+    targetId: userId,
+    targetName: username,
+    executeAt: Date.now() + UNDO_DELAY_MS,
+    timer,
+  });
+
+  return undoId;
+}
+
+/**
+ * Schedule a suspend action with undo capability.
+ * Returns the undo ID for cancellation.
+ */
+export function scheduleSuspendWithUndo(
+  guildId: string,
+  guildName: string,
+  reason: string,
+  onExecute: () => void,
+  _onUndo: () => void
+): string {
+  const undoId = `suspend-${guildId}-${Date.now()}`;
+
+  const timer = setTimeout(async () => {
+    // Execute the suspend
+    const success = await suspendGuild(guildId, reason);
+    if (success) {
+      onExecute();
+    }
+    pendingUndos.delete(undoId);
+  }, UNDO_DELAY_MS);
+
+  pendingUndos.set(undoId, {
+    id: undoId,
+    type: "suspend",
+    targetId: guildId,
+    targetName: guildName,
+    executeAt: Date.now() + UNDO_DELAY_MS,
+    timer,
+  });
+
+  return undoId;
+}
+
+/**
+ * Cancel a pending undo action
+ */
+export function cancelPendingAction(undoId: string): boolean {
+  const pending = pendingUndos.get(undoId);
+  if (!pending) return false;
+
+  clearTimeout(pending.timer);
+  pendingUndos.delete(undoId);
+  console.log(`[Admin] Cancelled pending ${pending.type} for ${pending.targetName}`);
+  return true;
+}
+
+/**
+ * Get pending undo action info
+ */
+export function getPendingAction(undoId: string): PendingUndo | undefined {
+  return pendingUndos.get(undoId);
+}
+
+/**
+ * Check if there's a pending action for a target
+ */
+export function hasPendingAction(targetId: string): boolean {
+  for (const pending of pendingUndos.values()) {
+    if (pending.targetId === targetId) return true;
+  }
+  return false;
 }
 
 // Export the store for reading

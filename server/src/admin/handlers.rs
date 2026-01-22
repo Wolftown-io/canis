@@ -33,6 +33,7 @@ use super::types::{
     BulkSuspendResponse, CreateAnnouncementRequest, ElevateRequest, ElevateResponse,
     ElevatedAdmin, GlobalBanRequest, SuspendGuildRequest, SystemAdminUser,
 };
+use crate::ws::{broadcast_admin_event, ServerEvent};
 
 // ============================================================================
 // Query Parameters
@@ -755,6 +756,9 @@ pub async fn elevate_session(
     )
     .await?;
 
+    // Cache elevated status in Redis (TTL = 15 minutes = 900 seconds)
+    super::cache_elevated_status(&state.redis, admin.user_id, true, 900).await;
+
     // Log the elevation
     write_audit_log(
         &state.db,
@@ -793,6 +797,9 @@ pub async fn de_elevate_session(
         .bind(admin.user_id)
         .execute(&state.db)
         .await?;
+
+    // Clear elevated status cache
+    super::cache_elevated_status(&state.redis, admin.user_id, false, 1).await;
 
     // Log the de-elevation if any sessions were deleted
     if result.rows_affected() > 0 {
@@ -851,16 +858,16 @@ pub async fn ban_user(
     Path(user_id): Path<Uuid>,
     Json(body): Json<GlobalBanRequest>,
 ) -> Result<Json<BanResponse>, AdminError> {
-    // Check user exists
-    let user_exists: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM users WHERE id = $1")
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await?;
+    // Check user exists and get username
+    let user = sqlx::query_as::<_, (Uuid, String)>("SELECT id, username FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await?;
 
-    if user_exists.is_none() {
-        return Err(AdminError::NotFound("User".to_string()));
-    }
+    let username = match user {
+        Some((_, name)) => name,
+        None => return Err(AdminError::NotFound("User".to_string())),
+    };
 
     // Cannot ban yourself
     if user_id == admin.user_id {
@@ -899,6 +906,16 @@ pub async fn ban_user(
     )
     .await?;
 
+    // Broadcast admin event
+    let _ = broadcast_admin_event(
+        &state.redis,
+        &ServerEvent::AdminUserBanned {
+            user_id,
+            username: username.clone(),
+        },
+    )
+    .await;
+
     Ok(Json(BanResponse {
         banned: true,
         user_id,
@@ -916,6 +933,13 @@ pub async fn unban_user(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<BanResponse>, AdminError> {
+    // Get username for the event
+    let username = sqlx::query_scalar::<_, String>("SELECT username FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await?
+        .unwrap_or_else(|| "Unknown".to_string());
+
     let result = sqlx::query("DELETE FROM global_bans WHERE user_id = $1")
         .bind(user_id)
         .execute(&state.db)
@@ -938,6 +962,13 @@ pub async fn unban_user(
     )
     .await?;
 
+    // Broadcast admin event
+    let _ = broadcast_admin_event(
+        &state.redis,
+        &ServerEvent::AdminUserUnbanned { user_id, username },
+    )
+    .await;
+
     Ok(Json(BanResponse {
         banned: false,
         user_id,
@@ -956,6 +987,17 @@ pub async fn suspend_guild(
     Path(guild_id): Path<Uuid>,
     Json(body): Json<SuspendGuildRequest>,
 ) -> Result<Json<SuspendResponse>, AdminError> {
+    // Get guild name for the event
+    let guild = sqlx::query_as::<_, (Uuid, String)>("SELECT id, name FROM guilds WHERE id = $1")
+        .bind(guild_id)
+        .fetch_optional(&state.db)
+        .await?;
+
+    let guild_name = match guild {
+        Some((_, name)) => name,
+        None => return Err(AdminError::NotFound("Guild".to_string())),
+    };
+
     let result = sqlx::query(
         r"
         UPDATE guilds SET
@@ -972,15 +1014,6 @@ pub async fn suspend_guild(
     .await?;
 
     if result.rows_affected() == 0 {
-        // Check if guild exists
-        let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM guilds WHERE id = $1")
-            .bind(guild_id)
-            .fetch_optional(&state.db)
-            .await?;
-
-        if exists.is_none() {
-            return Err(AdminError::NotFound("Guild".to_string()));
-        }
         return Err(AdminError::Validation(
             "Guild is already suspended".to_string(),
         ));
@@ -999,6 +1032,16 @@ pub async fn suspend_guild(
     )
     .await?;
 
+    // Broadcast admin event
+    let _ = broadcast_admin_event(
+        &state.redis,
+        &ServerEvent::AdminGuildSuspended {
+            guild_id,
+            guild_name,
+        },
+    )
+    .await;
+
     Ok(Json(SuspendResponse {
         suspended: true,
         guild_id,
@@ -1016,6 +1059,13 @@ pub async fn unsuspend_guild(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Path(guild_id): Path<Uuid>,
 ) -> Result<Json<SuspendResponse>, AdminError> {
+    // Get guild name for the event
+    let guild_name = sqlx::query_scalar::<_, String>("SELECT name FROM guilds WHERE id = $1")
+        .bind(guild_id)
+        .fetch_optional(&state.db)
+        .await?
+        .unwrap_or_else(|| "Unknown".to_string());
+
     let result = sqlx::query(
         r"
         UPDATE guilds SET
@@ -1045,6 +1095,16 @@ pub async fn unsuspend_guild(
         Some(&ip_address),
     )
     .await?;
+
+    // Broadcast admin event
+    let _ = broadcast_admin_event(
+        &state.redis,
+        &ServerEvent::AdminGuildUnsuspended {
+            guild_id,
+            guild_name,
+        },
+    )
+    .await;
 
     Ok(Json(SuspendResponse {
         suspended: false,

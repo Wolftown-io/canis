@@ -38,6 +38,7 @@ import {
 } from "@/stores/admin";
 import Avatar from "@/components/ui/Avatar";
 import TableRowSkeleton from "./TableRowSkeleton";
+import { showToast } from "@/components/ui/Toast";
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 300;
@@ -142,6 +143,29 @@ const GuildsPanel: Component = () => {
       await suspendGuild(guild.id, suspendReason());
       setShowSuspendDialog(false);
       setSuspendReason("");
+
+      // Show undo toast
+      const guildName = guild.name;
+      const guildId = guild.id;
+      showToast({
+        id: `suspend-undo-${guildId}`,
+        type: "success",
+        title: "Guild suspended",
+        message: `${guildName} has been suspended`,
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await unsuspendGuild(guildId);
+            showToast({
+              type: "info",
+              title: "Suspension reversed",
+              message: `${guildName} has been unsuspended`,
+              duration: 3000,
+            });
+          },
+        },
+      });
     } finally {
       setActionLoading(false);
     }
@@ -155,6 +179,12 @@ const GuildsPanel: Component = () => {
     setActionLoading(true);
     try {
       await unsuspendGuild(guild.id);
+      showToast({
+        type: "success",
+        title: "Guild unsuspended",
+        message: `${guild.name} has been unsuspended`,
+        duration: 3000,
+      });
     } finally {
       setActionLoading(false);
     }

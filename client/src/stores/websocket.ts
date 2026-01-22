@@ -393,6 +393,23 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       await handleVoiceUserStatsEvent(event as any);
       break;
 
+    // Admin events
+    case "admin_user_banned":
+      await handleAdminUserBanned(event.user_id, event.username);
+      break;
+
+    case "admin_user_unbanned":
+      await handleAdminUserUnbanned(event.user_id, event.username);
+      break;
+
+    case "admin_guild_suspended":
+      await handleAdminGuildSuspended(event.guild_id, event.guild_name);
+      break;
+
+    case "admin_guild_unsuspended":
+      await handleAdminGuildUnsuspended(event.guild_id, event.guild_name);
+      break;
+
     default:
       console.log("Unhandled server event:", event.type);
   }
@@ -810,6 +827,28 @@ async function handleVoiceUserStatsEvent(event: {
 }): Promise<void> {
   const { handleVoiceUserStats } = await import("@/stores/voice");
   handleVoiceUserStats(event);
+}
+
+// Admin event handlers
+
+async function handleAdminUserBanned(userId: string, username: string): Promise<void> {
+  const { handleUserBannedEvent } = await import("@/stores/admin");
+  handleUserBannedEvent(userId, username);
+}
+
+async function handleAdminUserUnbanned(userId: string, username: string): Promise<void> {
+  const { handleUserUnbannedEvent } = await import("@/stores/admin");
+  handleUserUnbannedEvent(userId, username);
+}
+
+async function handleAdminGuildSuspended(guildId: string, guildName: string): Promise<void> {
+  const { handleGuildSuspendedEvent } = await import("@/stores/admin");
+  handleGuildSuspendedEvent(guildId, guildName);
+}
+
+async function handleAdminGuildUnsuspended(guildId: string, guildName: string): Promise<void> {
+  const { handleGuildUnsuspendedEvent } = await import("@/stores/admin");
+  handleGuildUnsuspendedEvent(guildId, guildName);
 }
 
 // Export stores for reading

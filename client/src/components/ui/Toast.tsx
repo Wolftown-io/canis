@@ -10,6 +10,12 @@ import { Portal } from "solid-js/web";
 
 export type ToastType = "info" | "success" | "warning" | "error";
 
+/** Action button configuration for a toast */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastOptions {
   type: ToastType;
   title: string;
@@ -18,6 +24,8 @@ export interface ToastOptions {
   duration?: number;
   /** Unique ID for deduplication and programmatic dismissal */
   id?: string;
+  /** Optional action button */
+  action?: ToastAction;
 }
 
 interface ToastInstance extends ToastOptions {
@@ -112,6 +120,11 @@ const typeIcons: Record<ToastType, string> = {
  * Individual Toast component.
  */
 const ToastItem: Component<{ toast: ToastInstance }> = (props) => {
+  const handleAction = () => {
+    props.toast.action?.onClick();
+    dismissToast(props.toast.id);
+  };
+
   return (
     <div
       class={`
@@ -126,6 +139,15 @@ const ToastItem: Component<{ toast: ToastInstance }> = (props) => {
         <p class="font-medium text-sm">{props.toast.title}</p>
         {props.toast.message && (
           <p class="text-sm opacity-90 mt-0.5">{props.toast.message}</p>
+        )}
+        {props.toast.action && (
+          <button
+            type="button"
+            class="mt-2 px-3 py-1 text-xs font-medium bg-white/20 rounded hover:bg-white/30 transition-colors"
+            onClick={handleAction}
+          >
+            {props.toast.action.label}
+          </button>
         )}
       </div>
       <button

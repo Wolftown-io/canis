@@ -192,7 +192,10 @@ export type ClientEvent =
   | { type: "voice_answer"; channel_id: string; sdp: string }
   | { type: "voice_ice_candidate"; channel_id: string; candidate: string }
   | { type: "voice_mute"; channel_id: string }
-  | { type: "voice_unmute"; channel_id: string };
+  | { type: "voice_unmute"; channel_id: string }
+  // Admin events
+  | { type: "admin_subscribe" }
+  | { type: "admin_unsubscribe" };
 
 export type ServerEvent =
   | { type: "ready"; user_id: string }
@@ -257,7 +260,12 @@ export type ServerEvent =
   | { type: "call_participant_left"; channel_id: string; user_id: string }
   | { type: "call_declined"; channel_id: string; user_id: string }
   // Voice metrics events
-  | { type: "voice_user_stats"; channel_id: string; user_id: string; latency: number; packet_loss: number; jitter: number; quality: number };
+  | { type: "voice_user_stats"; channel_id: string; user_id: string; latency: number; packet_loss: number; jitter: number; quality: number }
+  // Admin events
+  | { type: "admin_user_banned"; user_id: string; username: string }
+  | { type: "admin_user_unbanned"; user_id: string; username: string }
+  | { type: "admin_guild_suspended"; guild_id: string; guild_name: string }
+  | { type: "admin_guild_unsuspended"; guild_id: string; guild_name: string };
 
 // Settings Types
 

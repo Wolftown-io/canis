@@ -131,6 +131,11 @@ pub enum ClientEvent {
     SetActivity {
         activity: Option<crate::presence::Activity>,
     },
+
+    /// Subscribe to admin events (requires elevated admin).
+    AdminSubscribe,
+    /// Unsubscribe from admin events.
+    AdminUnsubscribe,
 }
 
 /// Participant info for voice room state.
@@ -406,6 +411,36 @@ pub enum ServerEvent {
         user_id: Uuid,
         activity: Option<crate::presence::Activity>,
     },
+
+    // Admin events (broadcast to admin subscribers)
+    /// User was banned
+    AdminUserBanned {
+        /// User ID that was banned.
+        user_id: Uuid,
+        /// Username for display.
+        username: String,
+    },
+    /// User was unbanned
+    AdminUserUnbanned {
+        /// User ID that was unbanned.
+        user_id: Uuid,
+        /// Username for display.
+        username: String,
+    },
+    /// Guild was suspended
+    AdminGuildSuspended {
+        /// Guild ID that was suspended.
+        guild_id: Uuid,
+        /// Guild name for display.
+        guild_name: String,
+    },
+    /// Guild was unsuspended
+    AdminGuildUnsuspended {
+        /// Guild ID that was unsuspended.
+        guild_id: Uuid,
+        /// Guild name for display.
+        guild_name: String,
+    },
 }
 
 /// Redis pub/sub channels.
@@ -428,6 +463,9 @@ pub mod channels {
     /// Redis channel for global events (future feature).
     #[allow(dead_code)]
     pub const GLOBAL_EVENTS: &str = "global";
+
+    /// Redis channel for admin events.
+    pub const ADMIN_EVENTS: &str = "admin:events";
 }
 
 /// Broadcast a server event to a channel via Redis.
@@ -441,6 +479,21 @@ pub async fn broadcast_to_channel(
 
     redis
         .publish::<(), _, _>(channels::channel_events(channel_id), payload)
+        .await?;
+
+    Ok(())
+}
+
+/// Broadcast an admin event to all admin subscribers via Redis.
+pub async fn broadcast_admin_event(
+    redis: &RedisClient,
+    event: &ServerEvent,
+) -> Result<(), RedisError> {
+    let payload = serde_json::to_string(event)
+        .map_err(|e| RedisError::new(RedisErrorKind::Parse, format!("JSON error: {e}")))?;
+
+    redis
+        .publish::<(), _, _>(channels::ADMIN_EVENTS, payload)
         .await?;
 
     Ok(())
@@ -507,6 +560,10 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
     let subscribed_channels: Arc<tokio::sync::RwLock<HashSet<Uuid>>> =
         Arc::new(tokio::sync::RwLock::new(HashSet::new()));
 
+    // Track admin event subscription
+    let admin_subscribed: Arc<tokio::sync::RwLock<bool>> =
+        Arc::new(tokio::sync::RwLock::new(false));
+
     // Update user presence to online
     if let Err(e) = update_presence(&state, user_id, "online").await {
         warn!("Failed to update presence: {}", e);
@@ -537,8 +594,9 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
     let redis_client = state.redis.clone();
     let tx_clone = tx.clone();
     let subscribed_clone = subscribed_channels.clone();
+    let admin_subscribed_clone = admin_subscribed.clone();
     let pubsub_handle = tokio::spawn(async move {
-        handle_pubsub(redis_client, tx_clone, subscribed_clone, friend_ids).await;
+        handle_pubsub(redis_client, tx_clone, subscribed_clone, admin_subscribed_clone, friend_ids).await;
     });
 
     // Spawn task to forward events to WebSocket
@@ -567,7 +625,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
         match msg {
             Ok(Message::Text(text)) => {
                 if let Err(e) =
-                    handle_client_message(&text, user_id, &state, &tx, &subscribed_channels, &mut activity_state).await
+                    handle_client_message(&text, user_id, &state, &tx, &subscribed_channels, &admin_subscribed, &mut activity_state).await
                 {
                     warn!("Error handling message: {}", e);
                     let _ = tx
@@ -613,6 +671,7 @@ async fn handle_client_message(
     state: &AppState,
     tx: &mpsc::Sender<ServerEvent>,
     subscribed_channels: &Arc<tokio::sync::RwLock<HashSet<Uuid>>>,
+    admin_subscribed: &Arc<tokio::sync::RwLock<bool>>,
     activity_state: &mut ActivityState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let event: ClientEvent = serde_json::from_str(text)?;
@@ -738,6 +797,27 @@ async fn handle_client_message(
             let event = ServerEvent::RichPresenceUpdate { user_id, activity };
             broadcast_presence_update(state, user_id, &event).await;
         }
+
+        ClientEvent::AdminSubscribe => {
+            // Check if user is an elevated admin
+            let is_elevated = crate::admin::is_elevated_admin(&state.redis, user_id).await;
+            if !is_elevated {
+                tx.send(ServerEvent::Error {
+                    code: "admin_not_elevated".to_string(),
+                    message: "Must be an elevated admin to subscribe to admin events".to_string(),
+                })
+                .await?;
+                return Ok(());
+            }
+
+            *admin_subscribed.write().await = true;
+            debug!("Admin {} subscribed to admin events", user_id);
+        }
+
+        ClientEvent::AdminUnsubscribe => {
+            *admin_subscribed.write().await = false;
+            debug!("Admin {} unsubscribed from admin events", user_id);
+        }
     }
 
     Ok(())
@@ -748,6 +828,7 @@ async fn handle_pubsub(
     redis: RedisClient,
     tx: mpsc::Sender<ServerEvent>,
     subscribed_channels: Arc<tokio::sync::RwLock<HashSet<Uuid>>>,
+    admin_subscribed: Arc<tokio::sync::RwLock<bool>>,
     friend_ids: Vec<Uuid>,
 ) {
     // Create a subscriber client
@@ -768,6 +849,13 @@ async fn handle_pubsub(
     if let Err(e) = subscriber.psubscribe("channel:*").await {
         error!("Failed to psubscribe: {}", e);
         return;
+    }
+
+    // Subscribe to admin events channel
+    if let Err(e) = subscriber.subscribe(channels::ADMIN_EVENTS).await {
+        warn!("Failed to subscribe to admin events: {}", e);
+    } else {
+        debug!("Subscribed to admin events channel");
     }
 
     // Subscribe to friends' presence channels
@@ -797,6 +885,19 @@ async fn handle_pubsub(
                             if tx.send(event).await.is_err() {
                                 break;
                             }
+                        }
+                    }
+                }
+            }
+        }
+        // Handle admin events
+        else if channel_name == channels::ADMIN_EVENTS {
+            // Only forward if user is subscribed to admin events
+            if *admin_subscribed.read().await {
+                if let Some(payload) = message.value.as_str() {
+                    if let Ok(event) = serde_json::from_str::<ServerEvent>(&payload) {
+                        if tx.send(event).await.is_err() {
+                            break;
                         }
                     }
                 }

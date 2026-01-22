@@ -64,6 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - User avatars and guild icons displayed in admin lists
   - Skeleton loading animations replacing text placeholders
   - Keyboard navigation (Arrow keys, Enter, Escape) in user/guild tables
+- Admin panel Phase 5 improvements
+  - Real-time updates via WebSocket for admin actions (ban/unban, suspend/unsuspend)
+  - Undo functionality with toast notifications for ban and suspend actions (5-second window)
+  - Toast action buttons for immediate undo capability
+  - Admin event subscription for elevated admins
 - Screen share viewer with three view modes (Spotlight, PiP, Theater)
 - Volume control for screen share audio
 - Screen share list in voice panel showing active shares

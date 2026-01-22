@@ -1140,6 +1140,20 @@ export async function wsSend(message: any): Promise<void> {
   }
 }
 
+/**
+ * Subscribe to admin events (requires elevated admin).
+ */
+export async function wsAdminSubscribe(): Promise<void> {
+  await wsSend({ type: "admin_subscribe" });
+}
+
+/**
+ * Unsubscribe from admin events.
+ */
+export async function wsAdminUnsubscribe(): Promise<void> {
+  await wsSend({ type: "admin_unsubscribe" });
+}
+
 // Pages Commands
 
 /**
