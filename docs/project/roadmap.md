@@ -200,16 +200,20 @@ This roadmap outlines the development path from the current prototype to a produ
   - Per-channel notification levels (all/mentions/none).
   - Works on web (Web Audio API) and Tauri (rodio).
   - **Design:** `docs/plans/2026-01-21-sound-pack-design.md`
-- [ ] **[Chat] Cross-Client Read Sync** `Planned`
+- [x] **[Chat] Cross-Client Read Sync** ✅
   - Sync read position across all user's devices/tabs.
-  - Clear unread badges and highlights when read on any client.
-  - Required for proper notification deduplication.
+  - Clear unread badges instantly when read on any client.
+  - New `user:{user_id}` Redis channel for user-targeted events.
+  - **Design:** `docs/plans/2026-01-23-read-sync-dnd-design.md`
 - [ ] **[Settings] Server-Synced User Preferences** `Planned`
   - Persist user settings (sound, theme, etc.) on server.
   - Sync preferences across devices.
-- [ ] **[UX] Do Not Disturb Mode** `Planned`
-  - App-level DND toggle to silence all sounds.
-  - Integration with OS-level focus/DND modes.
+- [x] **[UX] Do Not Disturb Mode** ✅
+  - Notification sounds suppressed when user status is "Busy" (DND).
+  - Scheduled quiet hours with configurable start/end times.
+  - Handles overnight ranges (e.g., 22:00 to 08:00).
+  - Call ring sounds also suppressed during DND.
+  - **Design:** `docs/plans/2026-01-23-read-sync-dnd-design.md`
 - [ ] **[UX] Modular Home Sidebar**
   - "Active Now" panel showing friends' activities (implemented).
   - "Pending & Suggestions" quick-action module (planned).
@@ -251,6 +255,8 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Recent Changes
 
 ### 2026-01-23
+- Added Cross-Client Read Sync - DM read status syncs instantly across all user devices.
+- Added Do Not Disturb Mode - Notification sounds suppressed during DND status or quiet hours.
 - Added E2EE DM Messaging (PR #41) - End-to-end encryption for DM conversations using vodozemac.
 - Updated encryption architecture docs with implementation details.
 
