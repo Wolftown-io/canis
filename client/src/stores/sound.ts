@@ -5,6 +5,7 @@
  */
 
 import { createSignal } from "solid-js";
+import { currentUser } from "./auth";
 
 // ============================================================================
 // Types
@@ -193,6 +194,18 @@ export function isWithinQuietHours(): boolean {
 
   // Normal range (e.g., 09:00 to 17:00)
   return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+}
+
+/**
+ * Check if Do Not Disturb is active.
+ * DND is active when:
+ * - User status is "busy"
+ * - Quiet hours are currently active
+ */
+export function isDndActive(): boolean {
+  const user = currentUser();
+  if (user?.status === "busy") return true;
+  return isWithinQuietHours();
 }
 
 // ============================================================================
