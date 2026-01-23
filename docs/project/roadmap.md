@@ -174,10 +174,13 @@ This roadmap outlines the development path from the current prototype to a produ
   - TimescaleDB support with graceful fallback to PostgreSQL.
   - Rate-limited stats broadcasting to prevent spam.
   - **Design:** `docs/plans/2026-01-19-user-connectivity-monitor-design.md`
-- [ ] **[Social] Rich Presence (Game Activity)** `Next`
-  - Detect running games via Process Scan (Tauri) or RPC.
-  - Display "Playing X" status in Friends List and User Popups.
-  - Enable "Ask to Join" logic.
+- [x] **[Social] Rich Presence (Game Activity)** ✅
+  - Automatic game detection via process scanning (sysinfo crate).
+  - 15+ pre-configured games (Minecraft, Valorant, CS2, etc.).
+  - Display "Playing X" status in Friends List, Member List, and DM panels.
+  - Privacy toggle in settings to disable activity sharing.
+  - Real-time activity sync via WebSocket.
+  - *Future:* "Ask to Join" logic for multiplayer games.
   - **Design:** `docs/plans/2026-01-19-rich-presence-design.md`
 - [x] **[Security] E2EE Key Backup UI & Recovery** ✅ (PR #29)
   - Recovery key modal with copy/download and confirmation flow.
@@ -194,11 +197,13 @@ This roadmap outlines the development path from the current prototype to a produ
   - Encryption indicator in DM headers.
   - Graceful fallback to unencrypted when E2EE not available.
   - **Plan:** `docs/plans/2026-01-23-e2ee-messages-implementation.md`
-- [ ] **[UX] Sound Pack (Notification Sounds)** `Next`
-  - Chat message notification sounds (DMs + mentions).
-  - 5 built-in sound options with volume control.
-  - Per-channel notification levels (all/mentions/none).
-  - Works on web (Web Audio API) and Tauri (rodio).
+- [x] **[UX] Sound Pack (Notification Sounds)** ✅
+  - 5 notification sounds: Default, Subtle, Ping, Chime, Bell.
+  - Global notification settings in Settings > Notifications tab.
+  - Per-channel notification levels (All messages, Mentions only, Muted).
+  - Volume control with test sound button.
+  - Smart playback with cooldown, tab leader election, mention detection.
+  - Native audio via rodio (Tauri), Web Audio API fallback (browser).
   - **Design:** `docs/plans/2026-01-21-sound-pack-design.md`
 - [ ] **[Chat] Cross-Client Read Sync** `Planned`
   - Sync read position across all user's devices/tabs.
@@ -251,6 +256,9 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Recent Changes
 
 ### 2026-01-23
+- Marked Rich Presence (Game Activity) complete - was already implemented.
+- Marked Sound Pack (Notification Sounds) complete - was already implemented.
+- Added Cross-Client Read Sync & Do Not Disturb Mode (PR #42).
 - Added E2EE DM Messaging (PR #41) - End-to-end encryption for DM conversations using vodozemac.
 - Updated encryption architecture docs with implementation details.
 
