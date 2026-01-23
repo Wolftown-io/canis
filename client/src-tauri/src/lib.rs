@@ -136,6 +136,7 @@ pub fn run() {
             commands::crypto::mark_prekeys_published,
             commands::crypto::generate_prekeys,
             commands::crypto::needs_prekey_upload,
+            commands::crypto::get_our_curve25519_key,
             // Presence commands
             commands::presence::scan_processes,
             commands::presence::scan_all_processes,

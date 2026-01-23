@@ -624,6 +624,19 @@ pub async fn needs_prekey_upload(state: State<'_, AppState>) -> Result<bool, Str
         .map_err(|e| format!("Failed to check key upload status: {e}"))
 }
 
+/// Get our Curve25519 public key (base64).
+///
+/// This is needed for looking up our ciphertext in encrypted messages.
+#[command]
+pub async fn get_our_curve25519_key(state: State<'_, AppState>) -> Result<String, String> {
+    let crypto = state.crypto.lock().await;
+    let manager = crypto.as_ref().ok_or("E2EE not initialized")?;
+
+    manager
+        .our_curve25519_key()
+        .map_err(|e| format!("Failed to get Curve25519 key: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use vc_crypto::RecoveryKey;

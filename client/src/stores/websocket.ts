@@ -143,8 +143,8 @@ export async function initWebSocket(): Promise<void> {
 
     // Message events
     unlisteners.push(
-      await listen<{ channel_id: string; message: Message }>("ws:message_new", (event) => {
-        addMessage(event.payload.message);
+      await listen<{ channel_id: string; message: Message }>("ws:message_new", async (event) => {
+        await addMessage(event.payload.message);
         handleMessageNotification(event.payload.message);
       })
     );
@@ -297,7 +297,7 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
   switch (event.type) {
     case "message_new":
-      addMessage(event.message);
+      await addMessage(event.message);
       handleMessageNotification(event.message);
       break;
 

@@ -2121,6 +2121,21 @@ export async function needsPrekeyUpload(): Promise<boolean> {
   return false;
 }
 
+/**
+ * Get our Curve25519 public key (base64).
+ * This is needed for looking up our ciphertext in encrypted messages.
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function getOurCurve25519Key(): Promise<string | null> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string>("get_our_curve25519_key");
+  }
+
+  // Browser mode - not available
+  return null;
+}
+
 // ============================================================================
 // E2EE Key API Endpoints
 // ============================================================================

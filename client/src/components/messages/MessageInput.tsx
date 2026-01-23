@@ -98,7 +98,7 @@ const MessageInput: Component<MessageInputProps> = (props) => {
         for (let i = 0; i < files.length; i++) {
           const messageText = i === 0 ? text || undefined : undefined;
           const message = await uploadMessageWithFile(props.channelId, files[i].file, messageText);
-          addMessage(message);
+          await addMessage(message);
         }
         clearPendingFiles();
       } else {

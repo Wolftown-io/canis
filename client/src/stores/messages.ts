@@ -6,9 +6,102 @@
  */
 
 import { createStore } from "solid-js/store";
-import type { Message, ClaimedPrekeyInput, DMListItem } from "@/lib/types";
+import type { Message, ClaimedPrekeyInput, DMListItem, E2EEContent } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import { e2eeStore } from "@/stores/e2ee";
+import { currentUser } from "@/stores/auth";
+
+// ============================================================================
+// E2EE Decryption Helpers
+// ============================================================================
+
+// Cache our Curve25519 key to avoid repeated Tauri calls
+let cachedOurCurve25519Key: string | null = null;
+
+/**
+ * Get our Curve25519 key (cached).
+ */
+async function getOurCurve25519Key(): Promise<string | null> {
+  if (cachedOurCurve25519Key) {
+    return cachedOurCurve25519Key;
+  }
+  cachedOurCurve25519Key = await tauri.getOurCurve25519Key();
+  return cachedOurCurve25519Key;
+}
+
+/**
+ * Clear the cached Curve25519 key (call when E2EE is re-initialized).
+ */
+export function clearCurve25519KeyCache(): void {
+  cachedOurCurve25519Key = null;
+}
+
+/**
+ * Decrypt a message if it's encrypted and E2EE is available.
+ * Returns the message with decrypted content, or a placeholder if decryption fails.
+ */
+async function decryptMessageIfNeeded(message: Message): Promise<Message> {
+  // If not encrypted, return as-is
+  if (!message.encrypted) {
+    return message;
+  }
+
+  // Check if E2EE is initialized
+  const status = e2eeStore.status();
+  if (!status.initialized) {
+    console.warn("[E2EE] Message is encrypted but E2EE not initialized");
+    return { ...message, content: "[Encrypted message - E2EE not initialized]" };
+  }
+
+  try {
+    // Parse the encrypted content
+    const e2ee: E2EEContent = JSON.parse(message.content);
+
+    // Get our identity info
+    const ourKey = await getOurCurve25519Key();
+    const user = currentUser();
+
+    if (!ourKey || !user) {
+      console.warn("[E2EE] Cannot decrypt - missing our key or user info");
+      return { ...message, content: "[Unable to decrypt - identity not available]" };
+    }
+
+    const ourUserId = user.id;
+
+    // Find our ciphertext: recipients[our_user_id][our_curve25519_key]
+    const userDevices = e2ee.recipients[ourUserId];
+    if (!userDevices) {
+      console.warn("[E2EE] No ciphertext for our user ID:", ourUserId);
+      return { ...message, content: "[Unable to decrypt - no ciphertext for your account]" };
+    }
+
+    const ourCiphertext = userDevices[ourKey];
+    if (!ourCiphertext) {
+      console.warn("[E2EE] No ciphertext for our device key");
+      return { ...message, content: "[Unable to decrypt - no ciphertext for this device]" };
+    }
+
+    // Decrypt
+    const plaintext = await e2eeStore.decrypt(
+      message.author.id, // sender_user_id
+      e2ee.sender_key,
+      ourCiphertext.message_type,
+      ourCiphertext.ciphertext
+    );
+
+    return { ...message, content: plaintext };
+  } catch (err) {
+    console.error("[E2EE] Decryption failed:", err);
+    return { ...message, content: "[Unable to decrypt message]" };
+  }
+}
+
+/**
+ * Decrypt multiple messages in parallel.
+ */
+async function decryptMessages(messages: Message[]): Promise<Message[]> {
+  return Promise.all(messages.map(decryptMessageIfNeeded));
+}
 
 // Messages state interface
 interface MessagesState {
@@ -56,13 +149,16 @@ export async function loadMessages(channelId: string): Promise<void> {
     const messages = await tauri.getMessages(channelId, before, MESSAGE_LIMIT);
     const messageList = Array.isArray(messages) ? messages : [];
 
+    // Decrypt encrypted messages
+    const decryptedMessages = await decryptMessages(messageList);
+
     // Initialize channel if needed
     if (!messagesState.byChannel[channelId]) {
       setMessagesState("byChannel", channelId, []);
     }
 
     // Prepend older messages (they come from server newest-first, but we want oldest-first)
-    const reversed = [...messageList].reverse();
+    const reversed = [...decryptedMessages].reverse();
     const currentMessages = messagesState.byChannel[channelId] || [];
     setMessagesState("byChannel", channelId, [...reversed, ...currentMessages]);
 
@@ -133,15 +229,20 @@ export async function sendMessage(
 
 /**
  * Add a message received from WebSocket.
+ * Decrypts the message if it's encrypted before adding to the store.
  */
-export function addMessage(message: Message): void {
+export async function addMessage(message: Message): Promise<void> {
   const channelId = message.channel_id;
   const existing = messagesState.byChannel[channelId] || [];
 
   // Avoid duplicates
-  if (!existing.some((m) => m.id === message.id)) {
-    setMessagesState("byChannel", channelId, [...existing, message]);
+  if (existing.some((m) => m.id === message.id)) {
+    return;
   }
+
+  // Decrypt if needed
+  const processedMessage = await decryptMessageIfNeeded(message);
+  setMessagesState("byChannel", channelId, [...existing, processedMessage]);
 }
 
 /**
