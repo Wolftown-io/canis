@@ -64,6 +64,101 @@ const [isSyncing, setIsSyncing] = createSignal(false);
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ============================================================================
+// Migration Functions
+// ============================================================================
+
+/**
+ * Migrate old localStorage keys to new unified format.
+ * This handles users who have preferences stored in the old per-store keys.
+ *
+ * Old keys:
+ * - "theme" - Theme selection
+ * - "canis:sound:settings" - Sound settings (enabled, volume, selectedSound)
+ * - "canis:sound:channels" - Per-channel notification levels
+ * - "connection-settings" - Connection display settings
+ */
+function migrateOldPreferences(): Partial<UserPreferences> | null {
+  if (typeof localStorage === "undefined") return null;
+
+  const migrated: Partial<UserPreferences> = {};
+  let hasMigration = false;
+
+  // Migrate theme
+  const oldTheme = localStorage.getItem("theme");
+  if (oldTheme) {
+    const validThemes = ["focused-hybrid", "solarized-dark", "solarized-light"];
+    if (validThemes.includes(oldTheme)) {
+      migrated.theme = oldTheme as UserPreferences["theme"];
+      hasMigration = true;
+    }
+    localStorage.removeItem("theme");
+    console.log("[Preferences] Migrated old theme key");
+  }
+
+  // Migrate sound settings
+  const oldSound = localStorage.getItem("canis:sound:settings");
+  if (oldSound) {
+    try {
+      const parsed = JSON.parse(oldSound);
+      migrated.sound = {
+        enabled: parsed.enabled ?? DEFAULT_PREFERENCES.sound.enabled,
+        volume: parsed.volume ?? DEFAULT_PREFERENCES.sound.volume,
+        // Old key was "selectedSound", new key is "soundType"
+        soundType: parsed.selectedSound ?? DEFAULT_PREFERENCES.sound.soundType,
+        quietHours: DEFAULT_PREFERENCES.sound.quietHours,
+      };
+      hasMigration = true;
+      console.log("[Preferences] Migrated old sound settings key");
+    } catch {
+      // Invalid JSON, just remove the key
+    }
+    localStorage.removeItem("canis:sound:settings");
+  }
+
+  // Migrate per-channel notifications
+  const oldChannelNotifs = localStorage.getItem("canis:sound:channels");
+  if (oldChannelNotifs) {
+    try {
+      const parsed = JSON.parse(oldChannelNotifs);
+      // Old format used "none", new format uses "muted"
+      const converted: Record<string, "all" | "mentions" | "muted"> = {};
+      for (const [channelId, level] of Object.entries(parsed)) {
+        if (level === "none") {
+          converted[channelId] = "muted";
+        } else if (level === "all" || level === "mentions") {
+          converted[channelId] = level as "all" | "mentions";
+        }
+      }
+      migrated.channelNotifications = converted;
+      hasMigration = true;
+      console.log("[Preferences] Migrated old channel notifications key");
+    } catch {
+      // Invalid JSON, just remove the key
+    }
+    localStorage.removeItem("canis:sound:channels");
+  }
+
+  // Migrate connection settings
+  const oldConnection = localStorage.getItem("connection-settings");
+  if (oldConnection) {
+    try {
+      const parsed = JSON.parse(oldConnection);
+      migrated.connection = {
+        displayMode: parsed.displayMode ?? DEFAULT_PREFERENCES.connection.displayMode,
+        showNotifications: parsed.showNotifications ?? DEFAULT_PREFERENCES.connection.showNotifications,
+      };
+      hasMigration = true;
+      console.log("[Preferences] Migrated old connection settings key");
+    } catch {
+      // Invalid JSON, just remove the key
+    }
+    localStorage.removeItem("connection-settings");
+  }
+
+  return hasMigration ? migrated : null;
+}
+
+// ============================================================================
 // localStorage Functions
 // ============================================================================
 
@@ -149,6 +244,15 @@ async function pushPreferences(
  */
 export async function initPreferences(): Promise<void> {
   setIsSyncing(true);
+
+  // Check for and apply migrations from old localStorage keys
+  const migrated = migrateOldPreferences();
+  if (migrated) {
+    const current = loadFromLocalStorage()?.data ?? DEFAULT_PREFERENCES;
+    const merged = { ...current, ...migrated };
+    saveToLocalStorage(merged, new Date().toISOString());
+    console.log("[Preferences] Applied migrations from old localStorage keys");
+  }
 
   try {
     const local = loadFromLocalStorage();
