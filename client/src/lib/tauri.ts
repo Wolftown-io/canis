@@ -41,10 +41,15 @@ import type {
   BulkSuspendResponse,
   CallEndReason,
   CallStateResponse,
+  E2EEStatus,
+  InitE2EEResponse,
+  PrekeyData,
+  E2EEContent,
+  ClaimedPrekeyInput,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse };
+export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput };
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -1988,4 +1993,120 @@ export async function fetchApi<T>(path: string, options?: {
     path,
     options?.body
   );
+}
+
+// ============================================================================
+// E2EE Commands
+// ============================================================================
+
+/**
+ * Get the current E2EE status (initialization state, device ID, etc.).
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function getE2EEStatus(): Promise<E2EEStatus> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<E2EEStatus>("get_e2ee_status");
+  }
+
+  // Browser mode - E2EE not available
+  return {
+    initialized: false,
+    device_id: null,
+    has_identity_keys: false,
+  };
+}
+
+/**
+ * Initialize E2EE with the given encryption key (derived from user password).
+ * This generates identity keys and prekeys for the device.
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function initE2EE(encryptionKey: string): Promise<InitE2EEResponse> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<InitE2EEResponse>("init_e2ee", { encryptionKey });
+  }
+
+  throw new Error("E2EE requires the native Tauri app");
+}
+
+/**
+ * Encrypt a message for the given recipients.
+ * Recipients must include their claimed prekeys from the server.
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function encryptMessage(
+  plaintext: string,
+  recipients: ClaimedPrekeyInput[]
+): Promise<E2EEContent> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<E2EEContent>("encrypt_message", { plaintext, recipients });
+  }
+
+  throw new Error("E2EE requires the native Tauri app");
+}
+
+/**
+ * Decrypt a message from another user.
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function decryptMessage(
+  senderUserId: string,
+  senderKey: string,
+  messageType: number,
+  ciphertext: string
+): Promise<string> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string>("decrypt_message", {
+      senderUserId,
+      senderKey,
+      messageType,
+      ciphertext,
+    });
+  }
+
+  throw new Error("E2EE requires the native Tauri app");
+}
+
+/**
+ * Mark prekeys as published after uploading them to the server.
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function markPrekeysPublished(): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<void>("mark_prekeys_published");
+  }
+
+  throw new Error("E2EE requires the native Tauri app");
+}
+
+/**
+ * Generate additional prekeys (one-time keys).
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function generatePrekeys(count: number): Promise<PrekeyData[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<PrekeyData[]>("generate_prekeys", { count });
+  }
+
+  throw new Error("E2EE requires the native Tauri app");
+}
+
+/**
+ * Check if the device needs to upload more prekeys to the server.
+ * Note: E2EE commands require Tauri - they are not available in browser mode.
+ */
+export async function needsPrekeyUpload(): Promise<boolean> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<boolean>("needs_prekey_upload");
+  }
+
+  // Browser mode - always return false
+  return false;
 }
