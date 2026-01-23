@@ -1,7 +1,7 @@
 //! Process scanner for detecting running games/applications.
 
-use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use super::{GameEntry, GamesDatabase};
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 /// Scanner for detecting running games.
 pub struct ProcessScanner {
@@ -14,7 +14,7 @@ impl ProcessScanner {
     pub fn new() -> Self {
         Self {
             system: System::new_with_specifics(
-                RefreshKind::new().with_processes(ProcessRefreshKind::everything())
+                RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
             ),
             games_db: GamesDatabase::load(),
         }

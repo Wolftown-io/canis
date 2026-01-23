@@ -57,7 +57,12 @@ pub fn get_known_games() -> Vec<String> {
     let Ok(scanner) = get_scanner().lock() else {
         return Vec::new();
     };
-    scanner.games_db.games.iter().map(|g| g.name.clone()).collect()
+    scanner
+        .games_db
+        .games
+        .iter()
+        .map(|g| g.name.clone())
+        .collect()
 }
 
 /// Enable or disable activity sharing.

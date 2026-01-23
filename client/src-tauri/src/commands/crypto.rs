@@ -246,8 +246,7 @@ pub async fn restore_backup(
         .decrypt(&key)
         .map_err(|e| format!("Decryption failed: {e}"))?;
 
-    let data =
-        String::from_utf8(decrypted).map_err(|_| "Backup data is not valid UTF-8")?;
+    let data = String::from_utf8(decrypted).map_err(|_| "Backup data is not valid UTF-8")?;
 
     info!("Backup restored successfully");
     Ok(data)
@@ -293,8 +292,8 @@ mod tests {
         let key = RecoveryKey::generate();
         let formatted = key.to_formatted_string();
 
-        let parsed = RecoveryKey::from_formatted_string(&formatted)
-            .expect("Should parse formatted key");
+        let parsed =
+            RecoveryKey::from_formatted_string(&formatted).expect("Should parse formatted key");
 
         // The keys should be equivalent (same formatted output)
         assert_eq!(key.to_formatted_string(), parsed.to_formatted_string());
@@ -307,7 +306,10 @@ mod tests {
         let formatted = key.to_formatted_string();
 
         // Should contain spaces separating groups
-        assert!(formatted.contains(' '), "Formatted key should contain spaces");
+        assert!(
+            formatted.contains(' '),
+            "Formatted key should contain spaces"
+        );
 
         // Each group should be 4 chars (except possibly the last)
         let groups: Vec<&str> = formatted.split_whitespace().collect();

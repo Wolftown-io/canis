@@ -41,16 +41,27 @@ impl GamesDatabase {
 
     /// Known generic launchers that require command line argument checking.
     const GENERIC_LAUNCHERS: &'static [&'static str] = &[
-        "javaw.exe", "java.exe", "javaw", "java",
-        "python.exe", "python", "python3", "python3.exe",
-        "node.exe", "node",
+        "javaw.exe",
+        "java.exe",
+        "javaw",
+        "java",
+        "python.exe",
+        "python",
+        "python3",
+        "python3.exe",
+        "node.exe",
+        "node",
     ];
 
     /// Find a game by process name and command line arguments.
     /// If the game entry has `match_args` AND the process is a generic launcher,
     /// the command line must contain at least one of the match_args.
     /// This prevents false positives for generic launchers like javaw.exe.
-    pub fn find_by_process_and_args(&self, process_name: &str, cmd_args: &[String]) -> Option<&GameEntry> {
+    pub fn find_by_process_and_args(
+        &self,
+        process_name: &str,
+        cmd_args: &[String],
+    ) -> Option<&GameEntry> {
         let lower_name = process_name.to_lowercase();
         let is_generic_launcher = Self::GENERIC_LAUNCHERS
             .iter()
@@ -141,7 +152,11 @@ mod tests {
     fn test_find_by_process_and_args_with_match_args() {
         let db = GamesDatabase::load();
         // javaw.exe with minecraft args should match Minecraft
-        let args = vec!["javaw.exe".to_string(), "-jar".to_string(), "minecraft.jar".to_string()];
+        let args = vec![
+            "javaw.exe".to_string(),
+            "-jar".to_string(),
+            "minecraft.jar".to_string(),
+        ];
         let game = db.find_by_process_and_args("javaw.exe", &args);
         assert!(game.is_some());
         assert_eq!(game.unwrap().name, "Minecraft");
@@ -151,7 +166,11 @@ mod tests {
     fn test_find_by_process_and_args_javaw_without_minecraft() {
         let db = GamesDatabase::load();
         // javaw.exe without minecraft args should NOT match
-        let args = vec!["javaw.exe".to_string(), "-jar".to_string(), "someother.jar".to_string()];
+        let args = vec![
+            "javaw.exe".to_string(),
+            "-jar".to_string(),
+            "someother.jar".to_string(),
+        ];
         let game = db.find_by_process_and_args("javaw.exe", &args);
         assert!(game.is_none());
     }

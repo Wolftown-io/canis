@@ -278,7 +278,11 @@ pub async fn admin_list_users(
         .await
         .map_err(|e| format!("Invalid response: {e}"))?;
 
-    debug!("Fetched {} users (total: {})", users.items.len(), users.total);
+    debug!(
+        "Fetched {} users (total: {})",
+        users.items.len(),
+        users.total
+    );
     Ok(users)
 }
 
@@ -500,9 +504,7 @@ pub async fn admin_unsuspend_guild(
 
     let response = state
         .http
-        .delete(format!(
-            "{server_url}/api/admin/guilds/{guild_id}/suspend"
-        ))
+        .delete(format!("{server_url}/api/admin/guilds/{guild_id}/suspend"))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await

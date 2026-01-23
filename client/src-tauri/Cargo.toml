@@ -50,6 +50,10 @@ keyring = "2"
 # Process scanning
 sysinfo = "0.30"
 
+# Clipboard
+arboard = "3"
+sha2 = "0.10"
+
 # Utils
 uuid.workspace = true
 chrono.workspace = true

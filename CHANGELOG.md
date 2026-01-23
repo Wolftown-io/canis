@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Clipboard protection system for secure copy/paste operations
+  - ClipboardGuard service with SHA-256 hash-based tamper detection
+  - Auto-clear timers based on sensitivity (Critical: 60s, Sensitive: 120s)
+  - Paranoid mode with 30s timeout for all sensitive content
+  - Protection levels: Minimal, Standard, Strict (configurable in Settings)
+  - UI components: ClipboardToast, ClipboardIndicator, TamperWarningModal
+  - Browser fallback support when not running in Tauri
+  - Integration with recovery phrase and invite link copying
 - Sound notification system for chat messages
   - 5 notification sounds: Default, Subtle, Ping, Chime, Bell
   - Global notification settings in Settings > Notifications tab

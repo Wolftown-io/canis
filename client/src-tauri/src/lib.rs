@@ -10,6 +10,7 @@ mod presence;
 mod webrtc;
 
 use audio::AudioHandle;
+use commands::clipboard::ClipboardGuard;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -36,6 +37,9 @@ pub fn run() {
 
             // Store app state
             app.manage(AppState::new());
+
+            // Store clipboard guard
+            app.manage(Arc::new(ClipboardGuard::new()));
 
             // Start presence polling service
             presence::start_presence_service(app.handle().clone());
@@ -133,6 +137,14 @@ pub fn run() {
             // Sound commands
             commands::sound::play_sound,
             commands::sound::get_available_sounds,
+            // Clipboard commands
+            commands::clipboard::secure_copy,
+            commands::clipboard::secure_paste,
+            commands::clipboard::clear_clipboard,
+            commands::clipboard::extend_clipboard_timeout,
+            commands::clipboard::get_clipboard_status,
+            commands::clipboard::update_clipboard_settings,
+            commands::clipboard::get_clipboard_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

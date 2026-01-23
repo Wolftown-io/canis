@@ -11,6 +11,7 @@ import {
   deleteInvite,
   getGuildInvites,
 } from "@/stores/guilds";
+import { secureCopy } from "@/lib/clipboard";
 import type { InviteExpiry } from "@/lib/types";
 
 interface InvitesTabProps {
@@ -50,7 +51,7 @@ const InvitesTab: Component<InvitesTabProps> = (props) => {
 
   const handleCopy = async (code: string) => {
     const url = `${window.location.origin}/invite/${code}`;
-    await navigator.clipboard.writeText(url);
+    await secureCopy(url, "invite_link");
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };

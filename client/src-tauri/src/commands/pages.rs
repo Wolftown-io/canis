@@ -83,10 +83,7 @@ pub async fn list_platform_pages(state: State<'_, AppState>) -> Result<Vec<PageL
 
 /// Get a platform page by slug.
 #[command]
-pub async fn get_platform_page(
-    state: State<'_, AppState>,
-    slug: String,
-) -> Result<Page, String> {
+pub async fn get_platform_page(state: State<'_, AppState>, slug: String) -> Result<Page, String> {
     let (server_url, token) = {
         let auth = state.auth.read().await;
         (auth.server_url.clone(), auth.access_token.clone())
@@ -391,7 +388,9 @@ pub async fn get_guild_page(
 
     let response = state
         .http
-        .get(format!("{server_url}/api/guilds/{guild_id}/pages/by-slug/{slug}"))
+        .get(format!(
+            "{server_url}/api/guilds/{guild_id}/pages/by-slug/{slug}"
+        ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
@@ -509,7 +508,9 @@ pub async fn update_guild_page(
 
     let response = state
         .http
-        .patch(format!("{server_url}/api/guilds/{guild_id}/pages/{page_id}"))
+        .patch(format!(
+            "{server_url}/api/guilds/{guild_id}/pages/{page_id}"
+        ))
         .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({
             "title": title,
@@ -559,7 +560,9 @@ pub async fn delete_guild_page(
 
     let response = state
         .http
-        .delete(format!("{server_url}/api/guilds/{guild_id}/pages/{page_id}"))
+        .delete(format!(
+            "{server_url}/api/guilds/{guild_id}/pages/{page_id}"
+        ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
@@ -625,10 +628,7 @@ pub async fn reorder_guild_pages(
 
 /// Accept a page.
 #[command]
-pub async fn accept_page(
-    state: State<'_, AppState>,
-    page_id: String,
-) -> Result<(), String> {
+pub async fn accept_page(state: State<'_, AppState>, page_id: String) -> Result<(), String> {
     let (server_url, token) = {
         let auth = state.auth.read().await;
         (auth.server_url.clone(), auth.access_token.clone())

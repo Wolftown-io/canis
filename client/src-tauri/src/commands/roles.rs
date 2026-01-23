@@ -512,7 +512,10 @@ pub async fn set_channel_override(
         .await
         .map_err(|e| format!("Invalid response: {e}"))?;
 
-    debug!("Set override for role {} in channel {}", role_id, channel_id);
+    debug!(
+        "Set override for role {} in channel {}",
+        role_id, channel_id
+    );
     Ok(override_result)
 }
 
