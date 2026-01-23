@@ -78,8 +78,9 @@ pub struct UserPreferencesRow {
 ///
 /// Routes:
 /// - GET / - Get current user's preferences
+/// - PUT / - Update current user's preferences (full replacement)
 pub fn router() -> Router<AppState> {
-    Router::new().route("/", get(get_preferences))
+    Router::new().route("/", get(get_preferences).put(update_preferences))
 }
 
 // ============================================================================
@@ -117,4 +118,33 @@ pub async fn get_preferences(
             }))
         }
     }
+}
+
+/// PUT /api/me/preferences
+/// Updates the current user's preferences (full replacement)
+#[tracing::instrument(skip(state, request), fields(user_id = %auth_user.id))]
+pub async fn update_preferences(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(request): Json<UpdatePreferencesRequest>,
+) -> Result<Json<PreferencesResponse>, PreferencesError> {
+    let row = sqlx::query_as::<_, UserPreferencesRow>(
+        r#"
+        INSERT INTO user_preferences (user_id, preferences, updated_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (user_id) DO UPDATE
+        SET preferences = EXCLUDED.preferences,
+            updated_at = NOW()
+        RETURNING user_id, preferences, updated_at
+        "#,
+    )
+    .bind(auth_user.id)
+    .bind(&request.preferences)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(PreferencesResponse {
+        preferences: row.preferences,
+        updated_at: row.updated_at,
+    }))
 }
