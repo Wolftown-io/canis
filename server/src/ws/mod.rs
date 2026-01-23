@@ -466,6 +466,12 @@ pub mod channels {
 
     /// Redis channel for admin events.
     pub const ADMIN_EVENTS: &str = "admin:events";
+
+    /// Redis channel for user-specific events (read sync, etc.)
+    #[must_use]
+    pub fn user_events(user_id: Uuid) -> String {
+        format!("user:{user_id}")
+    }
 }
 
 /// Broadcast a server event to a channel via Redis.
@@ -494,6 +500,22 @@ pub async fn broadcast_admin_event(
 
     redis
         .publish::<(), _, _>(channels::ADMIN_EVENTS, payload)
+        .await?;
+
+    Ok(())
+}
+
+/// Broadcast an event to a specific user's sessions via Redis.
+pub async fn broadcast_to_user(
+    redis: &RedisClient,
+    user_id: Uuid,
+    event: &ServerEvent,
+) -> Result<(), RedisError> {
+    let payload = serde_json::to_string(event)
+        .map_err(|e| RedisError::new(RedisErrorKind::Parse, format!("JSON error: {e}")))?;
+
+    redis
+        .publish::<(), _, _>(channels::user_events(user_id), payload)
         .await?;
 
     Ok(())
