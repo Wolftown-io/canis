@@ -46,10 +46,12 @@ import type {
   PrekeyData,
   E2EEContent,
   ClaimedPrekeyInput,
+  UserKeysResponse,
+  ClaimedPrekeyResponse,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput };
+export type { User, Channel, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse };
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -469,15 +471,23 @@ export async function getMessages(
 
 export async function sendMessage(
   channelId: string,
-  content: string
+  content: string,
+  options?: { encrypted?: boolean; nonce?: string }
 ): Promise<Message> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("send_message", { channelId, content });
+    return invoke("send_message", {
+      channelId,
+      content,
+      encrypted: options?.encrypted,
+      nonce: options?.nonce,
+    });
   }
 
   return httpRequest<Message>("POST", `/api/messages/channel/${channelId}`, {
     content,
+    encrypted: options?.encrypted ?? false,
+    nonce: options?.nonce,
   });
 }
 
@@ -2109,4 +2119,56 @@ export async function needsPrekeyUpload(): Promise<boolean> {
 
   // Browser mode - always return false
   return false;
+}
+
+// ============================================================================
+// E2EE Key API Endpoints
+// ============================================================================
+
+/**
+ * Get another user's device keys for establishing encrypted sessions.
+ * Returns all devices and their public identity keys.
+ */
+export async function getUserKeys(userId: string): Promise<UserKeysResponse> {
+  return httpRequest<UserKeysResponse>("GET", `/api/users/${userId}/keys`);
+}
+
+/**
+ * Claim a prekey from a specific device to establish an encrypted session.
+ * The prekey is consumed and cannot be reused.
+ */
+export async function claimPrekey(
+  userId: string,
+  deviceId: string
+): Promise<ClaimedPrekeyResponse> {
+  return httpRequest<ClaimedPrekeyResponse>(
+    "POST",
+    `/api/users/${userId}/keys/claim`,
+    { device_id: deviceId }
+  );
+}
+
+/**
+ * Upload identity keys and prekeys to the server.
+ * Creates or updates the device record.
+ */
+export async function uploadKeys(
+  deviceName: string | null,
+  identityKeyEd25519: string,
+  identityKeyCurve25519: string,
+  oneTimePrekeys: PrekeyData[]
+): Promise<{ device_id: string; prekeys_uploaded: number; prekeys_skipped: number }> {
+  return httpRequest<{ device_id: string; prekeys_uploaded: number; prekeys_skipped: number }>(
+    "POST",
+    "/api/keys/upload",
+    {
+      device_name: deviceName,
+      identity_key_ed25519: identityKeyEd25519,
+      identity_key_curve25519: identityKeyCurve25519,
+      one_time_prekeys: oneTimePrekeys.map((pk) => ({
+        key_id: pk.key_id,
+        public_key: pk.public_key,
+      })),
+    }
+  );
 }
