@@ -5,9 +5,10 @@
  * User must acknowledge saving the key before continuing.
  */
 
-import { Component, createSignal, Show, For, onCleanup } from "solid-js";
+import { Component, createSignal, Show, For } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Copy, Download, X, Shield, Check, Loader2, AlertTriangle } from "lucide-solid";
+import { secureCopy } from "@/lib/clipboard";
 
 interface RecoveryKeyModalProps {
   /** The recovery key chunks to display. */
@@ -31,35 +32,13 @@ interface RecoveryKeyModalProps {
 const RecoveryKeyModal: Component<RecoveryKeyModalProps> = (props) => {
   const [confirmed, setConfirmed] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
-  let clipboardClearTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  // Clear clipboard timeout on cleanup
-  onCleanup(() => {
-    if (clipboardClearTimeout) {
-      clearTimeout(clipboardClearTimeout);
-    }
-  });
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(props.fullKey);
+    // Use secureCopy with recovery_phrase context for critical data
+    // ClipboardGuard will handle auto-clear after 60s (30s in paranoid mode)
+    await secureCopy(props.fullKey, "recovery_phrase");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-
-    // Clear clipboard after 60 seconds for security
-    if (clipboardClearTimeout) {
-      clearTimeout(clipboardClearTimeout);
-    }
-    clipboardClearTimeout = setTimeout(async () => {
-      try {
-        // Only clear if clipboard still contains the key
-        const current = await navigator.clipboard.readText();
-        if (current === props.fullKey) {
-          await navigator.clipboard.writeText("");
-        }
-      } catch {
-        // Clipboard access may fail, ignore
-      }
-    }, 60000);
   };
 
   const handleDownload = () => {

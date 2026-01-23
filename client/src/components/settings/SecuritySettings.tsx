@@ -1,12 +1,18 @@
 /**
  * Security Settings
  *
- * Shows E2EE backup status and allows viewing recovery key.
+ * Shows E2EE backup status, recovery key management, and clipboard protection settings.
  */
 
-import { Component, createResource, Show } from "solid-js";
+import { Component, createResource, createSignal, Show, createEffect } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import { AlertTriangle, Check, Eye } from "lucide-solid";
+import { AlertTriangle, Check, Eye, Shield, Clipboard } from "lucide-solid";
+import {
+  getClipboardSettings,
+  updateClipboardSettings,
+  type ClipboardSettings,
+  type ProtectionLevel,
+} from "@/lib/clipboard";
 
 // Type for backup status (matches Tauri command response)
 interface BackupStatus {
@@ -27,6 +33,52 @@ const SecuritySettings: Component<SecuritySettingsProps> = (props) => {
       return { has_backup: false, backup_created_at: null, version: null };
     }
   });
+
+  // Clipboard protection settings
+  const [clipboardSettings, setClipboardSettings] = createSignal<ClipboardSettings | null>(null);
+  const [isSavingClipboard, setIsSavingClipboard] = createSignal(false);
+
+  // Load clipboard settings on mount
+  createEffect(async () => {
+    try {
+      const settings = await getClipboardSettings();
+      setClipboardSettings(settings);
+    } catch (err) {
+      console.error("Failed to load clipboard settings:", err);
+    }
+  });
+
+  const handleProtectionLevelChange = async (level: ProtectionLevel) => {
+    const current = clipboardSettings();
+    if (!current) return;
+
+    setIsSavingClipboard(true);
+    try {
+      const updated = { ...current, protection_level: level };
+      await updateClipboardSettings(updated);
+      setClipboardSettings(updated);
+    } catch (err) {
+      console.error("Failed to update clipboard settings:", err);
+    } finally {
+      setIsSavingClipboard(false);
+    }
+  };
+
+  const handleParanoidModeChange = async (enabled: boolean) => {
+    const current = clipboardSettings();
+    if (!current) return;
+
+    setIsSavingClipboard(true);
+    try {
+      const updated = { ...current, paranoid_mode_enabled: enabled };
+      await updateClipboardSettings(updated);
+      setClipboardSettings(updated);
+    } catch (err) {
+      console.error("Failed to update clipboard settings:", err);
+    } finally {
+      setIsSavingClipboard(false);
+    }
+  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Never";
@@ -102,6 +154,113 @@ const SecuritySettings: Component<SecuritySettingsProps> = (props) => {
           </p>
         </div>
       </Show>
+
+      {/* Clipboard Protection Section */}
+      <div class="pt-6 border-t border-white/10">
+        <div class="flex items-center gap-3 mb-4">
+          <Clipboard class="w-5 h-5 text-text-secondary" />
+          <h3 class="text-lg font-semibold text-text-primary">Clipboard Protection</h3>
+        </div>
+
+        <div class="bg-surface-base rounded-xl p-4 space-y-4">
+          {/* Protection Level */}
+          <div>
+            <label class="block text-sm font-medium text-text-primary mb-2">
+              Protection Level
+            </label>
+            <p class="text-xs text-text-secondary mb-3">
+              Controls how aggressively sensitive data is cleared from your clipboard.
+            </p>
+            <div class="flex gap-2">
+              <button
+                onClick={() => handleProtectionLevelChange("minimal")}
+                disabled={isSavingClipboard()}
+                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                classList={{
+                  "bg-accent-primary text-white": clipboardSettings()?.protection_level === "minimal",
+                  "bg-white/10 text-text-secondary hover:bg-white/20": clipboardSettings()?.protection_level !== "minimal",
+                }}
+              >
+                Minimal
+              </button>
+              <button
+                onClick={() => handleProtectionLevelChange("standard")}
+                disabled={isSavingClipboard()}
+                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                classList={{
+                  "bg-accent-primary text-white": clipboardSettings()?.protection_level === "standard",
+                  "bg-white/10 text-text-secondary hover:bg-white/20": clipboardSettings()?.protection_level !== "standard",
+                }}
+              >
+                Standard
+              </button>
+              <button
+                onClick={() => handleProtectionLevelChange("strict")}
+                disabled={isSavingClipboard()}
+                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                classList={{
+                  "bg-accent-primary text-white": clipboardSettings()?.protection_level === "strict",
+                  "bg-white/10 text-text-secondary hover:bg-white/20": clipboardSettings()?.protection_level !== "strict",
+                }}
+              >
+                Strict
+              </button>
+            </div>
+            <p class="text-xs text-text-secondary mt-2">
+              <Show when={clipboardSettings()?.protection_level === "minimal"}>
+                Only critical data (recovery phrases) is auto-cleared after 60 seconds.
+              </Show>
+              <Show when={clipboardSettings()?.protection_level === "standard"}>
+                Sensitive data (invites, recovery phrases) auto-cleared. Recommended.
+              </Show>
+              <Show when={clipboardSettings()?.protection_level === "strict"}>
+                All copied data is auto-cleared, with tamper detection enabled.
+              </Show>
+            </p>
+          </div>
+
+          {/* Paranoid Mode */}
+          <div class="pt-4 border-t border-white/10">
+            <div class="flex items-center justify-between">
+              <div class="flex-1">
+                <label class="block text-sm font-medium text-text-primary">
+                  Paranoid Mode
+                </label>
+                <p class="text-xs text-text-secondary mt-1">
+                  Reduces auto-clear timeout to 30 seconds for all sensitive content.
+                  Enables clipboard tamper detection.
+                </p>
+              </div>
+              <button
+                onClick={() => handleParanoidModeChange(!clipboardSettings()?.paranoid_mode_enabled)}
+                disabled={isSavingClipboard()}
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+                classList={{
+                  "bg-accent-primary": clipboardSettings()?.paranoid_mode_enabled,
+                  "bg-white/20": !clipboardSettings()?.paranoid_mode_enabled,
+                }}
+              >
+                <span
+                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  classList={{
+                    "translate-x-6": clipboardSettings()?.paranoid_mode_enabled,
+                    "translate-x-1": !clipboardSettings()?.paranoid_mode_enabled,
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Info about clipboard protection */}
+          <div class="flex items-start gap-3 p-3 bg-accent-primary/10 border border-accent-primary/20 rounded-lg mt-4">
+            <Shield class="w-4 h-4 text-accent-primary flex-shrink-0 mt-0.5" />
+            <p class="text-xs text-text-secondary">
+              Clipboard protection helps prevent clipboard hijacking attacks where malware
+              replaces copied addresses or recovery phrases with attacker-controlled values.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
