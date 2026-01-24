@@ -30,6 +30,8 @@ interface ScreenShareViewerState {
   pipPosition: PipPosition;
   /** PiP size */
   pipSize: { width: number; height: number };
+  /** Available screen share tracks by user ID */
+  availableTracks: Map<string, MediaStreamTrack>;
 }
 
 const DEFAULT_PIP_SIZE = { width: 400, height: 225 };
@@ -41,17 +43,70 @@ const [viewerState, setViewerState] = createStore<ScreenShareViewerState>({
   screenVolume: 100,
   pipPosition: { x: 20, y: 20 },
   pipSize: DEFAULT_PIP_SIZE,
+  availableTracks: new Map(),
 });
 
 /**
+ * Register an available screen share track.
+ * Called when a remote user's screen share track is received.
+ */
+export function addAvailableTrack(userId: string, track: MediaStreamTrack): void {
+  console.log("[ScreenShareViewer] Track available:", userId);
+  const newTracks = new Map(viewerState.availableTracks);
+  newTracks.set(userId, track);
+  setViewerState({ availableTracks: newTracks });
+}
+
+/**
+ * Remove a screen share track (user stopped sharing).
+ */
+export function removeAvailableTrack(userId: string): void {
+  console.log("[ScreenShareViewer] Track removed:", userId);
+  const newTracks = new Map(viewerState.availableTracks);
+  newTracks.delete(userId);
+  setViewerState({ availableTracks: newTracks });
+
+  // If we were viewing this user, stop viewing
+  if (viewerState.viewingUserId === userId) {
+    stopViewing();
+  }
+}
+
+/**
  * Start viewing a screen share.
+ * Also registers the track as available.
  */
 export function startViewing(userId: string, track: MediaStreamTrack): void {
   console.log("[ScreenShareViewer] Start viewing:", userId);
+
+  // Register track as available
+  const newTracks = new Map(viewerState.availableTracks);
+  newTracks.set(userId, track);
+
+  setViewerState({
+    viewingUserId: userId,
+    videoTrack: track,
+    availableTracks: newTracks,
+  });
+}
+
+/**
+ * View a specific user's screen share by looking up their track.
+ * Returns true if successful, false if no track available.
+ */
+export function viewUserShare(userId: string): boolean {
+  const track = viewerState.availableTracks.get(userId);
+  if (!track) {
+    console.warn("[ScreenShareViewer] No track available for user:", userId);
+    return false;
+  }
+
+  console.log("[ScreenShareViewer] Switching to view:", userId);
   setViewerState({
     viewingUserId: userId,
     videoTrack: track,
   });
+  return true;
 }
 
 /**
@@ -63,6 +118,13 @@ export function stopViewing(): void {
     viewingUserId: null,
     videoTrack: null,
   });
+}
+
+/**
+ * Get list of users with available screen shares.
+ */
+export function getAvailableSharers(): string[] {
+  return Array.from(viewerState.availableTracks.keys());
 }
 
 /**
