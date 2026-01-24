@@ -52,6 +52,13 @@ const [viewerState, setViewerState] = createStore<ScreenShareViewerState>({
  */
 export function addAvailableTrack(userId: string, track: MediaStreamTrack): void {
   console.log("[ScreenShareViewer] Track available:", userId);
+
+  // Auto-cleanup when track ends
+  track.onended = () => {
+    console.log("[ScreenShareViewer] Track ended for user:", userId);
+    removeAvailableTrack(userId);
+  };
+
   const newTracks = new Map(viewerState.availableTracks);
   newTracks.set(userId, track);
   setViewerState({ availableTracks: newTracks });
@@ -79,6 +86,12 @@ export function removeAvailableTrack(userId: string): void {
 export function startViewing(userId: string, track: MediaStreamTrack): void {
   console.log("[ScreenShareViewer] Start viewing:", userId);
 
+  // Auto-cleanup when track ends
+  track.onended = () => {
+    console.log("[ScreenShareViewer] Track ended for user:", userId);
+    removeAvailableTrack(userId);
+  };
+
   // Register track as available
   const newTracks = new Map(viewerState.availableTracks);
   newTracks.set(userId, track);
@@ -92,12 +105,19 @@ export function startViewing(userId: string, track: MediaStreamTrack): void {
 
 /**
  * View a specific user's screen share by looking up their track.
- * Returns true if successful, false if no track available.
+ * Returns true if successful, false if no active track available.
  */
 export function viewUserShare(userId: string): boolean {
   const track = viewerState.availableTracks.get(userId);
   if (!track) {
     console.warn("[ScreenShareViewer] No track available for user:", userId);
+    return false;
+  }
+
+  // Check if track is still active
+  if (track.readyState === "ended") {
+    console.warn("[ScreenShareViewer] Track has ended for user:", userId);
+    removeAvailableTrack(userId);
     return false;
   }
 

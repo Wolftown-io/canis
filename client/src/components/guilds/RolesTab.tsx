@@ -58,6 +58,13 @@ const RolesTab: Component<RolesTabProps> = (props) => {
     return role.position > userHighestPosition();
   };
 
+  // Check if a role can be dropped on target position
+  const canDropOnRole = (targetRole: GuildRole) => {
+    if (targetRole.is_default) return false; // Can't drop on @everyone
+    if (isOwner()) return true;
+    return targetRole.position > userHighestPosition();
+  };
+
   // Drag handlers
   const handleDragStart = (e: DragEvent, roleId: string) => {
     if (!e.dataTransfer) return;
@@ -73,15 +80,10 @@ const RolesTab: Component<RolesTabProps> = (props) => {
     const draggedId = draggedRoleId();
     if (!draggedId || draggedId === role.id) return;
 
-    // Don't allow dropping on @everyone
-    if (role.is_default) return;
-
-    // Check if user can move to this position
     const draggedRole = roles().find((r) => r.id === draggedId);
     if (!draggedRole) return;
 
-    // Can't move role above user's highest role
-    if (!isOwner() && role.position <= userHighestPosition()) {
+    if (!canDropOnRole(role)) {
       e.dataTransfer.dropEffect = "none";
       return;
     }
@@ -101,14 +103,10 @@ const RolesTab: Component<RolesTabProps> = (props) => {
     const draggedId = draggedRoleId();
     if (!draggedId || draggedId === targetRole.id) return;
 
-    // Don't allow dropping on @everyone
-    if (targetRole.is_default) return;
-
     const draggedRole = roles().find((r) => r.id === draggedId);
     if (!draggedRole) return;
 
-    // Security check: Can't move above user's highest role
-    if (!isOwner() && targetRole.position <= userHighestPosition()) return;
+    if (!canDropOnRole(targetRole)) return;
 
     try {
       await reorderRole(props.guildId, draggedId, targetRole.position);
