@@ -2,6 +2,7 @@ import { Component, Show, For } from "solid-js";
 import { PhoneOff, Signal, MonitorUp } from "lucide-solid";
 import { voiceState, leaveVoice, getParticipants } from "@/stores/voice";
 import { getChannel } from "@/stores/channels";
+import { viewUserShare } from "@/stores/screenShareViewer";
 import VoiceControls from "./VoiceControls";
 
 /**
@@ -61,7 +62,7 @@ const VoicePanel: Component = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log("[VoicePanel] Want to view screen share from:", participant.user_id);
+                          viewUserShare(participant.user_id);
                         }}
                         class="p-0.5 hover:bg-success/30 rounded transition-colors"
                         title="View screen share"
@@ -84,9 +85,7 @@ const VoicePanel: Component = () => {
               {(share) => (
                 <div
                   class="flex items-center gap-2 px-2 py-1.5 rounded bg-background-primary hover:bg-background-tertiary cursor-pointer transition-colors"
-                  onClick={() => {
-                    console.log("[VoicePanel] Clicked to view screen share:", share.user_id);
-                  }}
+                  onClick={() => viewUserShare(share.user_id)}
                 >
                   <MonitorUp class="w-4 h-4 text-success" />
                   <div class="flex-1 min-w-0">

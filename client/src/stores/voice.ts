@@ -390,11 +390,8 @@ export async function joinVoice(channelId: string): Promise<void> {
     },
     onScreenShareTrackRemoved: (userId) => {
       console.log("[Voice] Screen share track removed:", userId);
-      import("@/stores/screenShareViewer").then(({ viewerState, stopViewing }) => {
-        // Only stop if we were viewing this user's share
-        if (viewerState.viewingUserId === userId) {
-          stopViewing();
-        }
+      import("@/stores/screenShareViewer").then(({ removeAvailableTrack }) => {
+        removeAvailableTrack(userId);
       });
     },
     onScreenShareStopped: (_userId, reason) => {
