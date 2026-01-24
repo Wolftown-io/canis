@@ -136,8 +136,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Volume control for screen share audio
 - Screen share list in voice panel showing active shares
 - Click-to-view screen shares from participant indicators
+- Voice quality indicators with real-time latency, packet loss, and jitter display
+- Accessibility shapes (circle/triangle/hexagon) for colorblind-friendly status indicators
+- User status picker with Online, Idle, Do Not Disturb, and Invisible options
+- Custom status with emoji and auto-expiry timer
+- Automatic idle detection after configurable inactivity timeout
+- Message reactions with emoji picker
+- Emoji search, recent emojis, and favorites support
+- Guild custom emoji database schema and API
+- Channel categories with 2-level folder hierarchy
+- Collapsible category headers with unread indicators
+- Drag-and-drop reordering for channels and categories
+- Display preferences for indicator modes (dense/minimal/discord)
 
 ### Changed
+- StatusIndicator component now uses SVG shapes instead of colored dots
+- UserStatus type extended from 4 to 5 statuses (added 'dnd')
 - Improved UI contrast and accessibility
   - Fixed unreadable text in selected Settings tabs (high contrast text)
   - Updated error banners to use semantic theme tokens for better visibility
