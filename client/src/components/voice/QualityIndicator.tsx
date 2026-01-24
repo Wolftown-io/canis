@@ -1,5 +1,6 @@
 import { Component, Show } from 'solid-js';
-import type { ConnectionMetrics, QualityLevel } from '../../lib/webrtc/types';
+import type { ConnectionMetrics } from '../../lib/webrtc/types';
+import type { QualityLevel } from '../../lib/types';
 
 interface QualityIndicatorProps {
   metrics: ConnectionMetrics | 'unknown' | null;
@@ -7,18 +8,19 @@ interface QualityIndicatorProps {
   class?: string;
 }
 
+// Map semantic quality levels to visual colors
 const qualityColors: Record<QualityLevel, string> = {
-  green: 'bg-green-500',
-  yellow: 'bg-yellow-500',
-  orange: 'bg-orange-500',
-  red: 'bg-red-500',
+  good: 'bg-green-500',
+  warning: 'bg-yellow-500',
+  poor: 'bg-red-500',
+  unknown: 'bg-gray-500',
 };
 
 const qualityTextColors: Record<QualityLevel, string> = {
-  green: 'text-green-500',
-  yellow: 'text-yellow-500',
-  orange: 'text-orange-500',
-  red: 'text-red-500',
+  good: 'text-green-500',
+  warning: 'text-yellow-500',
+  poor: 'text-red-500',
+  unknown: 'text-gray-500',
 };
 
 export const QualityIndicator: Component<QualityIndicatorProps> = (props) => {

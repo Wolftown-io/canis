@@ -106,25 +106,27 @@ const INCIDENT_RECOVERY_THRESHOLD = 10_000; // 10s of good quality to clear inci
 
 /**
  * Convert QualityLevel to numeric value for server transmission.
+ * Uses semantic quality names: good=3, warning=2, poor=1, unknown=0
  */
 function qualityToNumber(quality: QualityLevel): number {
   switch (quality) {
-    case 'green': return 3;
-    case 'yellow': return 2;
-    case 'orange': return 1;
-    case 'red': return 0;
+    case 'good': return 3;
+    case 'warning': return 2;
+    case 'poor': return 1;
+    case 'unknown': return 0;
   }
 }
 
 /**
  * Convert numeric quality value to QualityLevel.
+ * Uses semantic quality names: 3=good, 2=warning, 1=poor, 0=unknown
  */
 function numberToQuality(n: number): QualityLevel {
   switch (n) {
-    case 3: return 'green';
-    case 2: return 'yellow';
-    case 1: return 'orange';
-    default: return 'red';
+    case 3: return 'good';
+    case 2: return 'warning';
+    case 1: return 'poor';
+    default: return 'unknown';
   }
 }
 
