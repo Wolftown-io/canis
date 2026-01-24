@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Replaced Redis with Valkey as key-value store
+  - Valkey is a BSD-3-Clause licensed fork of Redis, fully API-compatible
+  - No code changes required - uses same `fred` client library
+  - Updated Docker images from `bitnami/redis` to `bitnami/valkey`
+  - Avoids Redis licensing concerns (SSPL/RSALv2) for self-hosted deployments
+
 ### Added
 - Cross-server favorites: pin channels from different guilds into a unified Favorites section
   - Star icon on channels to toggle favorites (appears on hover, filled when favorited)
@@ -26,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migration from legacy localStorage keys
 - Cross-client read sync for DMs
   - When reading a DM on one device, unread badges clear on all other devices instantly
-  - Uses new `user:{user_id}` Redis channel for user-targeted events
+  - Uses new `user:{user_id}` Valkey channel for user-targeted events
   - Real-time synchronization via WebSocket
 - Do Not Disturb mode for notifications
   - Notification sounds suppressed when user status is "Do Not Disturb" (Busy)

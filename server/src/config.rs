@@ -14,7 +14,7 @@ pub struct Config {
     /// `PostgreSQL` connection URL
     pub database_url: String,
 
-    /// Redis connection URL
+    /// Valkey/Redis connection URL (uses redis:// protocol)
     pub redis_url: String,
 
     /// JWT signing secret

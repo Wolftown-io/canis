@@ -4,7 +4,7 @@ This document describes the rate limiting system used by the Canis server to pro
 
 ## Overview
 
-The rate limiting system is built on Redis and provides:
+The rate limiting system is built on Valkey (a BSD-3-Clause licensed Redis fork) and provides:
 
 - **Category-based limits**: Different rate limits for different types of operations
 - **IP-based rate limiting**: For unauthenticated endpoints (login, registration)
@@ -20,8 +20,8 @@ The rate limiting system is built on Redis and provides:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_ENABLED` | `true` | Enable or disable rate limiting entirely |
-| `RATE_LIMIT_PREFIX` | `canis:rl` | Prefix for Redis keys |
-| `RATE_LIMIT_FAIL_OPEN` | `true` | Allow requests when Redis is unavailable |
+| `RATE_LIMIT_PREFIX` | `canis:rl` | Prefix for Valkey keys |
+| `RATE_LIMIT_FAIL_OPEN` | `true` | Allow requests when Valkey is unavailable |
 | `RATE_LIMIT_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` and `X-Real-IP` headers |
 | `RATE_LIMIT_ALLOWLIST` | (empty) | Comma-separated list of IPs to bypass rate limiting |
 
@@ -186,8 +186,8 @@ This ensures that clients cannot bypass rate limits by using multiple addresses 
 ### Rate Limiting Not Working
 
 1. **Check if enabled**: Verify `RATE_LIMIT_ENABLED` is not set to `false`
-2. **Check Redis connection**: Ensure Redis is running and accessible
-3. **Check fail-open**: If `RATE_LIMIT_FAIL_OPEN=true`, requests pass through when Redis is unavailable
+2. **Check Valkey connection**: Ensure Valkey is running and accessible
+3. **Check fail-open**: If `RATE_LIMIT_FAIL_OPEN=true`, requests pass through when Valkey is unavailable
 
 ### Too Many False Positives
 
@@ -215,9 +215,9 @@ This will show:
 - Rate limit exceeded events
 - IP blocks
 
-## Redis Keys
+## Valkey Keys
 
-The rate limiter uses these Redis key patterns:
+The rate limiter uses these Valkey key patterns:
 
 | Pattern | Purpose | TTL |
 |---------|---------|-----|

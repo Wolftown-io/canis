@@ -5,7 +5,7 @@
 Self-hosted Voice- und Text-Chat-Plattform für Gaming-Communities. Optimiert für niedrige Latenz (<50ms), hohe Sprachqualität und maximale Sicherheit.
 
 **Lizenz:** MIT OR Apache-2.0 (Dual License)
-**Stack:** Rust (Server + Tauri Client), Solid.js (Frontend), PostgreSQL, Redis
+**Stack:** Rust (Server + Tauri Client), Solid.js (Frontend), PostgreSQL, Valkey
 
 ## Architektur-Kurzreferenz
 

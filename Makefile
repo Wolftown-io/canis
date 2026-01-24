@@ -131,20 +131,20 @@ audit: ## Security audit of dependencies
 # Docker
 #==============================================================================
 
-docker-up: ## Start Docker services (PostgreSQL, Redis, MinIO, MailHog)
-	@docker compose -f infra/compose/docker-compose.dev.yml up -d
+docker-up: ## Start Docker services (PostgreSQL, Valkey, MinIO, MailHog)
+	@docker compose -f docker-compose.dev.yml up -d
 
 docker-down: ## Stop Docker services
-	@docker compose -f infra/compose/docker-compose.dev.yml down
+	@docker compose -f docker-compose.dev.yml down
 
 docker-logs: ## View Docker service logs
-	@docker compose -f infra/compose/docker-compose.dev.yml logs -f
+	@docker compose -f docker-compose.dev.yml logs -f
 
 docker-ps: ## Show Docker service status
-	@docker compose -f infra/compose/docker-compose.dev.yml ps
+	@docker compose -f docker-compose.dev.yml ps
 
 docker-clean: ## Stop services and remove volumes
-	@docker compose -f infra/compose/docker-compose.dev.yml down -v
+	@docker compose -f docker-compose.dev.yml down -v
 	@echo "$(GREEN)Docker volumes removed$(RESET)"
 
 docker-restart: docker-down docker-up ## Restart Docker services

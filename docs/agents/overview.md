@@ -4,7 +4,7 @@
 Self-hosted voice and text chat platform for gaming communities. Optimized for low latency (<50ms), high voice quality, and maximum security.
 
 **License:** MIT OR Apache-2.0 (Dual License)
-**Stack:** Rust (Server + Tauri Client), Solid.js (Frontend), PostgreSQL, Redis
+**Stack:** Rust (Server + Tauri Client), Solid.js (Frontend), PostgreSQL, Valkey
 
 ## Architecture Overview
 
@@ -15,7 +15,7 @@ Client (Tauri 2.0)          Server (Axum)
     ├── WebRTC (webrtc-rs)  ├── Voice Service (SFU, DTLS-SRTP)
     └── Audio (cpal, opus)  └── Data Layer
                                 ├── PostgreSQL
-                                ├── Redis
+                                ├── Valkey
                                 └── S3 Storage
 ```
 
@@ -25,7 +25,7 @@ Client (Tauri 2.0)          Server (Axum)
 - `CHANGELOG.md` - Change log (keepachangelog.com format)
 - `README.md` - Quick start and project overview
 - `Makefile` - Build and development commands
-- `docker-compose.dev.yml` - Development services (PostgreSQL, Redis, MinIO)
+- `docker-compose.dev.yml` - Development services (PostgreSQL, Valkey, MinIO)
 - `deny.toml` - License compliance (cargo-deny configuration)
 - `.env.example` - Environment configuration template
 
@@ -71,5 +71,5 @@ cargo deny check  # License compliance check
 
 ## Dependencies
 - PostgreSQL 15+ (primary database)
-- Redis 7+ (sessions, caching, presence)
+- Valkey 8+ (sessions, caching, presence)
 - MinIO (S3-compatible file storage)

@@ -110,7 +110,7 @@ OIDC_CLIENT_SECRET=your-client-secret
 | Traefik | 80, 443 | Reverse proxy with auto TLS |
 | Server | 8080 (internal) | VoiceChat API + WebSocket |
 | PostgreSQL | 5432 (internal) | Database |
-| Redis | 6379 (internal) | Cache + pub/sub |
+| Valkey | 6379 (internal) | Cache + pub/sub |
 
 ## Commands
 
@@ -212,7 +212,7 @@ docker compose exec postgres psql -U voicechat -c "SELECT pg_size_pretty(pg_data
               ┌────────────┼────────────┐
               │                         │
         ┌─────┴─────┐            ┌──────┴──────┐
-        │ PostgreSQL│            │    Redis    │
+        │ PostgreSQL│            │    Valkey   │
         └───────────┘            └─────────────┘
 ```
 

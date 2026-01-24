@@ -87,7 +87,7 @@ if command -v docker &> /dev/null; then
         log_warn "Docker Compose plugin not found. Please install docker-compose-plugin."
     fi
 else
-    log_error "Docker is NOT installed. It is required for the database and redis."
+    log_error "Docker is NOT installed. It is required for the database and valkey."
     echo "Please install Docker Desktop or Engine: https://docs.docker.com/engine/install/"
     exit 1
 fi

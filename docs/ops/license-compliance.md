@@ -106,11 +106,13 @@ Dual licensing is standard in the Rust ecosystem and provides maximum flexibilit
 | sqlx-core | 0.7 | MIT/Apache 2.0 | ✅ | MIT OR Apache-2.0 |
 | sqlx-postgres | 0.7 | MIT/Apache 2.0 | ✅ | MIT OR Apache-2.0 |
 
-### Redis
+### Valkey Client
 
 | Crate | Version | License | Status | SPDX |
 |-------|---------|--------|--------|------|
 | fred | 8.x | MIT | ✅ | MIT |
+
+**Note:** We use Valkey (BSD-3-Clause) instead of Redis (SSPL/RSALv2) as our key-value store. The `fred` crate is API-compatible with both.
 
 ### Authentication
 

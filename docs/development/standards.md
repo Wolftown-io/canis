@@ -311,14 +311,16 @@ This document lists all open standards, protocols, and libraries used. The goal 
 - Full-Text Search for message search
 - Row-Level Security (optional)
 
-### Redis
+### Valkey
 
 | Attribute | Value |
 |----------|------|
-| **Version** | 7.x |
+| **Version** | 8.x |
 | **Purpose** | Sessions, Caching, Pub/Sub, Presence |
-| **Rust Library** | `fred` (8.x) |
-| **License** | BSD-3 |
+| **Rust Library** | `fred` (8.x) - Redis protocol compatible |
+| **License** | BSD-3-Clause |
+
+**Note:** Valkey is a BSD-3-Clause licensed fork of Redis, fully API-compatible.
 
 ### S3-Compatible Storage
 

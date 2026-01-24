@@ -69,7 +69,7 @@
 │                    │  └─────────────────┘    │                              │
 │                    │                         │                              │
 │                    │  ┌─────────────────┐    │                              │
-│                    │  │     Redis       │    │                              │
+│                    │  │     Valkey      │    │                              │
 │                    │  │   • Sessions    │    │                              │
 │                    │  │   • Presence    │    │                              │
 │                    │  │   • Pub/Sub     │    │                              │
@@ -184,15 +184,15 @@
 │  ───────────────────                                             │
 │  • Password Hashing (Argon2id)                                   │
 │  • JWT Generation/Validation                                     │
-│  • Session Management (Redis)                                    │
+│  • Session Management (Valkey)                                   │
 │  • OIDC Provider Integration                                     │
 │  • JIT User Provisioning                                         │
 │                                                                  │
 │  Token Strategy:                                                 │
 │  ────────────────                                                │
 │  • Access Token:  JWT, 15 min validity                           │
-│  • Refresh Token: Opaque, 7 days, in Redis                       │
-│  • Session:       Redis with user metadata                       │
+│  • Refresh Token: Opaque, 7 days, in Valkey                      │
+│  • Session:       Valkey with user metadata                      │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -569,7 +569,7 @@
 │  │         │                 │                                  ││
 │  │         ▼                 │                                  ││
 │  │  ┌──────────────┐        │                                  ││
-│  │  │   Redis      │◄───────┘                                  ││
+│  │  │   Valkey     │◄───────┘                                  ││
 │  │  │              │                                           ││
 │  │  │ Sessions,    │                                           ││
 │  │  │ Presence,    │                                           ││
@@ -589,7 +589,7 @@
 │  Volumes:                                                        │
 │  ────────                                                        │
 │  • postgres_data    - Database persistence                       │
-│  • redis_data       - Redis persistence (optional)               │
+│  • valkey_data      - Valkey persistence (optional)              │
 │  • uploads          - Local file uploads (or S3)                 │
 │  • certs            - TLS certificates (if not Let's Encrypt)    │
 │                                                                  │
@@ -781,6 +781,31 @@ No rate limiting on API endpoints or WebSocket messages.
 1. Add integration tests for message CRUD
 2. Test WebSocket broadcast on message events
 3. Add performance tests for message list pagination
+
+---
+
+## Future: Kubernetes Scalability
+
+*Status: Planning required before implementation*
+
+For future K8s deployments requiring horizontal scaling, the current Valkey-based pub/sub architecture may need enhancement. Key considerations:
+
+### Current Limitations for Multi-Pod Deployments
+- Valkey pub/sub requires all pods to connect to the same instance
+- No built-in message persistence for pod restarts
+- Rate limiting state is centralized
+
+### Potential Solutions (Requires Architecture Design)
+- **NATS**: Sub-millisecond latency, Apache-2.0 licensed, excellent K8s operator support
+- **Valkey Cluster**: Horizontal scaling with same API, but more operational complexity
+- **Hybrid approach**: NATS for real-time pub/sub, Valkey for rate limiting and caching
+
+### Design Principles to Preserve
+- <50ms voice latency target
+- Graceful degradation (fail-open for non-critical paths)
+- Event sourcing patterns (call state reconstruction)
+
+**Note**: This is documented for future planning. Current single-server and simple multi-server deployments work well with Valkey.
 
 ---
 

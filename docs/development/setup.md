@@ -14,7 +14,7 @@ This guide covers setting up the VoiceChat development environment.
 
 ### 1. Start Development Services
 
-Start PostgreSQL and Redis:
+Start PostgreSQL and Valkey:
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
@@ -22,7 +22,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 This starts:
 - **PostgreSQL** on port 5433 (user: `voicechat`, password: `voicechat_dev_pass`)
-- **Redis** on port 6379
+- **Valkey** on port 6379
 
 ### 2. Configure Environment
 

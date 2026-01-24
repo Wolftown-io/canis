@@ -5,7 +5,7 @@
 # This script sets up the complete development environment:
 # - Checks for required tools
 # - Creates .env file with secure defaults
-# - Starts Docker services (PostgreSQL, Redis, MinIO, MailHog)
+# - Starts Docker services (PostgreSQL, Valkey, MinIO, MailHog)
 # - Runs database migrations
 # - Installs frontend dependencies
 #
@@ -222,7 +222,7 @@ if $CLEAN; then
 
     # Stop and remove Docker volumes
     if ! $NO_DOCKER; then
-        cd "${PROJECT_ROOT}/infra/compose"
+        cd "${PROJECT_ROOT}"
         docker compose -f docker-compose.dev.yml down -v 2>/dev/null || true
         log_success "Removed Docker volumes"
     fi
@@ -254,7 +254,7 @@ else
 # =============================================================================
 
 DATABASE_URL=postgres://voicechat:devpassword@localhost:5432/voicechat
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://localhost:6379  # Valkey uses Redis protocol
 
 # =============================================================================
 # Authentication
@@ -319,7 +319,7 @@ echo ""
 if ! $NO_DOCKER; then
     log_info "Starting Docker services..."
 
-    cd "${PROJECT_ROOT}/infra/compose"
+    cd "${PROJECT_ROOT}"
 
     # Use docker compose (v2) or docker-compose
     if docker compose version &> /dev/null; then
@@ -348,16 +348,16 @@ if ! $NO_DOCKER; then
         echo -n "."
     done
 
-    # Wait for Redis
-    echo -n "  Redis: "
+    # Wait for Valkey
+    echo -n "  Valkey: "
     for i in {1..30}; do
-        if docker exec voicechat-dev-redis redis-cli ping &> /dev/null; then
+        if docker exec canis-dev-valkey valkey-cli ping &> /dev/null; then
             echo -e "${GREEN}ready${NC}"
             break
         fi
         if [[ $i -eq 30 ]]; then
             echo -e "${RED}timeout${NC}"
-            log_error "Redis failed to start"
+            log_error "Valkey failed to start"
             exit 1
         fi
         sleep 1
@@ -368,7 +368,7 @@ if ! $NO_DOCKER; then
     echo ""
     echo "  Services:"
     echo "    - PostgreSQL: localhost:5432 (user: voicechat, pass: devpassword)"
-    echo "    - Redis:      localhost:6379"
+    echo "    - Valkey:     localhost:6379"
     echo "    - MinIO:      localhost:9000 (console: localhost:9001)"
     echo "    - MailHog:    localhost:8025 (SMTP: localhost:1025)"
     echo ""

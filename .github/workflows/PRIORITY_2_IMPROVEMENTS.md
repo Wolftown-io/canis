@@ -4,11 +4,11 @@
 
 ### 1. Split Rust CI Job (Resource Optimization)
 
-**Problem:** The original CI workflow spun up PostgreSQL and Redis for ALL Rust checks (fmt, clippy, test), wasting CI resources since only tests need database services.
+**Problem:** The original CI workflow spun up PostgreSQL and Valkey for ALL Rust checks (fmt, clippy, test), wasting CI resources since only tests need database services.
 
 **Solution:** Split into two separate jobs:
 - `rust-lint`: Runs fmt and clippy without services (fast, lightweight)
-- `rust-test`: Runs tests with PostgreSQL + Redis (only when needed)
+- `rust-test`: Runs tests with PostgreSQL + Valkey (only when needed)
 
 **Impact:**
 - ~40% reduction in CI resource usage for linting
@@ -18,7 +18,7 @@
 #### Before:
 ```yaml
 rust (matrix: fmt, clippy, test)
-  services: postgres, redis  # ALL runs waste resources
+  services: postgres, valkey  # ALL runs waste resources
 ```
 
 #### After:
@@ -27,7 +27,7 @@ rust-lint (matrix: fmt, clippy)
   # No services - fast and lightweight
 
 rust-test
-  services: postgres, redis  # Only for tests
+  services: postgres, valkey  # Only for tests
 ```
 
 **Resource Savings:**
@@ -201,7 +201,7 @@ For a repo with 20 PRs/week:
 
 ### Resource Optimization
 - PostgreSQL containers: Only run for tests (not fmt/clippy)
-- Redis containers: Only run for tests (not fmt/clippy)
+- Valkey containers: Only run for tests (not fmt/clippy)
 - Secrets scan: Lightweight, adds ~30s
 - Overall: Faster feedback, lower cost
 

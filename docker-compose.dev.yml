@@ -11,7 +11,7 @@
 #
 # Environment variables for the server:
 #   export DATABASE_URL="postgresql://voicechat:voicechat_dev@localhost:5433/voicechat"
-#   export REDIS_URL="redis://localhost:6379"
+#   export VALKEY_URL="redis://localhost:6379"  # Valkey uses Redis protocol
 #   export JWT_SECRET="dev-secret-change-in-production"
 #   export S3_ENDPOINT="http://localhost:9000"  # If using MinIO
 
@@ -41,20 +41,20 @@ services:
       retries: 5
 
   # ==========================================================================
-  # Redis (Bitnami hardened image)
+  # Valkey (Redis-compatible, BSD-3-Clause licensed)
   # ==========================================================================
-  redis:
-    image: bitnami/redis:latest
-    container_name: canis-dev-redis
+  valkey:
+    image: bitnami/valkey:latest
+    container_name: canis-dev-valkey
     restart: unless-stopped
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
     ports:
       - "6379:6379"
     volumes:
-      - redis_dev_data:/bitnami/redis/data
+      - valkey_dev_data:/bitnami/valkey/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -96,5 +96,5 @@ services:
 
 volumes:
   postgres_dev_data:
-  redis_dev_data:
+  valkey_dev_data:
   minio_dev_data:
