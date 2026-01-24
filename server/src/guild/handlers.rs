@@ -6,11 +6,36 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
 
 use super::types::{CreateGuildRequest, Guild, GuildMember, JoinGuildRequest, UpdateGuildRequest};
-use crate::{api::AppState, auth::AuthUser, db};
+use crate::{
+    api::AppState,
+    auth::AuthUser,
+    db,
+    permissions::{require_guild_permission, GuildPermissions, PermissionError},
+};
+
+// ============================================================================
+// Request Types
+// ============================================================================
+
+/// Position specification for a channel in reorder request.
+#[derive(Debug, Deserialize)]
+pub struct ChannelPosition {
+    pub id: Uuid,
+    pub position: i32,
+    #[serde(default)]
+    pub category_id: Option<Uuid>,
+}
+
+/// Request to reorder channels in a guild.
+#[derive(Debug, Deserialize)]
+pub struct ReorderChannelsRequest {
+    pub channels: Vec<ChannelPosition>,
+}
 
 // ============================================================================
 // Error Types
@@ -20,6 +45,7 @@ use crate::{api::AppState, auth::AuthUser, db};
 pub enum GuildError {
     NotFound,
     Forbidden,
+    Permission(PermissionError),
     Validation(String),
     Database(sqlx::Error),
 }
@@ -29,6 +55,16 @@ impl IntoResponse for GuildError {
         let (status, message) = match self {
             Self::NotFound => (StatusCode::NOT_FOUND, "Guild not found"),
             Self::Forbidden => (StatusCode::FORBIDDEN, "Access denied"),
+            Self::Permission(e) => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({
+                        "error": "permission",
+                        "message": e.to_string()
+                    })),
+                )
+                    .into_response()
+            }
             Self::Validation(msg) => {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -395,4 +431,55 @@ pub async fn list_channels(
     let channels = db::get_guild_channels(&state.db, guild_id).await?;
 
     Ok(Json(channels))
+}
+
+/// Reorder channels in a guild.
+///
+/// `POST /api/guilds/:guild_id/channels/reorder`
+#[tracing::instrument(skip(state, body))]
+pub async fn reorder_channels(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+    Json(body): Json<ReorderChannelsRequest>,
+) -> Result<StatusCode, GuildError> {
+    // Check MANAGE_CHANNELS permission
+    let _ctx = require_guild_permission(
+        &state.db,
+        guild_id,
+        auth.id,
+        GuildPermissions::MANAGE_CHANNELS,
+    )
+    .await
+    .map_err(|e| match e {
+        PermissionError::NotGuildMember => GuildError::Forbidden,
+        other => GuildError::Permission(other),
+    })?;
+
+    if body.channels.is_empty() {
+        return Ok(StatusCode::NO_CONTENT);
+    }
+
+    // Update positions in transaction
+    let mut tx = state.db.begin().await?;
+
+    for ch in &body.channels {
+        sqlx::query(
+            r#"
+            UPDATE channels
+            SET position = $3, category_id = $4
+            WHERE id = $1 AND guild_id = $2
+            "#,
+        )
+        .bind(ch.id)
+        .bind(guild_id)
+        .bind(ch.position)
+        .bind(ch.category_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

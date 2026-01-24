@@ -827,6 +827,33 @@ export async function reorderGuildCategories(
   });
 }
 
+/**
+ * Position specification for channel reorder.
+ */
+export interface ChannelPosition {
+  id: string;
+  position: number;
+  category_id: string | null;
+}
+
+/**
+ * Reorder channels in a guild.
+ * Requires MANAGE_CHANNELS permission.
+ */
+export async function reorderGuildChannels(
+  guildId: string,
+  channels: ChannelPosition[]
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("reorder_guild_channels", { guildId, channels });
+  }
+
+  await httpRequest<void>("POST", `/api/guilds/${guildId}/channels/reorder`, {
+    channels,
+  });
+}
+
 // Friends Commands
 
 export async function getFriends(): Promise<Friend[]> {

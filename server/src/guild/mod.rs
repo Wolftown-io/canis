@@ -30,6 +30,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/members", get(handlers::list_members))
         .route("/:id/members/:user_id", delete(handlers::kick_member))
         .route("/:id/channels", get(handlers::list_channels))
+        .route("/:id/channels/reorder", post(handlers::reorder_channels))
         // Role routes
         .route(
             "/:id/roles",
