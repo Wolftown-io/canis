@@ -3,7 +3,7 @@
 //! CRUD operations for user's global pins (notes, links, pinned messages).
 
 use axum::{
-    extract::{Path, State},
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -144,4 +144,86 @@ impl IntoResponse for PinsError {
         };
         (status, Json(serde_json::json!({ "error": message }))).into_response()
     }
+}
+
+// ============================================================================
+// Handlers
+// ============================================================================
+
+/// GET /api/me/pins - List user's pins
+pub async fn list_pins(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> Result<Json<Vec<Pin>>, PinsError> {
+    let rows = sqlx::query_as::<_, PinRow>(
+        r#"
+        SELECT id, user_id, pin_type, content, title, metadata, created_at, position
+        FROM user_pins
+        WHERE user_id = $1
+        ORDER BY position ASC, created_at DESC
+        "#,
+    )
+    .bind(auth_user.id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let pins: Vec<Pin> = rows.into_iter().map(Pin::from).collect();
+    Ok(Json(pins))
+}
+
+/// POST /api/me/pins - Create a new pin
+pub async fn create_pin(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(request): Json<CreatePinRequest>,
+) -> Result<Json<Pin>, PinsError> {
+    // Validate content length
+    if request.content.len() > MAX_CONTENT_LENGTH {
+        return Err(PinsError::ContentTooLong);
+    }
+
+    // Validate title length
+    if let Some(ref title) = request.title {
+        if title.len() > MAX_TITLE_LENGTH {
+            return Err(PinsError::TitleTooLong);
+        }
+    }
+
+    // Check pin count limit
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_pins WHERE user_id = $1")
+        .bind(auth_user.id)
+        .fetch_one(&state.db)
+        .await?;
+
+    if count.0 >= MAX_PINS_PER_USER {
+        return Err(PinsError::LimitExceeded);
+    }
+
+    // Get next position
+    let max_pos: (Option<i32>,) =
+        sqlx::query_as("SELECT MAX(position) FROM user_pins WHERE user_id = $1")
+            .bind(auth_user.id)
+            .fetch_one(&state.db)
+            .await?;
+
+    let next_position = max_pos.0.map(|v| v + 1).unwrap_or(0);
+
+    // Insert pin
+    let row = sqlx::query_as::<_, PinRow>(
+        r#"
+        INSERT INTO user_pins (user_id, pin_type, content, title, metadata, position)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, user_id, pin_type, content, title, metadata, created_at, position
+        "#,
+    )
+    .bind(auth_user.id)
+    .bind(request.pin_type.as_str())
+    .bind(&request.content)
+    .bind(&request.title)
+    .bind(&request.metadata)
+    .bind(next_position)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(Pin::from(row)))
 }

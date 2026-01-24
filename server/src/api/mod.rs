@@ -103,6 +103,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/voice", voice::router())
         .nest("/api/me/connection", connectivity::router())
         .nest("/api/me/preferences", preferences::router())
+        .route("/api/me/pins", get(pins::list_pins).post(pins::create_pin))
         .nest("/api/keys", crypto::router())
         .nest("/api/users/{user_id}/keys", crypto::user_keys_router())
         .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
