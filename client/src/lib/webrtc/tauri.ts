@@ -55,6 +55,13 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   async leave(): Promise<VoiceResult<void>> {
     console.log("[TauriVoiceAdapter] Leaving voice");
 
+    // Clean up screen share if active
+    if (this.screenShareStream) {
+      this.screenShareStream.getTracks().forEach(track => track.stop());
+      this.screenShareStream = null;
+      this.screenSharing = false;
+    }
+
     try {
       await invoke("leave_voice");
       this.channelId = null;
@@ -391,6 +398,14 @@ export class TauriVoiceAdapter implements VoiceAdapter {
 
   dispose(): void {
     console.log("[TauriVoiceAdapter] Disposing");
+
+    // Clean up screen share if active
+    if (this.screenShareStream) {
+      this.screenShareStream.getTracks().forEach(track => track.stop());
+      this.screenShareStream = null;
+      this.screenSharing = false;
+    }
+
     this.unlisteners.forEach((unlisten) => unlisten());
     this.unlisteners = [];
   }

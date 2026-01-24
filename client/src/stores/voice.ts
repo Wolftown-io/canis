@@ -397,6 +397,11 @@ export async function joinVoice(channelId: string): Promise<void> {
         }
       });
     },
+    onScreenShareStopped: (_userId, reason) => {
+      console.log("[Voice] Screen share stopped:", reason);
+      // Sync local state when screen share is stopped (e.g., via system UI)
+      setVoiceState({ screenSharing: false });
+    },
   });
 
   const result = await adapter.join(channelId);
