@@ -125,7 +125,9 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
 export async function loadFavorites(): Promise<void> {
   setIsLoading(true);
   try {
-    const data = await apiCall<FavoriteChannel[]>("/api/me/favorites");
+    const response = await apiCall<FavoriteChannel[] | { favorites: FavoriteChannel[] }>("/api/me/favorites");
+    // Handle both shapes: Tauri returns array directly, browser returns { favorites: [...] }
+    const data = Array.isArray(response) ? response : response.favorites;
     setFavorites(data);
   } catch (error) {
     console.error("Failed to load favorites:", error);
@@ -163,8 +165,9 @@ export async function addFavorite(
     ]);
     return true;
   } catch (error) {
-    console.error("Failed to add favorite:", error);
-    return false;
+    const message = error instanceof Error ? error.message : "Failed to add favorite";
+    console.error("Failed to add favorite:", message);
+    throw new Error(message);
   }
 }
 
@@ -174,8 +177,9 @@ export async function removeFavorite(channelId: string): Promise<boolean> {
     setFavorites((prev) => prev.filter((f) => f.channel_id !== channelId));
     return true;
   } catch (error) {
-    console.error("Failed to remove favorite:", error);
-    return false;
+    const message = error instanceof Error ? error.message : "Failed to remove favorite";
+    console.error("Failed to remove favorite:", message);
+    throw new Error(message);
   }
 }
 
@@ -187,10 +191,17 @@ export async function toggleFavorite(
   channelName: string,
   channelType: "text" | "voice"
 ): Promise<boolean> {
-  if (isFavorited(channelId)) {
-    return removeFavorite(channelId);
+  try {
+    if (isFavorited(channelId)) {
+      await removeFavorite(channelId);
+    } else {
+      await addFavorite(channelId, guildId, guildName, guildIcon, channelName, channelType);
+    }
+    return true;
+  } catch {
+    // Error already logged in add/remove
+    return false;
   }
-  return addFavorite(channelId, guildId, guildName, guildIcon, channelName, channelType);
 }
 
 export async function reorderChannels(guildId: string, channelIds: string[]): Promise<boolean> {
