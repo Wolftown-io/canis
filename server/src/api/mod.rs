@@ -2,6 +2,7 @@
 //!
 //! Central routing configuration and shared state.
 
+pub mod pins;
 pub mod preferences;
 mod settings;
 
