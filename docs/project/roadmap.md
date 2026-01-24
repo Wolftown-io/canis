@@ -14,7 +14,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
 | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
 | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
-| **Phase 4** | 🔄 In Progress | 50% | E2EE Key Backup (PR #22, #29), User Connectivity Monitor (PR #23), E2EE DM Messaging (PR #41) |
+| **Phase 4** | 🔄 In Progress | 80% | E2EE Key Backup + DM Messaging, User Connectivity Monitor, Rich Presence, Sound Pack, Cross-Server Favorites |
 | **Phase 5** | 📋 Planned | 0% | - |
 
 **Production Ready Features:**
@@ -31,6 +31,7 @@ This roadmap outlines the development path from the current prototype to a produ
 - ✅ DM voice calls with join/decline flow
 - ✅ Admin dashboard with user/guild management
 - ✅ User connection quality monitoring with history
+- ✅ Cross-server channel favorites with star toggle
 
 ---
 
@@ -228,8 +229,12 @@ This roadmap outlines the development path from the current prototype to a produ
   - Pending module for friend requests
   - Pins module for notes, links, and bookmarks
   - **Design:** `docs/plans/2026-01-24-modular-home-sidebar-design.md`
-- [ ] **[UX] Cross-Server Favorites**
-  - Allow pinning channels from different guilds into a single "Favorites" list.
+- [x] **[UX] Cross-Server Favorites** ✅ (PR #45)
+  - Pin channels from different guilds into unified Favorites section
+  - Star icon on channels to toggle favorites (appears on hover, filled when favorited)
+  - Expandable Favorites section in Sidebar grouped by guild
+  - Maximum 25 favorites per user with automatic cleanup
+  - **Design:** `docs/plans/2026-01-24-cross-server-favorites-design.md`
 - [ ] **[Auth] SSO / OIDC Integration**
   - Enable "Login with Google/Microsoft" via `openidconnect`.
 - [ ] **[Voice] Screen Sharing**
@@ -264,6 +269,7 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Recent Changes
 
 ### 2026-01-24
+- Added Cross-Server Favorites (PR #45) - Pin channels from different guilds, star icon toggle, grouped Favorites section.
 - Added Modular Home Sidebar - Collapsible modules (Active Now, Pending, Pins) in Home right panel with server-synced preferences.
 
 ### 2026-01-23
