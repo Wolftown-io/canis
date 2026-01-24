@@ -23,6 +23,13 @@ const ChannelList: Component = () => {
   const [createModalType, setCreateModalType] = createSignal<"text" | "voice">("text");
   const [settingsChannelId, setSettingsChannelId] = createSignal<string | null>(null);
 
+  // Get active guild for favorites
+  const activeGuild = () => {
+    const guildId = guildsState.activeGuildId;
+    if (!guildId) return null;
+    return guildsState.guilds.find((g) => g.id === guildId) ?? null;
+  };
+
   // Check if current user can manage channels
   const canManageChannels = () => {
     const guildId = guildsState.activeGuildId;
@@ -86,6 +93,9 @@ const ChannelList: Component = () => {
                 isSelected={channelsState.selectedChannelId === channel.id}
                 onClick={() => selectChannel(channel.id)}
                 onSettings={canManageChannels() ? () => setSettingsChannelId(channel.id) : undefined}
+                guildId={activeGuild()?.id}
+                guildName={activeGuild()?.name}
+                guildIcon={activeGuild()?.icon_url}
               />
             )}
           </For>
@@ -130,6 +140,9 @@ const ChannelList: Component = () => {
                   isSelected={false}
                   onClick={() => handleVoiceChannelClick(channel.id)}
                   onSettings={canManageChannels() ? () => setSettingsChannelId(channel.id) : undefined}
+                  guildId={activeGuild()?.id}
+                  guildName={activeGuild()?.name}
+                  guildIcon={activeGuild()?.icon_url}
                 />
                 <VoiceParticipants channelId={channel.id} />
               </div>

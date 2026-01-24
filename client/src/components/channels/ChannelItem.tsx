@@ -10,11 +10,12 @@
  */
 
 import { Component, Show, createSignal, createMemo } from "solid-js";
-import { Hash, Volume2, Settings, BellOff } from "lucide-solid";
+import { Hash, Volume2, Settings, BellOff, Star } from "lucide-solid";
 import type { Channel } from "@/lib/types";
 import { isInChannel, getParticipants, voiceState } from "@/stores/voice";
 import { authState } from "@/stores/auth";
 import { isChannelMuted } from "@/stores/sound";
+import { isFavorited, toggleFavorite } from "@/stores/favorites";
 
 interface ChannelItemProps {
   channel: Channel;
@@ -22,6 +23,10 @@ interface ChannelItemProps {
   onClick: () => void;
   /** Callback when settings button is clicked (only shown if provided) */
   onSettings?: () => void;
+  /** Guild info for favorites feature */
+  guildId?: string;
+  guildName?: string;
+  guildIcon?: string | null;
 }
 
 const ChannelItem: Component<ChannelItemProps> = (props) => {
@@ -110,6 +115,34 @@ const ChannelItem: Component<ChannelItemProps> = (props) => {
         <span title="Notifications muted" class="shrink-0">
           <BellOff class="w-3.5 h-3.5 text-text-muted" />
         </span>
+      </Show>
+
+      {/* Favorite star - shown on hover or when favorited */}
+      <Show when={props.guildId && props.guildName}>
+        <button
+          class="p-0.5 rounded transition-all duration-200 shrink-0"
+          classList={{
+            "text-yellow-400": isFavorited(props.channel.id),
+            "text-text-secondary hover:text-yellow-400 opacity-0 group-hover:opacity-100": !isFavorited(props.channel.id),
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFavorite(
+              props.channel.id,
+              props.guildId!,
+              props.guildName!,
+              props.guildIcon ?? null,
+              props.channel.name,
+              props.channel.channel_type as "text" | "voice"
+            );
+          }}
+          title={isFavorited(props.channel.id) ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Star
+            class="w-3.5 h-3.5"
+            fill={isFavorited(props.channel.id) ? "currentColor" : "none"}
+          />
+        </button>
       </Show>
 
       {/* Participant count for voice channels - always show when there are participants */}
