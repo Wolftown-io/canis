@@ -2,10 +2,19 @@
  * Presence Store
  *
  * Tracks user online status and presence information.
+ * Includes idle detection to automatically set user status to 'idle' after inactivity.
  */
 
 import { createStore, produce } from "solid-js/store";
 import type { Activity, UserPresence, UserStatus } from "@/lib/types";
+import {
+  startIdleDetection,
+  stopIdleDetection,
+  setIdleTimeout,
+} from "@/lib/idleDetector";
+import { updateStatus } from "@/lib/tauri";
+import { preferences } from "./preferences";
+import { currentUser } from "./auth";
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -160,6 +169,100 @@ export function isUserOnline(userId: string): boolean {
  */
 export function clearPresence(): void {
   setPresenceState({ users: {} });
+}
+
+// ============================================================================
+// Idle Detection Integration
+// ============================================================================
+
+// Track the user's status before going idle (to restore on activity)
+let previousStatus: UserStatus = "online";
+
+// Track if user manually set idle or dnd (don't auto-restore in that case)
+let wasManuallySetIdle = false;
+
+/**
+ * Set the current user's presence status.
+ * Updates both server and local state.
+ */
+export async function setMyStatus(status: UserStatus): Promise<void> {
+  const user = currentUser();
+  if (!user) return;
+
+  try {
+    await updateStatus(status);
+    updateUserPresence(user.id, status);
+  } catch (e) {
+    console.error("[Presence] Failed to update status:", e);
+  }
+}
+
+/**
+ * Get the current user's status.
+ */
+export function getMyStatus(): UserStatus {
+  const user = currentUser();
+  if (!user) return "offline";
+  return getUserStatus(user.id);
+}
+
+/**
+ * Initialize idle detection.
+ * Automatically sets user to 'idle' after configured timeout of inactivity.
+ * Restores previous status when user becomes active again.
+ */
+export function initIdleDetection(): void {
+  const timeout = preferences().display?.idleTimeoutMinutes ?? 5;
+
+  startIdleDetection((isIdle) => {
+    const currentStatus = getMyStatus();
+
+    if (isIdle && currentStatus === "online") {
+      // User went idle while online - save status and switch to idle
+      previousStatus = "online";
+      wasManuallySetIdle = false;
+      setMyStatus("idle");
+      console.log("[Presence] User went idle, setting status to idle");
+    } else if (!isIdle && currentStatus === "idle" && !wasManuallySetIdle) {
+      // User became active while auto-idle - restore previous status
+      setMyStatus(previousStatus);
+      console.log("[Presence] User became active, restoring status to", previousStatus);
+    }
+  }, timeout);
+
+  console.log("[Presence] Idle detection initialized with", timeout, "minute timeout");
+}
+
+/**
+ * Stop idle detection and clean up.
+ */
+export function stopIdleDetectionCleanup(): void {
+  stopIdleDetection();
+  console.log("[Presence] Idle detection stopped");
+}
+
+/**
+ * Update the idle timeout from preferences.
+ * Called when user changes the idle timeout setting.
+ */
+export function updateIdleTimeout(minutes: number): void {
+  setIdleTimeout(minutes);
+  console.log("[Presence] Idle timeout updated to", minutes, "minutes");
+}
+
+/**
+ * Mark that the user manually set their status.
+ * Prevents auto-restore when user becomes active.
+ * Call this when user explicitly changes their status via UI.
+ */
+export function markManualStatusChange(status: UserStatus): void {
+  if (status === "idle" || status === "dnd" || status === "invisible") {
+    wasManuallySetIdle = true;
+  } else if (status === "online") {
+    // User manually set online, clear the manual flag
+    wasManuallySetIdle = false;
+    previousStatus = "online";
+  }
 }
 
 // Export the store for reading
