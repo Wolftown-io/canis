@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use sqlx::{PgPool, Row};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 use fred::clients::RedisClient;
@@ -232,22 +232,55 @@ async fn handle_leave(
         let connected_at = peer.connected_at;
 
         tokio::spawn(async move {
-            if let Err(e) = finalize_session(
-                &pool_clone,
-                user_id,
-                session_id,
-                channel_id,
-                guild_id,
-                connected_at,
-            )
-            .await
-            {
-                warn!(
-                    user_id = %user_id,
-                    session_id = %session_id,
-                    "Failed to finalize session: {}",
-                    e
-                );
+            // Retry with exponential backoff (3 attempts: 100ms, 200ms, 400ms)
+            const MAX_RETRIES: u32 = 3;
+            let mut delay = std::time::Duration::from_millis(100);
+
+            for attempt in 1..=MAX_RETRIES {
+                match finalize_session(
+                    &pool_clone,
+                    user_id,
+                    session_id,
+                    channel_id,
+                    guild_id,
+                    connected_at,
+                )
+                .await
+                {
+                    Ok(()) => {
+                        if attempt > 1 {
+                            info!(
+                                user_id = %user_id,
+                                session_id = %session_id,
+                                attempt = attempt,
+                                "Session finalized after retry"
+                            );
+                        }
+                        return;
+                    }
+                    Err(e) if attempt < MAX_RETRIES => {
+                        warn!(
+                            user_id = %user_id,
+                            session_id = %session_id,
+                            attempt = attempt,
+                            error = %e,
+                            "Failed to finalize session, retrying in {:?}",
+                            delay
+                        );
+                        tokio::time::sleep(delay).await;
+                        delay *= 2; // Exponential backoff
+                    }
+                    Err(e) => {
+                        error!(
+                            user_id = %user_id,
+                            session_id = %session_id,
+                            "Failed to finalize session after {} attempts: {}",
+                            MAX_RETRIES,
+                            e
+                        );
+                        // Session data is lost - this should trigger an alert in production
+                    }
+                }
             }
         });
 
