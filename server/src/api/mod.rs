@@ -12,6 +12,7 @@ use axum::{
     extract::DefaultBodyLimit, extract::State, middleware::from_fn, middleware::from_fn_with_state,
     routing::{delete, get, post, put}, Json, Router,
 };
+use fred::interfaces::ClientLike;
 use serde::Serialize;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -165,16 +166,41 @@ pub fn create_router(state: AppState) -> Router {
 /// Health check response.
 #[derive(Serialize)]
 struct HealthResponse {
-    /// Service status
+    /// Overall service status ("ok" or "degraded")
     status: &'static str,
+    /// Database connectivity status
+    database: bool,
+    /// Redis connectivity status
+    redis: bool,
     /// Whether rate limiting is enabled
     rate_limiting: bool,
 }
 
 /// Health check endpoint.
+///
+/// Verifies connectivity to critical dependencies (database, Redis).
+/// Returns "degraded" status if any dependency is unavailable.
 async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
+    // Check database connectivity
+    let db_ok = sqlx::query("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+        .is_ok();
+
+    // Check Redis connectivity
+    let redis_ok = state
+        .redis
+        .ping::<String>()
+        .await
+        .is_ok();
+
+    // Determine overall status
+    let status = if db_ok && redis_ok { "ok" } else { "degraded" };
+
     Json(HealthResponse {
-        status: "ok",
+        status,
+        database: db_ok,
+        redis: redis_ok,
         rate_limiting: state.rate_limiter.is_some(),
     })
 }
