@@ -6,7 +6,28 @@
 
 // User Types
 
-export type UserStatus = "online" | "away" | "busy" | "offline";
+export type UserStatus = "online" | "idle" | "dnd" | "invisible" | "offline";
+
+// Quality and Status Indicator Types (for accessibility shapes)
+
+export type QualityLevel = "good" | "warning" | "poor" | "unknown";
+
+export type StatusShape = "circle" | "triangle" | "hexagon" | "empty-circle";
+
+export const STATUS_SHAPES: Record<QualityLevel, StatusShape> = {
+  good: "circle",
+  warning: "triangle",
+  poor: "hexagon",
+  unknown: "empty-circle",
+};
+
+export const STATUS_COLORS = {
+  good: "#23a55a",
+  warning: "#f0b232",
+  poor: "#f23f43",
+  unknown: "#80848e",
+  streaming: "#593695",
+} as const;
 
 /** Type of activity the user is engaged in. */
 export type ActivityType = "game" | "listening" | "watching" | "coding" | "custom";
@@ -23,10 +44,22 @@ export interface Activity {
   details?: string;
 }
 
+/** Custom status set by the user. */
+export interface CustomStatus {
+  /** Display text for the custom status. */
+  text: string;
+  /** Optional emoji to show with the status. */
+  emoji?: string;
+  /** ISO timestamp when the custom status expires. */
+  expiresAt?: string;
+}
+
 /** Extended presence data with activity. */
 export interface UserPresence {
   /** Current user status. */
   status: UserStatus;
+  /** Custom status set by the user, if any. */
+  customStatus?: CustomStatus | null;
   /** Current activity, if any. */
   activity?: Activity | null;
   /** ISO timestamp of when the user was last seen (for offline users). */
@@ -132,6 +165,23 @@ export interface Attachment {
   url: string;
 }
 
+export interface Reaction {
+  emoji: string;
+  count: number;
+  users: string[];  // User IDs (for tooltip)
+  me: boolean;      // Did current user react
+}
+
+export interface GuildEmoji {
+  id: string;
+  name: string;
+  guildId: string;
+  imageUrl: string;
+  animated: boolean;
+  uploadedBy: string;
+  createdAt: string;
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -143,6 +193,7 @@ export interface Message {
   edited_at: string | null;
   created_at: string;
   mention_type: "direct" | "everyone" | "here" | null;
+  reactions?: Reaction[];
 }
 
 // Voice Types
@@ -278,7 +329,10 @@ export type ServerEvent =
   // DM read sync event
   | { type: "dm_read"; channel_id: string }
   // Preferences events
-  | { type: "preferences_updated"; preferences: Partial<UserPreferences>; updated_at: string };
+  | { type: "preferences_updated"; preferences: Partial<UserPreferences>; updated_at: string }
+  // Reaction events
+  | { type: "reaction_add"; channel_id: string; message_id: string; user_id: string; emoji: string }
+  | { type: "reaction_remove"; channel_id: string; message_id: string; user_id: string; emoji: string };
 
 // Settings Types
 
@@ -304,6 +358,28 @@ export interface AppSettings {
   theme: "dark" | "light";
   notifications_enabled: boolean;
 }
+
+// Display Preferences Types
+export type DisplayMode = "dense" | "minimal" | "discord";
+export type ReactionStyle = "bar" | "compact";
+
+export interface DisplayPreferences {
+  /** How status indicators are displayed (dense=full info, minimal=compact, discord=Discord-style) */
+  indicatorMode: DisplayMode;
+  /** Whether to show latency numbers on voice indicators */
+  showLatencyNumbers: boolean;
+  /** How reactions are displayed on messages */
+  reactionStyle: ReactionStyle;
+  /** Minutes of inactivity before user is marked as idle */
+  idleTimeoutMinutes: number;
+}
+
+export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
+  indicatorMode: "dense",
+  showLatencyNumbers: true,
+  reactionStyle: "bar",
+  idleTimeoutMinutes: 5,
+};
 
 // User Preferences (synced across devices)
 export interface UserPreferences {
@@ -339,6 +415,9 @@ export interface UserPreferences {
       pins: boolean;
     };
   };
+
+  // Display preferences for UI customization
+  display: DisplayPreferences;
 }
 
 export interface PreferencesResponse {

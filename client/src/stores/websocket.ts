@@ -8,7 +8,7 @@ import { createStore } from "solid-js/store";
 import * as tauri from "@/lib/tauri";
 import type { Activity, Message, ServerEvent, UserStatus } from "@/lib/types";
 import { updateUserActivity } from "./presence";
-import { addMessage, removeMessage } from "./messages";
+import { addMessage, removeMessage, messagesState, setMessagesState } from "./messages";
 import { handlePreferencesUpdated } from "./preferences";
 import {
   receiveIncomingCall,
@@ -469,6 +469,15 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       handlePreferencesUpdated(event);
       break;
 
+    // Reaction events
+    case "reaction_add":
+      handleReactionAdd(event.channel_id, event.message_id, event.user_id, event.emoji);
+      break;
+
+    case "reaction_remove":
+      handleReactionRemove(event.channel_id, event.message_id, event.user_id, event.emoji);
+      break;
+
     default:
       console.log("Unhandled server event:", event.type);
   }
@@ -908,6 +917,89 @@ async function handleAdminGuildSuspended(guildId: string, guildName: string): Pr
 async function handleAdminGuildUnsuspended(guildId: string, guildName: string): Promise<void> {
   const { handleGuildUnsuspendedEvent } = await import("@/stores/admin");
   handleGuildUnsuspendedEvent(guildId, guildName);
+}
+
+// Reaction event handlers
+
+function handleReactionAdd(channelId: string, messageId: string, userId: string, emoji: string): void {
+  const messages = messagesState.byChannel[channelId];
+  if (!messages) return;
+
+  const messageIndex = messages.findIndex((m) => m.id === messageId);
+  if (messageIndex === -1) return;
+
+  const message = messages[messageIndex];
+  const reactions = message.reactions ? [...message.reactions] : [];
+
+  // Find existing reaction for this emoji
+  const reactionIndex = reactions.findIndex((r) => r.emoji === emoji);
+
+  if (reactionIndex !== -1) {
+    // Update existing reaction
+    const reaction = { ...reactions[reactionIndex] };
+    if (!reaction.users.includes(userId)) {
+      reaction.users = [...reaction.users, userId];
+      reaction.count = reaction.users.length;
+      // Check if it's the current user
+      const user = currentUser();
+      if (user && userId === user.id) {
+        reaction.me = true;
+      }
+      reactions[reactionIndex] = reaction;
+    }
+  } else {
+    // Add new reaction
+    const user = currentUser();
+    reactions.push({
+      emoji,
+      count: 1,
+      users: [userId],
+      me: user ? userId === user.id : false,
+    });
+  }
+
+  // Update the message in the store
+  setMessagesState("byChannel", channelId, messageIndex, "reactions", reactions);
+}
+
+function handleReactionRemove(channelId: string, messageId: string, userId: string, emoji: string): void {
+  const messages = messagesState.byChannel[channelId];
+  if (!messages) return;
+
+  const messageIndex = messages.findIndex((m) => m.id === messageId);
+  if (messageIndex === -1) return;
+
+  const message = messages[messageIndex];
+  if (!message.reactions) return;
+
+  const reactions = [...message.reactions];
+  const reactionIndex = reactions.findIndex((r) => r.emoji === emoji);
+
+  if (reactionIndex === -1) return;
+
+  const reaction = { ...reactions[reactionIndex] };
+  const userIndex = reaction.users.indexOf(userId);
+
+  if (userIndex !== -1) {
+    reaction.users = reaction.users.filter((id) => id !== userId);
+    reaction.count = reaction.users.length;
+
+    // Check if it's the current user
+    const user = currentUser();
+    if (user && userId === user.id) {
+      reaction.me = false;
+    }
+
+    if (reaction.count === 0) {
+      // Remove the reaction entirely
+      reactions.splice(reactionIndex, 1);
+    } else {
+      reactions[reactionIndex] = reaction;
+    }
+
+    // Update the message in the store
+    setMessagesState("byChannel", channelId, messageIndex, "reactions", reactions.length > 0 ? reactions : undefined);
+  }
 }
 
 // Export stores for reading

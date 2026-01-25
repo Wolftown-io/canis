@@ -1,10 +1,11 @@
 /**
  * Emoji Store
  *
- * Manages emoji state including recents and search functionality.
+ * Manages emoji state including recents, guild emojis, and search functionality.
  */
 
 import { createStore } from "solid-js/store";
+import type { GuildEmoji } from "@/lib/types";
 
 // ============================================================================
 // Types
@@ -42,16 +43,22 @@ const RECENTS_STORAGE_KEY = "emoji_recents";
 interface EmojiState {
   /** Recently used emojis */
   recents: Emoji[];
+  /** Favorite emojis */
+  favorites: string[];
   /** Search query */
   searchQuery: string;
   /** Loading state */
   isLoading: boolean;
+  /** Guild custom emojis by guild ID */
+  guildEmojis: Record<string, GuildEmoji[]>;
 }
 
 const [emojiState, setEmojiState] = createStore<EmojiState>({
   recents: [],
+  favorites: [],
   searchQuery: "",
   isLoading: false,
+  guildEmojis: {},
 });
 
 // ============================================================================
@@ -141,6 +148,18 @@ export function addToRecents(emoji: Emoji): void {
 }
 
 /**
+ * Add an emoji string to recents (convenience function for simple emoji characters).
+ */
+export function addEmojiStringToRecents(emojiChar: string): void {
+  const emoji: Emoji = {
+    id: emojiChar,
+    name: emojiChar,
+    category: "recent",
+  };
+  addToRecents(emoji);
+}
+
+/**
  * Clear all recents.
  */
 export function clearRecents(): void {
@@ -171,6 +190,24 @@ export function setSearchQuery(query: string): void {
  */
 export function getSearchQuery(): string {
   return emojiState.searchQuery;
+}
+
+// ============================================================================
+// Guild Emojis
+// ============================================================================
+
+/**
+ * Set custom emojis for a guild.
+ */
+export function setGuildEmojis(guildId: string, emojis: GuildEmoji[]): void {
+  setEmojiState("guildEmojis", guildId, emojis);
+}
+
+/**
+ * Get custom emojis for a guild.
+ */
+export function getGuildEmojis(guildId: string): GuildEmoji[] {
+  return emojiState.guildEmojis[guildId] ?? [];
 }
 
 // ============================================================================

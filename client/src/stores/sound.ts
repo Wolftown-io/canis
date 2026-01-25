@@ -154,12 +154,12 @@ export function setQuietHoursTime(startTime: string, endTime: string): void {
 /**
  * Check if Do Not Disturb is active.
  * DND is active when:
- * - User status is "busy"
+ * - User status is "dnd"
  * - Quiet hours are currently active
  */
 export function isDndActive(): boolean {
   const user = currentUser();
-  if (user?.status === "busy") return true;
+  if (user?.status === "dnd") return true;
   return isInQuietHours();
 }
 

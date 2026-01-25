@@ -48,13 +48,13 @@ User avatar component with fallback initials and status indicator.
 Online status dot indicator.
 
 **Expected Props:**
-- `status: UserStatus` - "online" | "offline" | "away" | "dnd"
+- `status: UserStatus` - "online" | "idle" | "dnd" | "invisible" | "offline"
 - `size?: "sm" | "md" | "lg"` - Match avatar size
 
 **Visual Design:**
 - Absolute positioned (for avatar overlay)
 - Colored dot with border
-- Colors: green (online), gray (offline), yellow (away), red (dnd)
+- Colors: green (online), yellow (idle), red (dnd), gray (invisible/offline)
 
 ### CodeBlock.tsx
 Syntax-highlighted code block for messages.

@@ -384,10 +384,10 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   }
 
   private calculateQuality(latency: number, loss: number, jitter: number): QualityLevel {
-    if (latency > 350 || loss > 5 || jitter > 80) return 'red';
-    if (latency > 200 || loss > 3 || jitter > 50) return 'orange';
-    if (latency > 100 || loss > 1 || jitter > 30) return 'yellow';
-    return 'green';
+    // Semantic quality levels: good > warning > poor > unknown
+    if (latency > 200 || loss > 3 || jitter > 50) return 'poor';
+    if (latency > 100 || loss > 1 || jitter > 30) return 'warning';
+    return 'good';
   }
 
   async getConnectionMetrics(): Promise<ConnectionMetrics | null> {

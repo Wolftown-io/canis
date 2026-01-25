@@ -4,6 +4,8 @@
  * Defines the interface that both browser and Tauri voice implementations must follow.
  */
 
+import type { QualityLevel } from '../types';
+
 /**
  * Voice connection states
  */
@@ -124,10 +126,8 @@ export interface ScreenShareCheckResult {
   error?: "no_permission" | "limit_reached" | "not_in_channel";
 }
 
-/**
- * Connection quality level for visual indicators
- */
-export type QualityLevel = 'green' | 'yellow' | 'orange' | 'red';
+// Re-export QualityLevel from shared types for convenience
+export type { QualityLevel } from '../types';
 
 /**
  * Connection metrics from WebRTC stats

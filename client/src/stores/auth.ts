@@ -8,7 +8,7 @@ import { createStore } from "solid-js/store";
 import type { User } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import { initWebSocket, connect as wsConnect, disconnect as wsDisconnect, cleanupWebSocket } from "./websocket";
-import { initPresence, cleanupPresence } from "./presence";
+import { initPresence, cleanupPresence, initIdleDetection, stopIdleDetectionCleanup } from "./presence";
 import { initPreferences } from "./preferences";
 
 // Auth state interface
@@ -69,6 +69,9 @@ export async function initAuth(): Promise<void> {
         console.error("[Auth] Preferences initialization failed:", prefErr);
         // Continue even if preferences fail - non-critical
       }
+
+      // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+      initIdleDetection();
     }
   } catch (err) {
     console.error("Failed to restore session:", err);
@@ -118,6 +121,9 @@ export async function login(
       console.error("[Auth] Preferences initialization failed:", prefErr);
       // Continue even if preferences fail - non-critical
     }
+
+    // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+    initIdleDetection();
 
     return user;
   } catch (err) {
@@ -172,6 +178,9 @@ export async function register(
       // Continue even if preferences fail - non-critical
     }
 
+    // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+    initIdleDetection();
+
     return user;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -190,6 +199,7 @@ export async function logout(): Promise<void> {
   try {
     await wsDisconnect();
     await cleanupWebSocket();
+    stopIdleDetectionCleanup();
     cleanupPresence();
   } catch (err) {
     console.error("Error during cleanup:", err);

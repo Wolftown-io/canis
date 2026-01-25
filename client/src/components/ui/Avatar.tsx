@@ -76,7 +76,7 @@ const Avatar: Component<AvatarProps> = (props) => {
         />
       </Show>
       <Show when={props.showStatus && props.status}>
-        <StatusIndicator status={props.status!} size={size()} />
+        <StatusIndicator status={props.status!} size={size()} overlay />
       </Show>
     </div>
   );

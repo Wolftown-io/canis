@@ -457,5 +457,5 @@ export function isE2EEAvailable(): boolean {
   return e2eeStore.status().initialized;
 }
 
-// Export the store for reading
-export { messagesState };
+// Export the store for reading and writing (setMessagesState is used by websocket.ts for reaction updates)
+export { messagesState, setMessagesState };

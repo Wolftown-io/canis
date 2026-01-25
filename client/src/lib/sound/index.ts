@@ -103,7 +103,7 @@ export function cleanupSoundService(): void {
  * Handles eligibility checking, cooldown, and platform routing.
  */
 export async function playNotification(event: SoundEvent): Promise<void> {
-  // Quick exit: DND active (user status "busy" or quiet hours)
+  // Quick exit: DND active (user status "dnd" or quiet hours)
   if (isDndActive()) {
     console.log("[Sound] Suppressed by DND");
     return;

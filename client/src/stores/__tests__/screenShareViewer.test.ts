@@ -66,7 +66,7 @@ describe("screenShareViewer", () => {
 
       // Simulate track ending
       if (track.onended) {
-        track.onended();
+        track.onended(new Event("ended"));
       }
 
       expect(getAvailableSharers()).not.toContain("user1");

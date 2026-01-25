@@ -219,6 +219,28 @@ pub enum ServerEvent {
         /// Deleted message ID.
         message_id: Uuid,
     },
+    /// Reaction added to a message
+    ReactionAdd {
+        /// Channel containing the message.
+        channel_id: Uuid,
+        /// Message the reaction was added to.
+        message_id: Uuid,
+        /// User who added the reaction.
+        user_id: Uuid,
+        /// Emoji that was added.
+        emoji: String,
+    },
+    /// Reaction removed from a message
+    ReactionRemove {
+        /// Channel containing the message.
+        channel_id: Uuid,
+        /// Message the reaction was removed from.
+        message_id: Uuid,
+        /// User who removed the reaction.
+        user_id: Uuid,
+        /// Emoji that was removed.
+        emoji: String,
+    },
     /// User typing
     TypingStart {
         /// Channel user is typing in.

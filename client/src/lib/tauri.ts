@@ -261,9 +261,9 @@ export async function login(
 }
 
 /**
- * Update the user's presence status (online, away, busy, offline).
+ * Update the user's presence status (online, idle, dnd, invisible, offline).
  */
-export async function updateStatus(status: "online" | "away" | "busy" | "offline"): Promise<void> {
+export async function updateStatus(status: "online" | "idle" | "dnd" | "invisible" | "offline"): Promise<void> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("update_status", { status });
@@ -2340,5 +2340,48 @@ export async function uploadKeys(
         public_key: pk.public_key,
       })),
     }
+  );
+}
+
+// ============================================================================
+// Reaction Commands
+// ============================================================================
+
+/**
+ * Add a reaction to a message.
+ */
+export async function addReaction(
+  channelId: string,
+  messageId: string,
+  emoji: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("add_reaction", { channelId, messageId, emoji });
+  }
+
+  await httpRequest<void>(
+    "PUT",
+    `/api/channels/${channelId}/messages/${messageId}/reactions`,
+    { emoji }
+  );
+}
+
+/**
+ * Remove a reaction from a message.
+ */
+export async function removeReaction(
+  channelId: string,
+  messageId: string,
+  emoji: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("remove_reaction", { channelId, messageId, emoji });
+  }
+
+  await httpRequest<void>(
+    "DELETE",
+    `/api/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`
   );
 }

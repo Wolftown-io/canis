@@ -1,22 +1,26 @@
 import { Component, For, Show } from "solid-js";
 import { UserStatus } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
+import { markManualStatusChange } from "@/stores/presence";
+import StatusIndicator from "./StatusIndicator";
 
 interface StatusPickerProps {
   currentStatus: UserStatus;
   onClose: () => void;
+  onCustomStatusClick?: () => void;
 }
 
-const STATUS_OPTIONS: { value: UserStatus; label: string; color: string }[] = [
-  { value: "online", label: "Online", color: "bg-green-500" },
-  { value: "away", label: "Away", color: "bg-yellow-500" },
-  { value: "busy", label: "Do Not Disturb", color: "bg-red-500" },
-  { value: "offline", label: "Invisible", color: "bg-gray-500" },
+const STATUS_OPTIONS: { value: UserStatus; label: string }[] = [
+  { value: "online", label: "Online" },
+  { value: "idle", label: "Idle" },
+  { value: "dnd", label: "Do Not Disturb" },
+  { value: "invisible", label: "Invisible" },
 ];
 
 const StatusPicker: Component<StatusPickerProps> = (props) => {
   const handleSelect = async (status: UserStatus) => {
     try {
+      markManualStatusChange(status);
       await tauri.updateStatus(status);
       props.onClose();
     } catch (err) {
@@ -36,7 +40,9 @@ const StatusPicker: Component<StatusPickerProps> = (props) => {
               onClick={() => handleSelect(option.value)}
               class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-left group"
             >
-              <div class={`w-3 h-3 rounded-full ${option.color} group-hover:scale-110 transition-transform`} />
+              <div class="group-hover:scale-110 transition-transform">
+                <StatusIndicator status={option.value} size="sm" />
+              </div>
               <span class="text-sm font-medium text-text-primary">
                 {option.label}
               </span>
@@ -46,6 +52,20 @@ const StatusPicker: Component<StatusPickerProps> = (props) => {
             </button>
           )}
         </For>
+        <Show when={props.onCustomStatusClick}>
+          <div class="border-t border-white/10 mt-2 pt-2">
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:bg-white/5 transition-colors"
+              onClick={() => {
+                props.onCustomStatusClick?.();
+                props.onClose();
+              }}
+            >
+              <span>💬</span>
+              <span>Set Custom Status...</span>
+            </button>
+          </div>
+        </Show>
       </div>
     </div>
   );

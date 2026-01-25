@@ -1,27 +1,30 @@
 import { Component } from 'solid-js';
-import type { ConnectionMetrics, QualityLevel } from '../../lib/webrtc/types';
+import type { ConnectionMetrics } from '../../lib/webrtc/types';
+import type { QualityLevel } from '../../lib/types';
 
 interface QualityTooltipProps {
   metrics: ConnectionMetrics;
 }
 
+// Map semantic quality levels to user-friendly labels
 const qualityLabels: Record<QualityLevel, string> = {
-  green: 'Excellent',
-  yellow: 'Good',
-  orange: 'Fair',
-  red: 'Poor',
+  good: 'Excellent',
+  warning: 'Fair',
+  poor: 'Poor',
+  unknown: 'Unknown',
 };
 
+// Thresholds for individual metric status (uses warning/poor levels)
 const thresholds = {
-  latency: { yellow: 100, orange: 200, red: 350 },
-  packetLoss: { yellow: 1, orange: 3, red: 5 },
-  jitter: { yellow: 30, orange: 50, red: 80 },
+  latency: { warning: 100, poor: 200 },
+  packetLoss: { warning: 1, poor: 3 },
+  jitter: { warning: 30, poor: 50 },
 };
 
 function getMetricStatus(value: number, metric: keyof typeof thresholds): 'ok' | 'warning' | 'critical' {
   const t = thresholds[metric];
-  if (value >= t.red) return 'critical';
-  if (value >= t.orange) return 'warning';
+  if (value >= t.poor) return 'critical';
+  if (value >= t.warning) return 'warning';
   return 'ok';
 }
 

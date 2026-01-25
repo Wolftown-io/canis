@@ -11,16 +11,34 @@ import { Component, Show, createSignal, onMount } from "solid-js";
 import { Settings, Shield } from "lucide-solid";
 import { authState } from "@/stores/auth";
 import { adminState, checkAdminStatus } from "@/stores/admin";
+import { getUserPresence } from "@/stores/presence";
 import Avatar from "@/components/ui/Avatar";
 import StatusPicker from "@/components/ui/StatusPicker";
+import CustomStatusModal from "@/components/ui/CustomStatusModal";
 import { SettingsModal } from "@/components/settings";
 import { AdminQuickModal } from "@/components/admin";
+import type { CustomStatus } from "@/lib/types";
 
 const UserPanel: Component = () => {
   const user = () => authState.user;
   const [showSettings, setShowSettings] = createSignal(false);
   const [showAdmin, setShowAdmin] = createSignal(false);
   const [showStatusPicker, setShowStatusPicker] = createSignal(false);
+  const [showCustomStatusModal, setShowCustomStatusModal] = createSignal(false);
+
+  // Get current custom status from presence store
+  const currentCustomStatus = () => {
+    const userId = user()?.id;
+    if (!userId) return null;
+    return getUserPresence(userId)?.customStatus ?? null;
+  };
+
+  const handleCustomStatusSave = async (status: CustomStatus | null) => {
+    // TODO: Implement custom status update via tauri/API when backend supports it
+    console.log("Custom status save:", status);
+    // For now, just close the modal - actual saving will be implemented
+    // when the backend endpoint is ready
+  };
 
   onMount(() => {
     checkAdminStatus();
@@ -34,9 +52,10 @@ const UserPanel: Component = () => {
             class="fixed inset-0 z-40 cursor-default" 
             onClick={() => setShowStatusPicker(false)} 
           />
-          <StatusPicker 
-            currentStatus={user()?.status || "online"} 
-            onClose={() => setShowStatusPicker(false)} 
+          <StatusPicker
+            currentStatus={user()?.status || "online"}
+            onClose={() => setShowStatusPicker(false)}
+            onCustomStatusClick={() => setShowCustomStatusModal(true)}
           />
         </Show>
 
@@ -98,6 +117,15 @@ const UserPanel: Component = () => {
       {/* Admin Quick Modal */}
       <Show when={showAdmin()}>
         <AdminQuickModal onClose={() => setShowAdmin(false)} />
+      </Show>
+
+      {/* Custom Status Modal */}
+      <Show when={showCustomStatusModal()}>
+        <CustomStatusModal
+          currentStatus={currentCustomStatus()}
+          onSave={handleCustomStatusSave}
+          onClose={() => setShowCustomStatusModal(false)}
+        />
       </Show>
     </>
   );

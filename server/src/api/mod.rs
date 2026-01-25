@@ -5,6 +5,7 @@
 pub mod favorites;
 pub mod pins;
 pub mod preferences;
+pub mod reactions;
 mod settings;
 
 use axum::{
@@ -113,6 +114,15 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/me/favorites/{channel_id}", post(favorites::add_favorite).delete(favorites::remove_favorite))
         .nest("/api/keys", crypto::router())
         .nest("/api/users/{user_id}/keys", crypto::user_keys_router())
+        // Message reactions
+        .route(
+            "/api/channels/{channel_id}/messages/{message_id}/reactions",
+            get(reactions::get_reactions).put(reactions::add_reaction),
+        )
+        .route(
+            "/api/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
+            delete(reactions::remove_reaction),
+        )
         .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
         .layer(from_fn(with_category(RateLimitCategory::Write)));
 
