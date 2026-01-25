@@ -75,10 +75,10 @@ pub enum AuthError {
 /// Error response body for JSON responses.
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
-    /// Human-readable error message.
-    pub error: String,
     /// Machine-readable error code.
-    pub code: String,
+    pub error: String,
+    /// Human-readable error message.
+    pub message: String,
 }
 
 impl IntoResponse for AuthError {
@@ -102,8 +102,8 @@ impl IntoResponse for AuthError {
         };
 
         let body = Json(ErrorResponse {
-            error: self.to_string(),
-            code: code.to_string(),
+            error: code.to_string(),
+            message: self.to_string(),
         });
 
         (status, body).into_response()
