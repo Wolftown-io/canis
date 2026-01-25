@@ -52,29 +52,14 @@ pub enum GuildError {
 
 impl IntoResponse for GuildError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            Self::NotFound => (StatusCode::NOT_FOUND, "Guild not found"),
-            Self::Forbidden => (StatusCode::FORBIDDEN, "Access denied"),
-            Self::Permission(e) => {
-                return (
-                    StatusCode::FORBIDDEN,
-                    Json(serde_json::json!({
-                        "error": "permission",
-                        "message": e.to_string()
-                    })),
-                )
-                    .into_response()
-            }
-            Self::Validation(msg) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({ "error": msg })),
-                )
-                    .into_response()
-            }
-            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error"),
+        let (status, code, message) = match &self {
+            Self::NotFound => (StatusCode::NOT_FOUND, "GUILD_NOT_FOUND", "Guild not found".to_string()),
+            Self::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", "Access denied".to_string()),
+            Self::Permission(e) => (StatusCode::FORBIDDEN, "PERMISSION_DENIED", e.to_string()),
+            Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
+            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Database error".to_string()),
         };
-        (status, Json(serde_json::json!({ "error": message }))).into_response()
+        (status, Json(serde_json::json!({ "error": code, "message": message }))).into_response()
     }
 }
 

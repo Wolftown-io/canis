@@ -32,17 +32,18 @@ impl IntoResponse for PreferencesError {
     fn into_response(self) -> Response {
         use serde_json::json;
 
-        let (status, message) = match self {
+        let (status, code, message) = match &self {
             Self::Database(err) => {
                 tracing::error!("Database error: {}", err);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
                     "Database error".to_string(),
                 )
             }
         };
 
-        (status, Json(json!({ "error": message }))).into_response()
+        (status, Json(json!({ "error": code, "message": message }))).into_response()
     }
 }
 

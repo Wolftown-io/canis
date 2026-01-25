@@ -35,20 +35,14 @@ pub enum MessageError {
 
 impl IntoResponse for MessageError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            Self::NotFound => (StatusCode::NOT_FOUND, "Message not found"),
-            Self::ChannelNotFound => (StatusCode::NOT_FOUND, "Channel not found"),
-            Self::Forbidden => (StatusCode::FORBIDDEN, "Access denied"),
-            Self::Validation(msg) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({ "error": msg })),
-                )
-                    .into_response()
-            }
-            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error"),
+        let (status, code, message) = match &self {
+            Self::NotFound => (StatusCode::NOT_FOUND, "MESSAGE_NOT_FOUND", "Message not found".to_string()),
+            Self::ChannelNotFound => (StatusCode::NOT_FOUND, "CHANNEL_NOT_FOUND", "Channel not found".to_string()),
+            Self::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", "Access denied".to_string()),
+            Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
+            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Database error".to_string()),
         };
-        (status, Json(serde_json::json!({ "error": message }))).into_response()
+        (status, Json(serde_json::json!({ "error": code, "message": message }))).into_response()
     }
 }
 

@@ -124,8 +124,8 @@ impl IntoResponse for UploadError {
         };
 
         let body = Json(serde_json::json!({
-            "error": message,
-            "code": code,
+            "error": code,
+            "message": message,
         }));
 
         (status, body).into_response()

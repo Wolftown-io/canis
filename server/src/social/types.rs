@@ -79,23 +79,24 @@ impl axum::response::IntoResponse for SocialError {
         use axum::Json;
         use serde_json::json;
 
-        let (status, message) = match self {
+        let (status, code, message) = match &self {
             Self::Database(err) => {
                 tracing::error!("Database error: {}", err);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
                     "Database error".to_string(),
                 )
             }
-            Self::UserNotFound => (StatusCode::NOT_FOUND, self.to_string()),
-            Self::SelfFriendRequest => (StatusCode::BAD_REQUEST, self.to_string()),
-            Self::AlreadyExists => (StatusCode::CONFLICT, self.to_string()),
-            Self::Blocked => (StatusCode::FORBIDDEN, self.to_string()),
-            Self::FriendshipNotFound => (StatusCode::NOT_FOUND, self.to_string()),
-            Self::Unauthorized => (StatusCode::FORBIDDEN, self.to_string()),
-            Self::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
+            Self::UserNotFound => (StatusCode::NOT_FOUND, "USER_NOT_FOUND", self.to_string()),
+            Self::SelfFriendRequest => (StatusCode::BAD_REQUEST, "SELF_FRIEND_REQUEST", self.to_string()),
+            Self::AlreadyExists => (StatusCode::CONFLICT, "ALREADY_EXISTS", self.to_string()),
+            Self::Blocked => (StatusCode::FORBIDDEN, "BLOCKED", self.to_string()),
+            Self::FriendshipNotFound => (StatusCode::NOT_FOUND, "FRIENDSHIP_NOT_FOUND", self.to_string()),
+            Self::Unauthorized => (StatusCode::FORBIDDEN, "UNAUTHORIZED", self.to_string()),
+            Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
         };
 
-        (status, Json(json!({ "error": message }))).into_response()
+        (status, Json(json!({ "error": code, "message": message }))).into_response()
     }
 }

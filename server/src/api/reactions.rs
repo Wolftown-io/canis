@@ -58,16 +58,16 @@ pub enum ReactionsError {
 
 impl IntoResponse for ReactionsError {
     fn into_response(self) -> axum::response::Response {
-        let (status, message) = match &self {
-            ReactionsError::MessageNotFound => (StatusCode::NOT_FOUND, "Message not found"),
-            ReactionsError::ChannelNotFound => (StatusCode::NOT_FOUND, "Channel not found"),
-            ReactionsError::InvalidEmoji => (StatusCode::BAD_REQUEST, "Invalid emoji"),
+        let (status, code, message) = match &self {
+            ReactionsError::MessageNotFound => (StatusCode::NOT_FOUND, "MESSAGE_NOT_FOUND", "Message not found"),
+            ReactionsError::ChannelNotFound => (StatusCode::NOT_FOUND, "CHANNEL_NOT_FOUND", "Channel not found"),
+            ReactionsError::InvalidEmoji => (StatusCode::BAD_REQUEST, "INVALID_EMOJI", "Invalid emoji"),
             ReactionsError::Database(err) => {
                 tracing::error!("Database error: {}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Database error")
             }
         };
-        (status, Json(serde_json::json!({ "error": message }))).into_response()
+        (status, Json(serde_json::json!({ "error": code, "message": message }))).into_response()
     }
 }
 
