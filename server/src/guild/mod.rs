@@ -15,6 +15,7 @@ use axum::{
 };
 
 use crate::api::AppState;
+use crate::pages;
 
 /// Create the guild router with all endpoints
 pub fn router() -> Router<AppState> {
@@ -63,6 +64,8 @@ pub fn router() -> Router<AppState> {
         .route("/:id/categories/reorder", post(categories::reorder_categories))
         // Search route
         .route("/:id/search", get(search::search_messages))
+        // Pages routes (nested)
+        .nest("/:id/pages", pages::guild_pages_router())
 }
 
 /// Create the invite join router (separate for public access pattern)

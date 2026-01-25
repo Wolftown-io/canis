@@ -98,7 +98,6 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/channels", chat::channels_router())
         .nest("/api/messages", chat::messages_router())
         .nest("/api/guilds", guild::router())
-        .nest("/api/guilds/{guild_id}/pages", pages::guild_pages_router())
         .nest("/api/invites", guild::invite_router())
         .nest("/api/pages", pages::platform_pages_router())
         .nest("/api/dm", chat::dm_router())
