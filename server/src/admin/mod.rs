@@ -20,12 +20,15 @@ pub use middleware::{require_elevated, require_system_admin};
 pub use types::{AdminError, ElevatedAdmin, SystemAdminUser};
 
 use fred::prelude::*;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Check if a user is an elevated admin (for WebSocket subscription check).
 /// This checks both system admin status and elevated session validity.
-pub async fn is_elevated_admin(redis: &RedisClient, user_id: Uuid) -> bool {
-    // Check cache first
+///
+/// Security: Always falls back to database on cache miss to ensure fail-secure behavior.
+pub async fn is_elevated_admin(redis: &RedisClient, db: &PgPool, user_id: Uuid) -> bool {
+    // Check cache first (fast path)
     let cache_key = format!("admin:elevated:{}", user_id);
     let cached: Option<String> = redis.get(&cache_key).await.ok().flatten();
 
@@ -33,9 +36,29 @@ pub async fn is_elevated_admin(redis: &RedisClient, user_id: Uuid) -> bool {
         return value == "1";
     }
 
-    // If not cached, we default to false - the proper check happens when they call elevate
-    // The WebSocket handler will receive an error if they try to subscribe without elevation
-    false
+    // Cache miss - fallback to database (fail-secure)
+    let is_elevated = check_elevated_in_db(db, user_id).await;
+
+    // Cache the result (60s TTL to balance freshness and load)
+    if is_elevated {
+        cache_elevated_status(redis, user_id, true, 60).await;
+    }
+
+    is_elevated
+}
+
+/// Check elevated session status directly in the database.
+async fn check_elevated_in_db(db: &PgPool, user_id: Uuid) -> bool {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS(
+            SELECT 1 FROM elevated_sessions
+            WHERE user_id = $1 AND expires_at > NOW()
+        ) as "exists!""#,
+        user_id
+    )
+    .fetch_one(db)
+    .await
+    .unwrap_or(false)
 }
 
 /// Cache elevated admin status in Redis (called after elevation).

@@ -881,7 +881,7 @@ async fn handle_client_message(
 
         ClientEvent::AdminSubscribe => {
             // Check if user is an elevated admin
-            let is_elevated = crate::admin::is_elevated_admin(&state.redis, user_id).await;
+            let is_elevated = crate::admin::is_elevated_admin(&state.redis, &state.db, user_id).await;
             if !is_elevated {
                 tx.send(ServerEvent::Error {
                     code: "admin_not_elevated".to_string(),
