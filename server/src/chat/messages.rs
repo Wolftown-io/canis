@@ -8,6 +8,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -359,7 +360,7 @@ pub async fn create(
 
     // Broadcast new message via Redis pub-sub
     let message_json = serde_json::to_value(&response).unwrap_or_default();
-    let _ = broadcast_to_channel(
+    if let Err(e) = broadcast_to_channel(
         &state.redis,
         channel_id,
         &ServerEvent::MessageNew {
@@ -367,7 +368,10 @@ pub async fn create(
             message: message_json,
         },
     )
-    .await;
+    .await
+    {
+        warn!(channel_id = %channel_id, error = %e, "Failed to broadcast new message event");
+    }
 
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -422,7 +426,7 @@ pub async fn update(
     };
 
     // Broadcast edit via Redis pub-sub
-    let _ = broadcast_to_channel(
+    if let Err(e) = broadcast_to_channel(
         &state.redis,
         message.channel_id,
         &ServerEvent::MessageEdit {
@@ -435,7 +439,10 @@ pub async fn update(
                 .unwrap_or_default(),
         },
     )
-    .await;
+    .await
+    {
+        warn!(channel_id = %message.channel_id, message_id = %message.id, error = %e, "Failed to broadcast message edit event");
+    }
 
     Ok(Json(response))
 }
@@ -464,7 +471,7 @@ pub async fn delete(
 
     if deleted {
         // Broadcast delete via Redis pub-sub
-        let _ = broadcast_to_channel(
+        if let Err(e) = broadcast_to_channel(
             &state.redis,
             channel_id,
             &ServerEvent::MessageDelete {
@@ -472,7 +479,10 @@ pub async fn delete(
                 message_id: id,
             },
         )
-        .await;
+        .await
+        {
+            warn!(channel_id = %channel_id, message_id = %id, error = %e, "Failed to broadcast message delete event");
+        }
 
         Ok(StatusCode::NO_CONTENT)
     } else {

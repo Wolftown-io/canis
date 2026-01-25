@@ -15,6 +15,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use tracing::warn;
 use std::net::SocketAddr;
 use uuid::Uuid;
 
@@ -907,14 +908,17 @@ pub async fn ban_user(
     .await?;
 
     // Broadcast admin event
-    let _ = broadcast_admin_event(
+    if let Err(e) = broadcast_admin_event(
         &state.redis,
         &ServerEvent::AdminUserBanned {
             user_id,
             username: username.clone(),
         },
     )
-    .await;
+    .await
+    {
+        warn!(user_id = %user_id, error = %e, "Failed to broadcast user ban event");
+    }
 
     Ok(Json(BanResponse {
         banned: true,
@@ -963,11 +967,14 @@ pub async fn unban_user(
     .await?;
 
     // Broadcast admin event
-    let _ = broadcast_admin_event(
+    if let Err(e) = broadcast_admin_event(
         &state.redis,
-        &ServerEvent::AdminUserUnbanned { user_id, username },
+        &ServerEvent::AdminUserUnbanned { user_id, username: username.clone() },
     )
-    .await;
+    .await
+    {
+        warn!(user_id = %user_id, error = %e, "Failed to broadcast user unban event");
+    }
 
     Ok(Json(BanResponse {
         banned: false,
@@ -1033,14 +1040,17 @@ pub async fn suspend_guild(
     .await?;
 
     // Broadcast admin event
-    let _ = broadcast_admin_event(
+    if let Err(e) = broadcast_admin_event(
         &state.redis,
         &ServerEvent::AdminGuildSuspended {
             guild_id,
-            guild_name,
+            guild_name: guild_name.clone(),
         },
     )
-    .await;
+    .await
+    {
+        warn!(guild_id = %guild_id, error = %e, "Failed to broadcast guild suspend event");
+    }
 
     Ok(Json(SuspendResponse {
         suspended: true,
@@ -1097,14 +1107,17 @@ pub async fn unsuspend_guild(
     .await?;
 
     // Broadcast admin event
-    let _ = broadcast_admin_event(
+    if let Err(e) = broadcast_admin_event(
         &state.redis,
         &ServerEvent::AdminGuildUnsuspended {
             guild_id,
-            guild_name,
+            guild_name: guild_name.clone(),
         },
     )
-    .await;
+    .await
+    {
+        warn!(guild_id = %guild_id, error = %e, "Failed to broadcast guild unsuspend event");
+    }
 
     Ok(Json(SuspendResponse {
         suspended: false,
