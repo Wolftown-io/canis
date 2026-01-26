@@ -21,7 +21,9 @@ use crate::api::AppState;
 use crate::ratelimit::{check_ip_not_blocked, rate_limit_by_ip, with_category, RateLimitCategory};
 
 pub use error::{AuthError, AuthResult};
+pub use handlers::hash_token;
 pub use middleware::{require_auth, AuthUser};
+pub use password::{hash_password, verify_password};
 
 /// Create authentication router.
 ///

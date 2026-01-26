@@ -135,7 +135,7 @@ lazy_static::lazy_static! {
 // ============================================================================
 
 /// Hash a refresh token for storage (we don't store raw tokens).
-fn hash_token(token: &str) -> String {
+pub fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())
