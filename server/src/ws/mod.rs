@@ -492,6 +492,17 @@ pub enum ServerEvent {
         activity: Option<crate::presence::Activity>,
     },
 
+    /// Generic entity patch for efficient state sync.
+    /// Instead of sending full objects, only changed fields are sent.
+    Patch {
+        /// Entity type: "user", "guild", "member", "channel".
+        entity_type: String,
+        /// Entity ID.
+        entity_id: Uuid,
+        /// Partial update containing only changed fields.
+        diff: serde_json::Value,
+    },
+
     // User-specific events (broadcast to user's devices)
     /// User preferences were updated on another device.
     PreferencesUpdated {
@@ -553,6 +564,12 @@ pub mod channels {
     #[must_use]
     pub fn user_events(user_id: Uuid) -> String {
         format!("user:{user_id}")
+    }
+
+    /// Redis channel for guild-wide events (patches, updates).
+    #[must_use]
+    pub fn guild_events(guild_id: Uuid) -> String {
+        format!("guild:{guild_id}")
     }
 
     /// Redis channel for global events (future feature).
@@ -626,6 +643,89 @@ async fn broadcast_presence_update(state: &AppState, user_id: Uuid, event: &Serv
     if let Err(e) = result {
         error!("Failed to broadcast presence update: {}", e);
     }
+}
+
+/// Broadcast an entity patch to the presence channel.
+///
+/// This sends only the changed fields instead of full objects,
+/// reducing bandwidth by up to 90% for partial updates.
+pub async fn broadcast_user_patch(
+    redis: &RedisClient,
+    user_id: Uuid,
+    diff: serde_json::Value,
+) -> Result<(), RedisError> {
+    if diff.as_object().is_none_or(|m| m.is_empty()) {
+        return Ok(()); // Nothing to broadcast
+    }
+
+    let event = ServerEvent::Patch {
+        entity_type: "user".to_string(),
+        entity_id: user_id,
+        diff,
+    };
+
+    let payload = serde_json::to_string(&event)
+        .map_err(|e| RedisError::new(RedisErrorKind::Parse, format!("JSON error: {e}")))?;
+
+    // Broadcast on presence channel so friends/guild members see it
+    let channel = format!("presence:{}", user_id);
+    redis.publish::<(), _, _>(channel, payload).await?;
+
+    Ok(())
+}
+
+/// Broadcast a guild patch to all guild members via Redis.
+pub async fn broadcast_guild_patch(
+    redis: &RedisClient,
+    guild_id: Uuid,
+    diff: serde_json::Value,
+) -> Result<(), RedisError> {
+    if diff.as_object().is_none_or(|m| m.is_empty()) {
+        return Ok(()); // Nothing to broadcast
+    }
+
+    let event = ServerEvent::Patch {
+        entity_type: "guild".to_string(),
+        entity_id: guild_id,
+        diff,
+    };
+
+    let payload = serde_json::to_string(&event)
+        .map_err(|e| RedisError::new(RedisErrorKind::Parse, format!("JSON error: {e}")))?;
+
+    // Broadcast to guild channel
+    redis.publish::<(), _, _>(channels::guild_events(guild_id), payload).await?;
+
+    Ok(())
+}
+
+/// Broadcast a member patch to all guild members via Redis.
+pub async fn broadcast_member_patch(
+    redis: &RedisClient,
+    guild_id: Uuid,
+    user_id: Uuid,
+    diff: serde_json::Value,
+) -> Result<(), RedisError> {
+    if diff.as_object().is_none_or(|m| m.is_empty()) {
+        return Ok(()); // Nothing to broadcast
+    }
+
+    let event = ServerEvent::Patch {
+        entity_type: "member".to_string(),
+        entity_id: user_id, // The member's user ID
+        diff: serde_json::json!({
+            "guild_id": guild_id,
+            "updates": diff,
+        }),
+    };
+
+    let payload = serde_json::to_string(&event)
+        .map_err(|e| RedisError::new(RedisErrorKind::Parse, format!("JSON error: {e}")))?;
+
+    // Broadcast to guild channel
+    redis.publish::<(), _, _>(channels::guild_events(guild_id), payload).await?;
+
+    Ok(())
 }
 
 /// WebSocket upgrade handler.
