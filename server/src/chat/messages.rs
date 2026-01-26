@@ -141,6 +141,27 @@ const fn default_limit() -> i64 {
     50
 }
 
+/// Cursor-based paginated response wrapper.
+///
+/// Used for endpoints with infinite scroll patterns (e.g., message history).
+/// Unlike offset-based pagination (which uses `total`, `limit`, `offset`),
+/// cursor-based pagination uses a reference point (`next_cursor`) and
+/// indicates whether more items exist (`has_more`).
+///
+/// This is more efficient for large datasets where counting total items
+/// is expensive and unnecessary (e.g., chat messages).
+#[derive(Debug, Serialize)]
+pub struct CursorPaginatedResponse<T> {
+    /// The items for this page.
+    pub items: Vec<T>,
+    /// Whether more items exist beyond this page.
+    pub has_more: bool,
+    /// Cursor for fetching the next page (ID of the oldest item).
+    /// Pass this as `before` parameter to get the next page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<Uuid>,
+}
+
 /// Detect mention type in message content.
 /// Returns the highest priority mention type found.
 pub fn detect_mention_type(content: &str, author_username: Option<&str>) -> Option<MentionType> {
@@ -196,11 +217,14 @@ pub struct UpdateMessageRequest {
 
 /// List messages in a channel.
 /// GET /`api/messages/channel/:channel_id`
+///
+/// Returns cursor-based pagination with `has_more` indicator.
+/// Use the `next_cursor` value as `before` parameter to fetch the next page.
 pub async fn list(
     State(state): State<AppState>,
     Path(channel_id): Path<Uuid>,
     Query(query): Query<ListMessagesQuery>,
-) -> Result<Json<Vec<MessageResponse>>, MessageError> {
+) -> Result<Json<CursorPaginatedResponse<MessageResponse>>, MessageError> {
     // Check channel exists
     let _ = db::find_channel_by_id(&state.db, channel_id)
         .await?
@@ -209,7 +233,14 @@ pub async fn list(
     // Limit between 1 and 100
     let limit = query.limit.clamp(1, 100);
 
-    let messages = db::list_messages(&state.db, channel_id, query.before, limit).await?;
+    // Fetch one extra message to determine if there are more
+    let mut messages = db::list_messages(&state.db, channel_id, query.before, limit + 1).await?;
+
+    // Check if there are more messages beyond the requested limit
+    let has_more = messages.len() as i64 > limit;
+    if has_more {
+        messages.pop(); // Remove the extra message
+    }
 
     // Bulk fetch all user IDs to avoid N+1 query
     let user_ids: Vec<Uuid> = messages.iter().map(|m| m.user_id).collect();
@@ -272,7 +303,18 @@ pub async fn list(
         })
         .collect();
 
-    Ok(Json(response))
+    // Get the cursor for the next page (oldest message ID)
+    let next_cursor = if has_more {
+        response.last().map(|m| m.id)
+    } else {
+        None
+    };
+
+    Ok(Json(CursorPaginatedResponse {
+        items: response,
+        has_more,
+        next_cursor,
+    }))
 }
 
 /// Create a new message.
@@ -569,7 +611,7 @@ mod tests {
             .await
             .expect("Handler failed");
 
-        let messages = result.0;
+        let messages = &result.0.items;
 
         // Assert correct number of messages
         assert_eq!(messages.len(), 5, "Should return 5 messages");
@@ -664,7 +706,7 @@ mod tests {
             .await
             .expect("Handler should not fail");
 
-        let messages = result.0;
+        let messages = &result.0.items;
 
         // Due to CASCADE DELETE, messages are deleted when user is deleted
         // This test verifies the handler doesn't crash when messages reference deleted users
@@ -720,11 +762,18 @@ mod tests {
             .await
             .expect("First page failed");
 
-        let page1 = result1.0;
+        let page1 = &result1.0.items;
         assert_eq!(page1.len(), 3, "First page should have 3 messages");
+        assert!(result1.0.has_more, "Should indicate more messages exist");
+        assert!(result1.0.next_cursor.is_some(), "Should provide next cursor");
 
         // Fetch second page using cursor
         let oldest_from_page1 = page1.last().unwrap().id;
+        assert_eq!(
+            result1.0.next_cursor,
+            Some(oldest_from_page1),
+            "next_cursor should be the oldest message ID"
+        );
 
         let query2 = ListMessagesQuery {
             before: Some(oldest_from_page1),
@@ -735,7 +784,7 @@ mod tests {
             .await
             .expect("Second page failed");
 
-        let page2 = result2.0;
+        let page2 = &result2.0.items;
 
         // Should have at least some messages
         assert!(!page2.is_empty(), "Second page should have messages");
@@ -758,7 +807,9 @@ mod tests {
             .await
             .expect("Fetch all failed");
 
-        assert_eq!(result_all.0.len(), 10, "Should have 10 total messages");
+        assert_eq!(result_all.0.items.len(), 10, "Should have 10 total messages");
+        assert!(!result_all.0.has_more, "All messages fetched, should have no more");
+        assert!(result_all.0.next_cursor.is_none(), "No more pages, cursor should be None");
     }
 
     #[sqlx::test]
@@ -787,7 +838,7 @@ mod tests {
             .await
             .expect("Handler failed");
 
-        let messages = result.0;
+        let messages = &result.0.items;
         assert_eq!(messages.len(), 0, "Empty channel should return 0 messages");
     }
 
@@ -868,7 +919,7 @@ mod tests {
             .await
             .expect("Handler failed");
 
-        assert_eq!(result_zero.0.len(), 1, "Limit 0 should clamp to 1");
+        assert_eq!(result_zero.0.items.len(), 1, "Limit 0 should clamp to 1");
 
         // Test limit = 200 (should clamp to 100)
         let query_large = ListMessagesQuery {
@@ -882,7 +933,7 @@ mod tests {
 
         // Should return all 10 messages (max available), not more than 100
         assert_eq!(
-            result_large.0.len(),
+            result_large.0.items.len(),
             10,
             "Should return all available messages"
         );
