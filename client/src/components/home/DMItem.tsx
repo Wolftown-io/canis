@@ -10,6 +10,7 @@ import type { DMListItem } from "@/lib/types";
 import { dmsState, selectDM } from "@/stores/dms";
 import { hasActiveCallInChannel, callState } from "@/stores/call";
 import { isUserOnline } from "@/stores/presence";
+import { currentUser } from "@/stores/auth";
 
 interface DMItemProps {
   dm: DMListItem;
@@ -18,20 +19,29 @@ interface DMItemProps {
 const DMItem: Component<DMItemProps> = (props) => {
   const isSelected = () => dmsState.selectedDMId === props.dm.id;
 
-  // Get the other participant(s) for display
-  const displayName = () => {
-    if (props.dm.participants.length === 1) {
-      return props.dm.participants[0].display_name;
-    }
-    return props.dm.name || props.dm.participants.map(p => p.display_name).join(", ");
+  // Filter out the current user from participants
+  const otherParticipants = () => {
+    const me = currentUser();
+    return props.dm.participants.filter(p => p.user_id !== me?.id);
   };
 
-  const isGroupDM = () => props.dm.participants.length > 1;
+  // Get the other participant(s) for display
+  // Note: dm.name from the server includes ALL participants (including self),
+  // so we only use it for group DMs with a custom name set by the user.
+  const displayName = () => {
+    const others = otherParticipants();
+    if (others.length === 0) {
+      return props.dm.participants[0]?.display_name ?? "Unknown";
+    }
+    return others.map(p => p.display_name).join(", ");
+  };
+
+  const isGroupDM = () => otherParticipants().length > 1;
 
   // Get online status for 1:1 DMs
   const isOnline = () => {
     if (isGroupDM()) return false;
-    const otherUser = props.dm.participants[0];
+    const otherUser = otherParticipants()[0];
     if (!otherUser) return false;
     return isUserOnline(otherUser.user_id);
   };
@@ -94,8 +104,8 @@ const DMItem: Component<DMItemProps> = (props) => {
           when={isGroupDM()}
           fallback={
             <div class="w-10 h-10 rounded-full bg-accent-primary flex items-center justify-center">
-              <span class="text-sm font-semibold text-surface-base">
-                {props.dm.participants[0]?.display_name?.charAt(0).toUpperCase() || "?"}
+              <span class="text-sm font-semibold text-white">
+                {otherParticipants()[0]?.display_name?.charAt(0).toUpperCase() || "?"}
               </span>
             </div>
           }
@@ -147,7 +157,7 @@ const DMItem: Component<DMItemProps> = (props) => {
 
           {/* Unread badge */}
           <Show when={props.dm.unread_count > 0}>
-            <span class="flex-shrink-0 min-w-5 h-5 px-1.5 bg-accent-primary text-surface-base text-xs font-bold rounded-full flex items-center justify-center">
+            <span class="flex-shrink-0 min-w-5 h-5 px-1.5 bg-accent-primary text-white text-xs font-bold rounded-full flex items-center justify-center">
               {props.dm.unread_count > 99 ? "99+" : props.dm.unread_count}
             </span>
           </Show>

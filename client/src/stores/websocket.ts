@@ -21,6 +21,7 @@ import {
 import { playNotification } from "@/lib/sound";
 import { getChannel, channelsState, handleChannelReadEvent, incrementUnreadCount } from "./channels";
 import { currentUser } from "./auth";
+import { guildsState, getGuildIdForChannel, incrementGuildUnread } from "./guilds";
 import type { MentionType, SoundEventType } from "@/lib/sound/types";
 import { handleDMReadEvent } from "./dms";
 
@@ -302,11 +303,15 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       await addMessage(event.message);
       handleMessageNotification(event.message);
       // Increment unread count if message is not in the selected channel
-      // and the channel is a guild text channel
       if (event.channel_id !== channelsState.selectedChannelId) {
         const channel = getChannel(event.channel_id);
         if (channel && channel.guild_id && channel.channel_type === "text") {
           incrementUnreadCount(event.channel_id);
+        }
+        // Increment guild-level unread for non-active guilds
+        const guildId = getGuildIdForChannel(event.channel_id);
+        if (guildId && guildId !== guildsState.activeGuildId) {
+          incrementGuildUnread(guildId);
         }
       }
       break;
@@ -644,6 +649,9 @@ export async function stopTyping(channelId: string): Promise<void> {
  * Add a user to the typing list for a channel.
  */
 function addTypingUser(channelId: string, userId: string): void {
+  // Don't show own typing indicator
+  if (userId === currentUser()?.id) return;
+
   // Clear existing timer for this user
   const timerKey = `${channelId}:${userId}`;
   if (typingTimers[timerKey]) {

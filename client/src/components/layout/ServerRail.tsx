@@ -16,7 +16,7 @@
 
 import { Component, createSignal, For, Show } from "solid-js";
 import { Home, Plus, UserPlus } from "lucide-solid";
-import { guildsState, selectHome, selectGuild } from "@/stores/guilds";
+import { guildsState, selectHome, selectGuild, getGuildUnreadCount } from "@/stores/guilds";
 import CreateGuildModal from "@/components/guilds/CreateGuildModal";
 import JoinGuildModal from "@/components/guilds/JoinGuildModal";
 
@@ -121,6 +121,13 @@ const ServerRail: Component = () => {
                     </span>
                   )}
                 </button>
+
+                {/* Unread badge */}
+                <Show when={getGuildUnreadCount(guild.id) > 0}>
+                  <div class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 bg-accent-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center pointer-events-none">
+                    {getGuildUnreadCount(guild.id) > 99 ? "99+" : getGuildUnreadCount(guild.id)}
+                  </div>
+                </Show>
               </div>
             );
           }}

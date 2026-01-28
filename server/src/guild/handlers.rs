@@ -293,6 +293,27 @@ pub async fn delete_guild(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Initialize channel_read_state for all text channels in a guild.
+/// Sets last_read_at to NOW() so pre-existing messages don't appear as unread.
+pub(super) async fn initialize_channel_read_state(
+    db: &sqlx::PgPool,
+    guild_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), GuildError> {
+    sqlx::query(
+        r#"INSERT INTO channel_read_state (user_id, channel_id, last_read_at)
+           SELECT $1, c.id, NOW()
+           FROM channels c
+           WHERE c.guild_id = $2 AND c.channel_type = 'text'
+           ON CONFLICT (user_id, channel_id) DO NOTHING"#,
+    )
+    .bind(user_id)
+    .bind(guild_id)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 /// Join guild (placeholder - requires invite system)
 #[tracing::instrument(skip(state))]
 pub async fn join_guild(
@@ -323,6 +344,9 @@ pub async fn join_guild(
         .bind(auth.id)
         .execute(&state.db)
         .await?;
+
+    // Initialize read state for all text channels so pre-existing messages don't show as unread
+    initialize_channel_read_state(&state.db, guild_id, auth.id).await?;
 
     Ok(StatusCode::OK)
 }

@@ -217,6 +217,9 @@ pub async fn join_via_invite(
         .execute(&state.db)
         .await?;
 
+    // Initialize read state for all text channels so pre-existing messages don't show as unread
+    super::handlers::initialize_channel_read_state(&state.db, invite.guild_id, auth.id).await?;
+
     // Increment use count
     sqlx::query("UPDATE guild_invites SET use_count = use_count + 1 WHERE id = $1")
         .bind(invite.id)

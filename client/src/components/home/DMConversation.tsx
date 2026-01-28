@@ -8,6 +8,7 @@ import { Component, Show, onCleanup, createEffect, createSignal } from "solid-js
 import { Phone, Lock, Unlock } from "lucide-solid";
 import { e2eeStatus } from "@/stores/e2ee";
 import { getSelectedDM, markDMAsRead } from "@/stores/dms";
+import { currentUser } from "@/stores/auth";
 import MessageList from "@/components/messages/MessageList";
 import MessageInput from "@/components/messages/MessageInput";
 import TypingIndicator from "@/components/messages/TypingIndicator";
@@ -62,19 +63,24 @@ const DMConversation: Component = () => {
     }
   });
 
+  const otherParticipants = () => {
+    const currentDM = dm();
+    if (!currentDM) return [];
+    const me = currentUser();
+    return currentDM.participants.filter(p => p.user_id !== me?.id);
+  };
+
   const displayName = () => {
     const currentDM = dm();
     if (!currentDM) return "";
-    if (currentDM.participants.length === 1) {
-      return currentDM.participants[0].display_name;
+    const others = otherParticipants();
+    if (others.length === 0) {
+      return currentDM.participants[0]?.display_name ?? "Unknown";
     }
-    return currentDM.name || currentDM.participants.map(p => p.display_name).join(", ");
+    return others.map(p => p.display_name).join(", ");
   };
 
-  const isGroupDM = () => {
-    const currentDM = dm();
-    return currentDM ? currentDM.participants.length > 1 : false;
-  };
+  const isGroupDM = () => otherParticipants().length > 1;
 
   return (
     <Show
@@ -93,7 +99,7 @@ const DMConversation: Component = () => {
             fallback={
               <div class="w-8 h-8 rounded-full bg-accent-primary flex items-center justify-center">
                 <span class="text-sm font-semibold text-surface-base">
-                  {dm()?.participants[0]?.display_name?.charAt(0).toUpperCase()}
+                  {otherParticipants()[0]?.display_name?.charAt(0).toUpperCase()}
                 </span>
               </div>
             }

@@ -140,7 +140,7 @@ const NewMessageModal: Component<NewMessageModalProps> = (props) => {
             <button
               onClick={handleCreate}
               disabled={selectedIds().length === 0 || isCreating()}
-              class="w-full py-2 bg-accent-primary text-surface-base rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full py-2 bg-accent-primary text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isCreating()
                 ? "Creating..."
@@ -176,7 +176,7 @@ const FriendSelectItem: Component<FriendSelectItemProps> = (props) => {
         }}
       >
         <Show when={props.selected}>
-          <Check class="w-3 h-3 text-surface-base" />
+          <Check class="w-3 h-3 text-white" />
         </Show>
       </div>
 
