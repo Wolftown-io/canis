@@ -8,8 +8,8 @@
  */
 
 import { Component, Show, createSignal, onMount } from "solid-js";
-import { Settings, Shield } from "lucide-solid";
-import { authState } from "@/stores/auth";
+import { Settings, Shield, LogOut } from "lucide-solid";
+import { authState, logout } from "@/stores/auth";
 import { adminState, checkAdminStatus } from "@/stores/admin";
 import { getUserPresence } from "@/stores/presence";
 import Avatar from "@/components/ui/Avatar";
@@ -105,6 +105,13 @@ const UserPanel: Component = () => {
             onClick={() => setShowSettings(true)}
           >
             <Settings class="w-4 h-4" />
+          </button>
+          <button
+            class="p-1.5 text-text-secondary hover:text-accent-danger hover:bg-white/10 rounded-lg transition-all duration-200"
+            title="Logout"
+            onClick={() => logout()}
+          >
+            <LogOut class="w-4 h-4" />
           </button>
         </div>
       </div>
