@@ -106,3 +106,19 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+---
+
+### VT323
+
+**Copyright:** Copyright 2014 The VT323 Project Authors (peter.hull@oikoi.com)
+
+**License:** SIL Open Font License 1.1 (OFL-1.1)
+
+**Source:** https://fonts.google.com/specimen/VT323
+
+**Author:** Peter Hull
+
+**Usage:** Primary UI font for pixel art theme family (renders crisper than Press Start 2P)
+
+**License Text:** Same as Press Start 2P above (OFL-1.1)

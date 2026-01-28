@@ -14,6 +14,21 @@
 }
 
 /**
+ * VT323 — Pixel/Terminal Font
+ * License: SIL Open Font License 1.1 (OFL)
+ * Source: https://fonts.google.com/specimen/VT323
+ * Author: Peter Hull
+ * Alternative pixel font that renders crisper on modern displays.
+ */
+@font-face {
+  font-family: "VT323";
+  src: url("/fonts/VT323-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/**
  * Pixel Theme Family — Structural Overrides
  *
  * These styles apply to ALL pixel-* themes via [data-theme^="pixel-"].
@@ -63,30 +78,45 @@
  * ============================================================================ */
 :root[data-theme^="pixel-"] {
   /* Pixel font for UI chrome, system font for content */
-  --font-ui: "Press Start 2P", monospace;
+  /* VT323 renders crisper than Press Start 2P on modern displays */
+  --font-ui: "VT323", "Press Start 2P", monospace;
   --font-content: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-  /* Scale factor for pixel font — it renders larger than system fonts */
-  --font-ui-scale: 0.65;
 }
 
-/* Apply pixel font to UI elements with size compensation */
-[data-theme^="pixel-"] h1,
-[data-theme^="pixel-"] h2,
+/*
+ * VT323 renders well at larger sizes (16px+). Use integer pixel sizes.
+ * Fallback Press Start 2P works best at 8px multiples (8, 16, 24, 32).
+ */
+
+/* Apply pixel font to UI elements with INTEGER pixel sizes */
+[data-theme^="pixel-"] h1 {
+  font-family: var(--font-ui);
+  font-size: 28px;
+  line-height: 1.4;
+  letter-spacing: 1px;
+}
+
+[data-theme^="pixel-"] h2 {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  line-height: 1.4;
+  letter-spacing: 1px;
+}
+
 [data-theme^="pixel-"] h3,
 [data-theme^="pixel-"] h4 {
   font-family: var(--font-ui);
-  font-size: calc(1em * var(--font-ui-scale));
-  line-height: 1.8;
-  letter-spacing: 0.02em;
+  font-size: 18px;
+  line-height: 1.4;
+  letter-spacing: 1px;
 }
 
 [data-theme^="pixel-"] button,
 [data-theme^="pixel-"] [class*="btn"] {
   font-family: var(--font-ui);
-  font-size: calc(0.75rem * var(--font-ui-scale));
-  line-height: 1.6;
-  letter-spacing: 0.02em;
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: 1px;
 }
 
 /* Sidebar and navigation elements */
@@ -95,9 +125,9 @@
 [data-theme^="pixel-"] [class*="channel-name"],
 [data-theme^="pixel-"] [class*="guild-name"] {
   font-family: var(--font-ui);
-  font-size: calc(0.6875rem * var(--font-ui-scale));
-  line-height: 1.6;
-  letter-spacing: 0.03em;
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: 1px;
 }
 
 /* Keep readable font for content */
@@ -194,4 +224,56 @@
 [data-theme^="pixel-"] * {
   scrollbar-width: auto;
   scrollbar-color: var(--color-surface-highlight) var(--color-surface-base);
+}
+
+/* ============================================================================
+ * 6. Crisp Pixel Rendering
+ * Force sharp rendering for pixel fonts and images.
+ * Key: Use integer pixel sizes and avoid transforms that cause subpixel rendering.
+ * ============================================================================ */
+
+/* Pixelated rendering for images (icons, avatars, etc.) */
+[data-theme^="pixel-"] img,
+[data-theme^="pixel-"] svg {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* VT323 renders crisply without hacks - only keep geometric precision */
+[data-theme^="pixel-"] h1,
+[data-theme^="pixel-"] h2,
+[data-theme^="pixel-"] h3,
+[data-theme^="pixel-"] h4,
+[data-theme^="pixel-"] button,
+[data-theme^="pixel-"] [class*="btn"],
+[data-theme^="pixel-"] nav,
+[data-theme^="pixel-"] [class*="sidebar"] [class*="header"],
+[data-theme^="pixel-"] [class*="channel-name"],
+[data-theme^="pixel-"] [class*="guild-name"] {
+  text-rendering: geometricPrecision;
+}
+
+/* ============================================================================
+ * 7. Font Weight Handling
+ * VT323 only has one weight. Disable font synthesis to prevent blurry faux-bold.
+ * Style bold text with color/size instead of weight.
+ * ============================================================================ */
+[data-theme^="pixel-"] {
+  /* Prevent browser from synthesizing bold/italic - causes blur */
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Override bold to use regular weight with accent color instead */
+[data-theme^="pixel-"] b,
+[data-theme^="pixel-"] strong,
+[data-theme^="pixel-"] .font-bold,
+[data-theme^="pixel-"] .font-semibold,
+[data-theme^="pixel-"] [class*="font-bold"],
+[data-theme^="pixel-"] [class*="font-semibold"] {
+  font-weight: 400 !important;
+  font-synthesis: none;
+  /* Use accent color to indicate emphasis instead of weight */
+  color: var(--color-text-primary);
 }
