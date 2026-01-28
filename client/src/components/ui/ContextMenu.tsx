@@ -78,6 +78,7 @@ export function showContextMenu(event: MouseEvent, items: ContextMenuEntry[]): v
   x = Math.max(4, x);
   y = Math.max(4, y);
 
+  setFocusedIndex(-1);
   setMenuState({ visible: true, x, y, items });
 }
 
@@ -111,9 +112,21 @@ function cleanSeparators(entries: ContextMenuEntry[]): ContextMenuEntry[] {
   return result;
 }
 
+// --- Keyboard Focus State ---
+
+const [focusedIndex, setFocusedIndex] = createSignal(-1);
+
+/** Get indices of actionable (non-separator, non-disabled) items from cleaned list */
+function getActionableIndices(items: ContextMenuEntry[]): number[] {
+  return items
+    .map((item, i) => ({ item, i }))
+    .filter(({ item }) => !isSeparator(item) && !(item as ContextMenuItem).disabled)
+    .map(({ i }) => i);
+}
+
 // --- Components ---
 
-const ContextMenuItemButton: Component<{ item: ContextMenuItem }> = (props) => {
+const ContextMenuItemButton: Component<{ item: ContextMenuItem; focused: boolean }> = (props) => {
   const handleClick = () => {
     if (props.item.disabled) return;
     hideContextMenu();
@@ -132,6 +145,7 @@ const ContextMenuItemButton: Component<{ item: ContextMenuItem }> = (props) => {
             ? "text-accent-error hover:bg-accent-error/10"
             : "text-text-primary hover:bg-white/5"
         }
+        ${props.focused && !props.item.disabled ? "bg-white/10" : ""}
       `}
       disabled={props.item.disabled}
       onClick={handleClick}
@@ -159,8 +173,44 @@ export const ContextMenuContainer: Component = () => {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (menuState().visible && e.key === "Escape") {
+    const state = menuState();
+    if (!state.visible) return;
+
+    if (e.key === "Escape") {
       hideContextMenu();
+      return;
+    }
+
+    const cleaned = cleanSeparators(state.items);
+    const actionable = getActionableIndices(cleaned);
+    if (actionable.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const currentPos = actionable.indexOf(focusedIndex());
+      const nextPos = currentPos < actionable.length - 1 ? currentPos + 1 : 0;
+      setFocusedIndex(actionable[nextPos]);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const currentPos = actionable.indexOf(focusedIndex());
+      const nextPos = currentPos > 0 ? currentPos - 1 : actionable.length - 1;
+      setFocusedIndex(actionable[nextPos]);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const idx = focusedIndex();
+      if (idx >= 0 && idx < cleaned.length) {
+        const item = cleaned[idx];
+        if (!isSeparator(item) && !(item as ContextMenuItem).disabled) {
+          hideContextMenu();
+          (item as ContextMenuItem).action();
+        }
+      }
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      if (actionable.length > 0) setFocusedIndex(actionable[0]);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      if (actionable.length > 0) setFocusedIndex(actionable[actionable.length - 1]);
     }
   };
 
@@ -195,14 +245,14 @@ export const ContextMenuContainer: Component = () => {
           role="menu"
         >
           <For each={cleanSeparators(menuState().items)}>
-            {(entry) => (
+            {(entry, index) => (
               <Show
                 when={!isSeparator(entry)}
                 fallback={
                   <div class="my-1 border-t border-white/10" role="separator" />
                 }
               >
-                <ContextMenuItemButton item={entry as ContextMenuItem} />
+                <ContextMenuItemButton item={entry as ContextMenuItem} focused={focusedIndex() === index()} />
               </Show>
             )}
           </For>
