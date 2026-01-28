@@ -10,6 +10,7 @@ import type { DMListItem } from "@/lib/types";
 import { dmsState, selectDM } from "@/stores/dms";
 import { hasActiveCallInChannel, callState } from "@/stores/call";
 import { isUserOnline } from "@/stores/presence";
+import { currentUser } from "@/stores/auth";
 
 interface DMItemProps {
   dm: DMListItem;
@@ -18,20 +19,28 @@ interface DMItemProps {
 const DMItem: Component<DMItemProps> = (props) => {
   const isSelected = () => dmsState.selectedDMId === props.dm.id;
 
-  // Get the other participant(s) for display
-  const displayName = () => {
-    if (props.dm.participants.length === 1) {
-      return props.dm.participants[0].display_name;
-    }
-    return props.dm.name || props.dm.participants.map(p => p.display_name).join(", ");
+  // Filter out the current user from participants
+  const otherParticipants = () => {
+    const me = currentUser();
+    return props.dm.participants.filter(p => p.user_id !== me?.id);
   };
 
-  const isGroupDM = () => props.dm.participants.length > 1;
+  // Get the other participant(s) for display
+  const displayName = () => {
+    const others = otherParticipants();
+    if (others.length === 0) {
+      // Edge case: only self in DM (shouldn't happen normally)
+      return props.dm.participants[0]?.display_name ?? "Unknown";
+    }
+    return props.dm.name || others.map(p => p.display_name).join(", ");
+  };
+
+  const isGroupDM = () => otherParticipants().length > 1;
 
   // Get online status for 1:1 DMs
   const isOnline = () => {
     if (isGroupDM()) return false;
-    const otherUser = props.dm.participants[0];
+    const otherUser = otherParticipants()[0];
     if (!otherUser) return false;
     return isUserOnline(otherUser.user_id);
   };
@@ -95,7 +104,7 @@ const DMItem: Component<DMItemProps> = (props) => {
           fallback={
             <div class="w-10 h-10 rounded-full bg-accent-primary flex items-center justify-center">
               <span class="text-sm font-semibold text-surface-base">
-                {props.dm.participants[0]?.display_name?.charAt(0).toUpperCase() || "?"}
+                {otherParticipants()[0]?.display_name?.charAt(0).toUpperCase() || "?"}
               </span>
             </div>
           }
