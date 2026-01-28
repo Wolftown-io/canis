@@ -22,6 +22,10 @@ interface GuildStoreState {
   invites: Record<string, GuildInvite[]>;
   // Channels of the active guild
   guildChannels: Record<string, Channel[]>;
+  // Unread message counts per guild (for sidebar badges)
+  guildUnreadCounts: Record<string, number>;
+  // Map channel IDs to guild IDs (for routing WebSocket events)
+  channelGuildMap: Record<string, string>;
   // Loading states
   isLoading: boolean;
   isMembersLoading: boolean;
@@ -37,6 +41,8 @@ const [guildsState, setGuildsState] = createStore<GuildStoreState>({
   members: {},
   invites: {},
   guildChannels: {},
+  guildUnreadCounts: {},
+  channelGuildMap: {},
   isLoading: false,
   isMembersLoading: false,
   isInvitesLoading: false,
@@ -52,6 +58,9 @@ export async function loadGuilds(): Promise<void> {
   try {
     const guilds = await tauri.getGuilds();
     setGuildsState({ guilds, isLoading: false });
+
+    // Prefetch channels for all guilds to populate channel→guild map and unread counts
+    await loadAllGuildUnreadCounts(guilds);
 
     // If a guild was active, reload its data
     if (guildsState.activeGuildId) {
@@ -90,6 +99,10 @@ export async function loadGuildChannels(guildId: string): Promise<void> {
   try {
     const channels = await tauri.getGuildChannels(guildId);
     setGuildsState("guildChannels", guildId, channels);
+    // Update channel→guild mapping
+    for (const ch of channels) {
+      setGuildsState("channelGuildMap", ch.id, guildId);
+    }
   } catch (err) {
     console.error("Failed to load guild channels:", err);
   }
@@ -102,6 +115,8 @@ export async function loadGuildChannels(guildId: string): Promise<void> {
 export async function selectGuild(guildId: string): Promise<void> {
   const previousGuildId = guildsState.activeGuildId;
   setGuildsState({ activeGuildId: guildId });
+  // Clear guild-level unread badge when entering the guild
+  clearGuildUnread(guildId);
 
   // Load channels for this guild (this will update the channels store)
   const { loadChannelsForGuild } = await import("./channels");
@@ -355,6 +370,63 @@ export function patchGuild(guildId: string, diff: Record<string, unknown>): void
   if (Object.keys(updates).length > 0) {
     setGuildsState("guilds", guildIndex, (prev) => ({ ...prev, ...updates }));
   }
+}
+
+// ============================================================================
+// Guild Unread Count Functions
+// ============================================================================
+
+/**
+ * Load unread counts for all guilds by fetching their channels.
+ */
+async function loadAllGuildUnreadCounts(guilds: Guild[]): Promise<void> {
+  await Promise.all(
+    guilds.map(async (guild) => {
+      try {
+        const channels = await tauri.getGuildChannels(guild.id);
+        setGuildsState("guildChannels", guild.id, channels);
+        // Build channel→guild map
+        for (const ch of channels) {
+          setGuildsState("channelGuildMap", ch.id, guild.id);
+        }
+        // Sum unread counts from text channels
+        const total = channels
+          .filter((c) => c.channel_type === "text")
+          .reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
+        setGuildsState("guildUnreadCounts", guild.id, total);
+      } catch (err) {
+        console.error(`Failed to load channels for guild ${guild.id}:`, err);
+      }
+    })
+  );
+}
+
+/**
+ * Get unread count for a guild.
+ */
+export function getGuildUnreadCount(guildId: string): number {
+  return guildsState.guildUnreadCounts[guildId] ?? 0;
+}
+
+/**
+ * Increment unread count for a guild (called from WebSocket handler).
+ */
+export function incrementGuildUnread(guildId: string): void {
+  setGuildsState("guildUnreadCounts", guildId, (prev) => (prev ?? 0) + 1);
+}
+
+/**
+ * Clear unread count for a guild (called when entering the guild).
+ */
+export function clearGuildUnread(guildId: string): void {
+  setGuildsState("guildUnreadCounts", guildId, 0);
+}
+
+/**
+ * Look up which guild a channel belongs to.
+ */
+export function getGuildIdForChannel(channelId: string): string | undefined {
+  return guildsState.channelGuildMap[channelId];
 }
 
 // Export the store for reading and modifying (for members store)
