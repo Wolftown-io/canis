@@ -649,6 +649,9 @@ export async function stopTyping(channelId: string): Promise<void> {
  * Add a user to the typing list for a channel.
  */
 function addTypingUser(channelId: string, userId: string): void {
+  // Don't show own typing indicator
+  if (userId === currentUser()?.id) return;
+
   // Clear existing timer for this user
   const timerKey = `${channelId}:${userId}`;
   if (typingTimers[timerKey]) {
