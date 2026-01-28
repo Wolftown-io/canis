@@ -146,8 +146,8 @@ export async function loadMessages(channelId: string): Promise<void> {
     const existing = messagesState.byChannel[channelId] || [];
     const before = existing.length > 0 ? existing[0].id : undefined;
 
-    const messages = await tauri.getMessages(channelId, before, MESSAGE_LIMIT);
-    const messageList = Array.isArray(messages) ? messages : [];
+    const response = await tauri.getMessages(channelId, before, MESSAGE_LIMIT);
+    const messageList = response.items;
 
     // Decrypt encrypted messages
     const decryptedMessages = await decryptMessages(messageList);
@@ -162,8 +162,8 @@ export async function loadMessages(channelId: string): Promise<void> {
     const currentMessages = messagesState.byChannel[channelId] || [];
     setMessagesState("byChannel", channelId, [...reversed, ...currentMessages]);
 
-    // Check if there are more messages to load
-    setMessagesState("hasMore", channelId, messageList.length === MESSAGE_LIMIT);
+    // Use server's pagination info
+    setMessagesState("hasMore", channelId, response.has_more);
     setMessagesState("loadingChannels", channelId, false);
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);

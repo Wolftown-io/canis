@@ -215,6 +215,14 @@ export interface Message {
   reactions?: Reaction[];
 }
 
+// Paginated Response Types
+
+export interface PaginatedMessages {
+  items: Message[];
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
 // Search Types
 
 export interface SearchAuthor {

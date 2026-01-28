@@ -51,6 +51,7 @@ import type {
   UserKeysResponse,
   ClaimedPrekeyResponse,
   SearchResponse,
+  PaginatedMessages,
 } from "./types";
 
 // Re-export types for convenience
@@ -457,7 +458,7 @@ export async function getMessages(
   channelId: string,
   before?: string,
   limit?: number
-): Promise<Message[]> {
+): Promise<PaginatedMessages> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("get_messages", { channelId, before, limit });
@@ -468,7 +469,7 @@ export async function getMessages(
   if (limit) params.set("limit", limit.toString());
   const query = params.toString();
 
-  return httpRequest<Message[]>(
+  return httpRequest<PaginatedMessages>(
     "GET",
     `/api/messages/channel/${channelId}${query ? `?${query}` : ""}`
   );
