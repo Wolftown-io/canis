@@ -864,3 +864,54 @@ pub async fn get_guild_channels(pool: &PgPool, guild_id: Uuid) -> sqlx::Result<V
     .fetch_all(pool)
     .await
 }
+
+// ============================================================================
+// Server Configuration
+// ============================================================================
+
+/// Get a server configuration value by key.
+pub async fn get_config_value(pool: &PgPool, key: &str) -> sqlx::Result<serde_json::Value> {
+    let row = sqlx::query("SELECT value FROM server_config WHERE key = $1")
+        .bind(key)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.get("value"))
+}
+
+/// Set a server configuration value.
+pub async fn set_config_value(
+    pool: &PgPool,
+    key: &str,
+    value: serde_json::Value,
+    updated_by: Uuid,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE server_config SET value = $2, updated_by = $3, updated_at = NOW()
+         WHERE key = $1",
+    )
+    .bind(key)
+    .bind(value)
+    .bind(updated_by)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Check if server setup is complete.
+pub async fn is_setup_complete(pool: &PgPool) -> sqlx::Result<bool> {
+    let value = get_config_value(pool, "setup_complete").await?;
+    Ok(value.as_bool().unwrap_or(false))
+}
+
+/// Mark server setup as complete (irreversible).
+pub async fn mark_setup_complete(pool: &PgPool, updated_by: Uuid) -> sqlx::Result<()> {
+    set_config_value(pool, "setup_complete", serde_json::json!(true), updated_by).await
+}
+
+/// Count total number of users in the database.
+pub async fn count_users(pool: &PgPool) -> sqlx::Result<i64> {
+    let row = sqlx::query("SELECT COUNT(*) as count FROM users")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.get("count"))
+}

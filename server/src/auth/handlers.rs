@@ -14,7 +14,7 @@ use validator::Validate;
 
 use crate::api::AppState;
 use crate::db::{
-    create_session, create_user, delete_session_by_token_hash, email_exists,
+    create_session, delete_session_by_token_hash, email_exists,
     find_session_by_token_hash, find_user_by_id, find_user_by_username, set_mfa_secret,
     update_user_avatar, update_user_profile, username_exists,
 };
@@ -185,11 +185,11 @@ pub async fn register(
     headers: HeaderMap,
     Json(body): Json<RegisterRequest>,
 ) -> AuthResult<Json<AuthResponse>> {
-    // Validate input
+    // Validate input first
     body.validate()
         .map_err(|e| AuthError::Validation(e.to_string()))?;
 
-    // Check username uniqueness
+    // Check username uniqueness (outside transaction - UNIQUE constraint will catch races)
     if username_exists(&state.db, &body.username).await? {
         return Err(AuthError::UserAlreadyExists);
     }
@@ -207,15 +207,47 @@ pub async fn register(
     // Set display name (default to username if not provided)
     let display_name = body.display_name.as_deref().unwrap_or(&body.username);
 
-    // Create user
-    let user = create_user(
-        &state.db,
-        &body.username,
+    // Start transaction for atomic first-user detection and admin grant
+    let mut tx = state.db.begin().await?;
+
+    // Lock users table and check if this is the first user
+    // FOR UPDATE prevents concurrent first-user registrations
+    let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users FOR UPDATE")
+        .fetch_one(&mut *tx)
+        .await?;
+    let is_first_user = user_count == 0;
+
+    // Create user (inline to use transaction)
+    let user = sqlx::query_as!(
+        crate::db::User,
+        r#"INSERT INTO users (username, display_name, email, password_hash, auth_method)
+           VALUES ($1, $2, $3, $4, 'local')
+           RETURNING id, username, display_name, email, password_hash,
+                     auth_method as "auth_method: _", external_id, avatar_url,
+                     status as "status: _", mfa_secret, created_at, updated_at"#,
+        body.username,
         display_name,
-        body.email.as_deref(),
-        &password_hash,
+        body.email,
+        password_hash
     )
+    .fetch_one(&mut *tx)
     .await?;
+
+    // Grant system admin to first user
+    if is_first_user {
+        sqlx::query!(
+            "INSERT INTO system_admins (user_id, granted_by) VALUES ($1, $1)",
+            user.id
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tracing::info!(
+            user_id = %user.id,
+            username = %user.username,
+            "First user registered and granted system admin"
+        );
+    }
 
     // Generate tokens
     let tokens = generate_token_pair(
@@ -225,22 +257,30 @@ pub async fn register(
         state.config.jwt_refresh_expiry,
     )?;
 
-    // Store refresh token session
+    // Store refresh token session (inline to use transaction)
     let token_hash = hash_token(&tokens.refresh_token);
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
-    create_session(
-        &state.db,
-        user.id,
-        &token_hash,
-        expires_at,
-        Some(&addr.ip().to_string()),
-        user_agent.as_deref(),
+    let ip_str = Some(addr.ip().to_string());
+    sqlx::query(
+        r"INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
+          VALUES ($1, $2, $3, $4::inet, $5)"
     )
+    .bind(user.id)
+    .bind(&token_hash)
+    .bind(expires_at)
+    .bind(ip_str.as_deref())
+    .bind(user_agent.as_deref())
+    .execute(&mut *tx)
     .await?;
 
-    tracing::info!(user_id = %user.id, "User registered");
+    // Commit transaction
+    tx.commit().await?;
+
+    if !is_first_user {
+        tracing::info!(user_id = %user.id, username = %user.username, "User registered");
+    }
 
     Ok(Json(AuthResponse {
         access_token: tokens.access_token,
