@@ -6,6 +6,7 @@ import "@unocss/reset/tailwind.css";
 import "./styles/global.css";
 import "./styles/themes-structure.css";
 import "./styles/themes.css";
+import "./styles/themes-pixel.css";
 import "./styles/highlight-theme.css";
 import AppRoutes from "./App";
 

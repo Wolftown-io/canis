@@ -1,0 +1,182 @@
+/**
+ * Pixel Theme Family — Structural Overrides
+ *
+ * These styles apply to ALL pixel-* themes via [data-theme^="pixel-"].
+ * Each pixel theme variant only needs to define its own colors in themes.css.
+ * Fonts, shapes, textures, and behaviors are shared across the family.
+ *
+ * HOW TO ADD A PIXEL THEME VARIANT:
+ * 1. Add your theme ID (e.g. "pixel-dungeon") to THEME_NAMES in types.ts
+ * 2. Add a ThemeDefinition entry with family: "pixel" in theme.ts
+ * 3. Add a color block in themes.css with :root[data-theme="pixel-dungeon"]
+ * 4. Done — structural styles below are inherited automatically
+ *
+ * SECTIONS:
+ * 1. Structural tokens (radii, borders, shadows)
+ * 2. Typography (pixel font sizing and application)
+ * 3. Dithered textures (background patterns)
+ * 4. Animations (stepped instead of smooth)
+ * 5. Scrollbar styling
+ */
+
+/* ============================================================================
+ * 1. Structural Tokens
+ * Override shape tokens for sharp, blocky pixel appearance.
+ * These are consumed by UnoCSS via the theme config in uno.config.ts.
+ * ============================================================================ */
+:root[data-theme^="pixel-"] {
+  /* Sharp corners — pixel art doesn't have smooth curves */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-full: 2px;
+
+  /* Thicker borders for chunky pixel look */
+  --border-width: 2px;
+
+  /* No shadows — pixel art uses hard edges */
+  --shadow-sm: none;
+  --shadow-md: none;
+}
+
+/* ============================================================================
+ * 2. Typography
+ * Pixel font sizing and selective application.
+ * Note: The actual @font-face for Press Start 2P is in a separate task.
+ * Until that's done, this falls back to monospace.
+ * ============================================================================ */
+:root[data-theme^="pixel-"] {
+  /* Pixel font for UI chrome, system font for content */
+  --font-ui: "Press Start 2P", monospace;
+  --font-content: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Scale factor for pixel font — it renders larger than system fonts */
+  --font-ui-scale: 0.65;
+}
+
+/* Apply pixel font to UI elements with size compensation */
+[data-theme^="pixel-"] h1,
+[data-theme^="pixel-"] h2,
+[data-theme^="pixel-"] h3,
+[data-theme^="pixel-"] h4 {
+  font-family: var(--font-ui);
+  font-size: calc(1em * var(--font-ui-scale));
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+}
+
+[data-theme^="pixel-"] button,
+[data-theme^="pixel-"] [class*="btn"] {
+  font-family: var(--font-ui);
+  font-size: calc(0.75rem * var(--font-ui-scale));
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+}
+
+/* Sidebar and navigation elements */
+[data-theme^="pixel-"] nav,
+[data-theme^="pixel-"] [class*="sidebar"] [class*="header"],
+[data-theme^="pixel-"] [class*="channel-name"],
+[data-theme^="pixel-"] [class*="guild-name"] {
+  font-family: var(--font-ui);
+  font-size: calc(0.6875rem * var(--font-ui-scale));
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+}
+
+/* Keep readable font for content */
+[data-theme^="pixel-"] [class*="message-content"],
+[data-theme^="pixel-"] [class*="chat-message"],
+[data-theme^="pixel-"] textarea,
+[data-theme^="pixel-"] input[type="text"],
+[data-theme^="pixel-"] input[type="search"],
+[data-theme^="pixel-"] input[type="password"],
+[data-theme^="pixel-"] input[type="email"],
+[data-theme^="pixel-"] [contenteditable] {
+  font-family: var(--font-content);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* ============================================================================
+ * 3. Dithered Textures
+ * Classic pixel art dithering patterns as CSS backgrounds.
+ * Uses tiny inline data URIs for the patterns.
+ * ============================================================================ */
+
+/*
+ * Dither patterns encoded as data URIs:
+ * - checkerboard: 2x2 alternating pixels
+ * - light: 4x4 with sparse dots
+ * - heavy: 4x4 with dense dots
+ */
+:root[data-theme^="pixel-"] {
+  /* Checkerboard pattern (2x2) */
+  --dither-check: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVQIW2NkYGD4z8DAwMgAABFaAQVTpfV3AAAAAElFTkSuQmCC");
+
+  /* Light dither (4x4 sparse) */
+  --dither-light: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAFklEQVQIW2NkYGD4z8DAwMiABBgZGQEAGGIBBbYIe4IAAAAASUVORK5CYII=");
+
+  /* Heavy dither (4x4 dense) */
+  --dither-heavy: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAHUlEQVQIW2NkYGD4z8DAwMjAwMDIgAQYGBgYGAAAfwQFA+HwqvkAAAAASUVORK5CYII=");
+}
+
+/* Subtle dither overlay on sidebar — use ::after to avoid affecting children */
+[data-theme^="pixel-"] [class*="server-rail"],
+[data-theme^="pixel-"] [class*="sidebar"][class*="channel"] {
+  position: relative;
+}
+
+[data-theme^="pixel-"] [class*="server-rail"]::after,
+[data-theme^="pixel-"] [class*="sidebar"][class*="channel"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--dither-check);
+  background-size: 4px 4px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================================
+ * 4. Animations
+ * Stepped transitions instead of smooth easing for retro feel.
+ * Applied sparingly to avoid performance issues.
+ * ============================================================================ */
+[data-theme^="pixel-"] button,
+[data-theme^="pixel-"] [class*="btn"],
+[data-theme^="pixel-"] [class*="item"]:hover {
+  transition-timing-function: steps(4, end);
+}
+
+/* ============================================================================
+ * 5. Scrollbar Styling
+ * Chunky, square scrollbars matching pixel aesthetic.
+ * ============================================================================ */
+[data-theme^="pixel-"] ::-webkit-scrollbar {
+  width: 12px;
+}
+
+[data-theme^="pixel-"] ::-webkit-scrollbar-track {
+  background: var(--color-surface-base);
+  border-left: 2px solid var(--color-border-default);
+}
+
+[data-theme^="pixel-"] ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-highlight);
+  border: 2px solid var(--color-border-default);
+}
+
+[data-theme^="pixel-"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* Firefox scrollbar styling */
+[data-theme^="pixel-"] * {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-surface-highlight) var(--color-surface-base);
+}
