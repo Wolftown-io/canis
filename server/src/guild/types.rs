@@ -136,3 +136,30 @@ pub struct RoleResponse {
     pub is_default: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
+
+// ============================================================================
+// Emoji Types
+// ============================================================================
+
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct GuildEmoji {
+    pub id: Uuid,
+    pub guild_id: Uuid,
+    pub name: String,
+    pub image_url: String,
+    pub animated: bool,
+    pub uploaded_by: Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateEmojiRequest {
+    #[validate(length(min = 2, max = 32, message = "Name must be 2-32 characters"))]
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateEmojiRequest {
+    #[validate(length(min = 2, max = 32, message = "Name must be 2-32 characters"))]
+    pub name: String,
+}

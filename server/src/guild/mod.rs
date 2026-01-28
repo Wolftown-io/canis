@@ -3,6 +3,7 @@
 //! Handles guild creation, membership, invites, roles, categories, search, and management.
 
 pub mod categories;
+pub mod emojis;
 pub mod handlers;
 pub mod invites;
 pub mod roles;
@@ -66,6 +67,8 @@ pub fn router() -> Router<AppState> {
         .route("/:id/search", get(search::search_messages))
         // Pages routes (nested)
         .nest("/:id/pages", pages::guild_pages_router())
+        // Emoji routes
+        .nest("/:id/emojis", emojis::router())
 }
 
 /// Create the invite join router (separate for public access pattern)

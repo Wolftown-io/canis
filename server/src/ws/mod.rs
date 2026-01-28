@@ -273,6 +273,13 @@ pub enum ServerEvent {
         /// Emoji that was removed.
         emoji: String,
     },
+    /// Guild custom emojis updated
+    GuildEmojiUpdated {
+        /// Guild ID.
+        guild_id: Uuid,
+        /// Updated emojis list.
+        emojis: Vec<crate::guild::types::GuildEmoji>,
+    },
     /// User typing
     TypingStart {
         /// Channel user is typing in.
