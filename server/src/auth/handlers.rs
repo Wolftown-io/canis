@@ -15,8 +15,8 @@ use validator::Validate;
 use crate::api::AppState;
 use crate::db::{
     create_session, delete_session_by_token_hash, email_exists,
-    find_session_by_token_hash, find_user_by_id, find_user_by_username, set_mfa_secret,
-    update_user_avatar, update_user_profile, username_exists,
+    find_session_by_token_hash, find_user_by_id, find_user_by_username, is_setup_complete,
+    set_mfa_secret, update_user_avatar, update_user_profile, username_exists,
 };
 use crate::ws::broadcast_user_patch;
 use crate::ratelimit::NormalizedIp;
@@ -84,6 +84,8 @@ pub struct AuthResponse {
     pub expires_in: i64,
     /// Token type (always "Bearer").
     pub token_type: String,
+    /// Whether server setup is required.
+    pub setup_required: bool,
 }
 
 /// User profile response.
@@ -278,6 +280,9 @@ pub async fn register(
     // Commit transaction
     tx.commit().await?;
 
+    // Check if setup is complete
+    let setup_complete = is_setup_complete(&state.db).await?;
+
     if !is_first_user {
         tracing::info!(user_id = %user.id, username = %user.username, "User registered");
     }
@@ -287,6 +292,7 @@ pub async fn register(
         refresh_token: tokens.refresh_token,
         expires_in: tokens.access_expires_in,
         token_type: "Bearer".to_string(),
+        setup_required: !setup_complete,
     }))
 }
 
@@ -407,13 +413,17 @@ pub async fn login(
         let _ = rl.clear_failed_auth(&nip.0).await;
     }
 
-    tracing::info!(user_id = %user.id, "User logged in");
+    // Check if setup is complete
+    let setup_complete = is_setup_complete(&state.db).await?;
+
+    tracing::info!(user_id = %user.id, setup_required = !setup_complete, "User logged in");
 
     Ok(Json(AuthResponse {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_in: tokens.access_expires_in,
         token_type: "Bearer".to_string(),
+        setup_required: !setup_complete,
     }))
 }
 
@@ -475,6 +485,9 @@ pub async fn refresh_token(
     )
     .await?;
 
+    // Check if setup is complete
+    let setup_complete = is_setup_complete(&state.db).await?;
+
     tracing::info!(user_id = %user_id, "Token refreshed");
 
     Ok(Json(AuthResponse {
@@ -482,6 +495,7 @@ pub async fn refresh_token(
         refresh_token: new_tokens.refresh_token,
         expires_in: new_tokens.access_expires_in,
         token_type: "Bearer".to_string(),
+        setup_required: !setup_complete,
     }))
 }
 
