@@ -306,9 +306,17 @@ export async function deleteInvite(guildId: string, code: string): Promise<void>
  * Join a guild via invite code
  */
 export async function joinViaInviteCode(code: string): Promise<void> {
+  // Join first — if this fails, the error is genuine
   const response = await tauri.joinViaInvite(code);
-  await loadGuilds(); // Reload guilds to include the new one
-  await selectGuild(response.guild_id);
+
+  // Post-join UI setup — join already succeeded at this point
+  try {
+    await loadGuilds();
+    await selectGuild(response.guild_id);
+  } catch (err) {
+    console.error("Post-join UI setup failed (join succeeded):", err);
+    // Don't rethrow — the join worked, guild will appear on next load
+  }
 }
 
 /**

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Join Server button in server rail with invite code/link input modal
 - Pixel art theme system with "Pixel Cozy" warm earth-tone theme
 - Theme family architecture allowing community theme variants
 - Structural CSS tokens (radii, fonts, shadows) for theme-aware UI
