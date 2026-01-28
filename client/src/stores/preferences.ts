@@ -12,7 +12,7 @@ import type {
   PreferencesResponse,
   StoredPreferences,
 } from "@/lib/types";
-import { DEFAULT_DISPLAY_PREFERENCES } from "@/lib/types";
+import { DEFAULT_DISPLAY_PREFERENCES, THEME_NAMES } from "@/lib/types";
 
 // ============================================================================
 // Constants
@@ -95,8 +95,7 @@ function migrateOldPreferences(): Partial<UserPreferences> | null {
   // Migrate theme
   const oldTheme = localStorage.getItem("theme");
   if (oldTheme) {
-    const validThemes = ["focused-hybrid", "solarized-dark", "solarized-light"];
-    if (validThemes.includes(oldTheme)) {
+    if ((THEME_NAMES as readonly string[]).includes(oldTheme)) {
       migrated.theme = oldTheme as UserPreferences["theme"];
       hasMigration = true;
     }

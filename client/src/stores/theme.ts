@@ -7,8 +7,9 @@
 
 import { createEffect } from "solid-js";
 import { preferences, updatePreference } from "./preferences";
+import type { ThemeName } from "@/lib/types";
 
-export type ThemeName = "focused-hybrid" | "solarized-dark" | "solarized-light";
+export type { ThemeName };
 
 export interface ThemeDefinition {
   id: ThemeName;
@@ -41,6 +42,9 @@ export const availableThemes: ThemeDefinition[] = [
     isDark: false,
   },
 ];
+
+/** Theme IDs derived from availableThemes for validation use. */
+export const THEME_IDS = availableThemes.map((t) => t.id);
 
 // ============================================================================
 // Derived Signals

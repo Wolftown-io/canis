@@ -4,6 +4,18 @@
  * These types mirror the Rust types in shared/vc-common
  */
 
+// Theme Types (canonical source of truth for theme names)
+
+/** All available theme identifiers. Add new themes here. */
+export const THEME_NAMES = [
+  "focused-hybrid",
+  "solarized-dark",
+  "solarized-light",
+] as const;
+
+/** Valid theme name identifier. Derived from THEME_NAMES array. */
+export type ThemeName = (typeof THEME_NAMES)[number];
+
 // User Types
 
 export type UserStatus = "online" | "idle" | "dnd" | "invisible" | "offline";
@@ -419,7 +431,7 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
 // User Preferences (synced across devices)
 export interface UserPreferences {
   // Theme
-  theme: "focused-hybrid" | "solarized-dark" | "solarized-light";
+  theme: ThemeName;
 
   // Sound settings
   sound: {
