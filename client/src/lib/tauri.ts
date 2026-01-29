@@ -586,6 +586,7 @@ export async function uploadAvatar(file: File): Promise<User> {
   // Frontend validation
   const error = validateFileSize(file, 'avatar');
   if (error) {
+    console.warn('[uploadAvatar] Frontend validation failed:', error);
     throw new Error(error);
   }
 
@@ -608,11 +609,32 @@ export async function uploadAvatar(file: File): Promise<User> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || error.error || "Upload failed");
+    let errorMessage = `Upload failed (HTTP ${response.status})`;
+
+    try {
+      const errorBody = await response.json();
+      errorMessage = errorBody.message || errorBody.error || errorMessage;
+    } catch (parseError) {
+      console.warn('[uploadAvatar] Failed to parse error response:', parseError);
+      errorMessage = response.statusText || errorMessage;
+    }
+
+    console.error('[uploadAvatar] Upload failed:', {
+      status: response.status,
+      error: errorMessage,
+      fileSize: file.size,
+      fileName: file.name,
+    });
+
+    throw new Error(errorMessage);
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch (parseError) {
+    console.error('[uploadAvatar] Failed to parse success response:', parseError);
+    throw new Error('Server returned invalid response');
+  }
 }
 
 // Chat Commands
@@ -739,6 +761,13 @@ export async function uploadMessageWithFile(
   file: File,
   content?: string
 ): Promise<Message> {
+  // Frontend validation
+  const error = validateFileSize(file, 'attachment');
+  if (error) {
+    console.warn('[uploadMessageWithFile] Frontend validation failed:', error);
+    throw new Error(error);
+  }
+
   const token = browserState.accessToken || localStorage.getItem("accessToken");
   const headers: Record<string, string> = {};
 
@@ -761,11 +790,33 @@ export async function uploadMessageWithFile(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || error.error || "Upload failed");
+    let errorMessage = `Upload failed (HTTP ${response.status})`;
+
+    try {
+      const errorBody = await response.json();
+      errorMessage = errorBody.message || errorBody.error || errorMessage;
+    } catch (parseError) {
+      console.warn('[uploadMessageWithFile] Failed to parse error response:', parseError);
+      errorMessage = response.statusText || errorMessage;
+    }
+
+    console.error('[uploadMessageWithFile] Upload failed:', {
+      status: response.status,
+      error: errorMessage,
+      channelId,
+      fileSize: file.size,
+      fileName: file.name,
+    });
+
+    throw new Error(errorMessage);
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch (parseError) {
+    console.error('[uploadMessageWithFile] Failed to parse success response:', parseError);
+    throw new Error('Server returned invalid response');
+  }
 }
 
 // Guild Commands
