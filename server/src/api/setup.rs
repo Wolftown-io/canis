@@ -31,6 +31,15 @@ pub enum SetupError {
 
 impl IntoResponse for SetupError {
     fn into_response(self) -> Response {
+        // Log database errors before converting to response
+        if let Self::Database(ref err) = self {
+            tracing::error!(
+                error = %err,
+                error_debug = ?err,
+                "Setup endpoint returned database error"
+            );
+        }
+
         let (status, code, message) = match &self {
             Self::SetupAlreadyComplete => (
                 StatusCode::FORBIDDEN,
@@ -133,27 +142,63 @@ pub async fn get_config(
         return Err(SetupError::SetupAlreadyComplete);
     }
 
-    let server_name = db::get_config_value(&state.db, "server_name")
-        .await?
+    // Get server_name (must be string)
+    let server_name_value = db::get_config_value(&state.db, "server_name").await?;
+    let server_name = server_name_value
         .as_str()
-        .unwrap_or("Canis Server")
+        .ok_or_else(|| {
+            tracing::error!(
+                key = "server_name",
+                actual_value = ?server_name_value,
+                "Config value has wrong type (expected string)"
+            );
+            SetupError::Validation("Invalid server_name type in database".to_string())
+        })?
         .to_string();
 
-    let registration_policy = db::get_config_value(&state.db, "registration_policy")
-        .await?
+    // Get registration_policy (must be string)
+    let policy_value = db::get_config_value(&state.db, "registration_policy").await?;
+    let registration_policy = policy_value
         .as_str()
-        .unwrap_or("open")
+        .ok_or_else(|| {
+            tracing::error!(
+                key = "registration_policy",
+                actual_value = ?policy_value,
+                "Config value has wrong type (expected string)"
+            );
+            SetupError::Validation("Invalid registration_policy type in database".to_string())
+        })?
         .to_string();
 
-    let terms_url = db::get_config_value(&state.db, "terms_url")
-        .await?
-        .as_str()
-        .map(|s| s.to_string());
+    // Get terms_url (optional string or null)
+    let terms_value = db::get_config_value(&state.db, "terms_url").await?;
+    let terms_url = if terms_value.is_null() {
+        None
+    } else {
+        Some(terms_value.as_str().ok_or_else(|| {
+            tracing::error!(
+                key = "terms_url",
+                actual_value = ?terms_value,
+                "Config value has wrong type (expected string or null)"
+            );
+            SetupError::Validation("Invalid terms_url type in database".to_string())
+        })?.to_string())
+    };
 
-    let privacy_url = db::get_config_value(&state.db, "privacy_url")
-        .await?
-        .as_str()
-        .map(|s| s.to_string());
+    // Get privacy_url (optional string or null)
+    let privacy_value = db::get_config_value(&state.db, "privacy_url").await?;
+    let privacy_url = if privacy_value.is_null() {
+        None
+    } else {
+        Some(privacy_value.as_str().ok_or_else(|| {
+            tracing::error!(
+                key = "privacy_url",
+                actual_value = ?privacy_value,
+                "Config value has wrong type (expected string or null)"
+            );
+            SetupError::Validation("Invalid privacy_url type in database".to_string())
+        })?.to_string())
+    };
 
     Ok(Json(SetupConfigResponse {
         server_name,
@@ -175,69 +220,143 @@ pub async fn complete(
     body.validate()
         .map_err(|e| SetupError::Validation(e.to_string()))?;
 
-    // Only allow completing setup if it's not already complete
-    if db::is_setup_complete(&state.db).await? {
-        return Err(SetupError::SetupAlreadyComplete);
-    }
-
-    // Verify user is a system admin
+    // Verify user is a system admin (before transaction)
     let is_admin = sqlx::query_scalar!(
         r#"SELECT EXISTS(SELECT 1 FROM system_admins WHERE user_id = $1) as "exists!""#,
         auth.id
     )
     .fetch_one(&state.db)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %auth.id,
+            "Failed to verify admin status during setup completion"
+        );
+        SetupError::Database(e)
+    })?;
 
     if !is_admin {
         return Err(SetupError::Unauthorized);
     }
 
-    // Update server configuration
-    db::set_config_value(
-        &state.db,
-        "server_name",
-        serde_json::json!(body.server_name),
-        auth.id,
-    )
-    .await?;
+    // Use transaction for atomic setup completion
+    let mut tx = state.db.begin().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to start setup completion transaction");
+        SetupError::Database(e)
+    })?;
 
-    db::set_config_value(
-        &state.db,
-        "registration_policy",
-        serde_json::json!(body.registration_policy),
-        auth.id,
+    // Atomically check and mark setup as complete
+    // This prevents race condition where two admins both pass the check
+    let updated = sqlx::query!(
+        r#"UPDATE server_config
+           SET value = 'true'::jsonb, updated_by = $1, updated_at = NOW()
+           WHERE key = 'setup_complete' AND value = 'false'::jsonb
+           RETURNING key"#,
+        auth.id
     )
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to atomically check and update setup_complete");
+        SetupError::Database(e)
+    })?;
 
-    db::set_config_value(
-        &state.db,
-        "terms_url",
+    // If no row was updated, setup was already complete
+    if updated.is_none() {
+        tracing::warn!(
+            admin_id = %auth.id,
+            "Attempted to complete setup but it was already marked complete"
+        );
+        return Err(SetupError::SetupAlreadyComplete);
+    }
+
+    // Update server configuration within transaction
+    sqlx::query(
+        r#"UPDATE server_config
+           SET value = $2, updated_by = $3, updated_at = NOW()
+           WHERE key = $1"#,
+    )
+    .bind("server_name")
+    .bind(serde_json::json!(body.server_name))
+    .bind(auth.id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to update server_name during setup");
+        SetupError::Database(e)
+    })?;
+
+    sqlx::query(
+        r#"UPDATE server_config
+           SET value = $2, updated_by = $3, updated_at = NOW()
+           WHERE key = $1"#,
+    )
+    .bind("registration_policy")
+    .bind(serde_json::json!(body.registration_policy))
+    .bind(auth.id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to update registration_policy during setup");
+        SetupError::Database(e)
+    })?;
+
+    sqlx::query(
+        r#"UPDATE server_config
+           SET value = $2, updated_by = $3, updated_at = NOW()
+           WHERE key = $1"#,
+    )
+    .bind("terms_url")
+    .bind(
         body.terms_url
             .as_ref()
             .map(|s| serde_json::json!(s))
             .unwrap_or(serde_json::Value::Null),
-        auth.id,
     )
-    .await?;
+    .bind(auth.id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to update terms_url during setup");
+        SetupError::Database(e)
+    })?;
 
-    db::set_config_value(
-        &state.db,
-        "privacy_url",
+    sqlx::query(
+        r#"UPDATE server_config
+           SET value = $2, updated_by = $3, updated_at = NOW()
+           WHERE key = $1"#,
+    )
+    .bind("privacy_url")
+    .bind(
         body.privacy_url
             .as_ref()
             .map(|s| serde_json::json!(s))
             .unwrap_or(serde_json::Value::Null),
-        auth.id,
     )
-    .await?;
+    .bind(auth.id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to update privacy_url during setup");
+        SetupError::Database(e)
+    })?;
 
-    // Mark setup as complete (irreversible)
-    db::mark_setup_complete(&state.db, auth.id).await?;
+    // Commit transaction
+    tx.commit().await.map_err(|e| {
+        tracing::error!(
+            error = %e,
+            admin_id = %auth.id,
+            "Failed to commit setup completion transaction"
+        );
+        SetupError::Database(e)
+    })?;
 
     tracing::info!(
         admin_id = %auth.id,
         server_name = %body.server_name,
-        "Server setup completed"
+        registration_policy = %body.registration_policy,
+        "Server setup completed successfully"
     );
 
     Ok(StatusCode::NO_CONTENT)

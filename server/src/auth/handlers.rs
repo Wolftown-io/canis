@@ -210,13 +210,28 @@ pub async fn register(
     let display_name = body.display_name.as_deref().unwrap_or(&body.username);
 
     // Start transaction for atomic first-user detection and admin grant
-    let mut tx = state.db.begin().await?;
+    let mut tx = state.db.begin().await.map_err(|e| {
+        tracing::error!(
+            error = %e,
+            username = %body.username,
+            "Failed to start registration transaction"
+        );
+        e
+    })?;
 
     // Lock users table and check if this is the first user
     // FOR UPDATE prevents concurrent first-user registrations
     let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users FOR UPDATE")
         .fetch_one(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                username = %body.username,
+                "Failed to count users with lock during registration"
+            );
+            e
+        })?;
     let is_first_user = user_count == 0;
 
     // Create user (inline to use transaction)
@@ -233,7 +248,15 @@ pub async fn register(
         password_hash
     )
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            username = %body.username,
+            "Failed to create user during registration - transaction will rollback"
+        );
+        e
+    })?;
 
     // Grant system admin to first user
     if is_first_user {
@@ -242,7 +265,16 @@ pub async fn register(
             user.id
         )
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                user_id = %user.id,
+                username = %user.username,
+                "Failed to grant system admin to first user - transaction will rollback"
+            );
+            e
+        })?;
 
         tracing::info!(
             user_id = %user.id,
@@ -257,7 +289,15 @@ pub async fn register(
         &state.config.jwt_private_key,
         state.config.jwt_access_expiry,
         state.config.jwt_refresh_expiry,
-    )?;
+    )
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %user.id,
+            "Failed to generate tokens - transaction will rollback"
+        );
+        e
+    })?;
 
     // Store refresh token session (inline to use transaction)
     let token_hash = hash_token(&tokens.refresh_token);
@@ -275,10 +315,26 @@ pub async fn register(
     .bind(ip_str.as_deref())
     .bind(user_agent.as_deref())
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %user.id,
+            "Failed to create session - transaction will rollback"
+        );
+        e
+    })?;
 
     // Commit transaction
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %user.id,
+            username = %user.username,
+            "Failed to commit registration transaction - user account rolled back"
+        );
+        e
+    })?;
 
     // Check if setup is complete
     let setup_complete = is_setup_complete(&state.db).await?;

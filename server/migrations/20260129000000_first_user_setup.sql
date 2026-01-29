@@ -22,8 +22,7 @@ INSERT INTO server_config (key, value) VALUES
     ('terms_url', 'null'::jsonb),
     ('privacy_url', 'null'::jsonb);
 
--- Index for fast setup_complete checks
-CREATE INDEX idx_server_config_key ON server_config(key);
+-- Note: No additional index needed on key column since it's already the PRIMARY KEY
 
 -- For existing installations: mark setup as complete if users exist
 UPDATE server_config

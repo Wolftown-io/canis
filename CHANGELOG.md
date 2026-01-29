@@ -212,6 +212,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bulk upload utility script (`scripts/upload_emojis.py`)
 
 ### Changed
+- **BREAKING:** Authentication responses now include `setup_required` boolean field
+  - Affects `POST /auth/register`, `POST /auth/login`, and `POST /auth/refresh` endpoints
+  - Existing clients must handle the new field or update their deserialization logic
+  - Field indicates whether server setup wizard should be displayed
 - JWT signing algorithm upgraded from HS256 → EdDSA (Ed25519) for stronger cryptographic security
 - Infrastructure: Redis replaced with Valkey for open-source compatibility
 - API error response format standardized across all endpoints (consistent error codes)

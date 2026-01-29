@@ -885,7 +885,7 @@ pub async fn set_config_value(
     value: serde_json::Value,
     updated_by: Uuid,
 ) -> sqlx::Result<()> {
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE server_config SET value = $2, updated_by = $3, updated_at = NOW()
          WHERE key = $1",
     )
@@ -894,13 +894,40 @@ pub async fn set_config_value(
     .bind(updated_by)
     .execute(pool)
     .await?;
+
+    if result.rows_affected() == 0 {
+        tracing::error!(
+            key = %key,
+            "Failed to update config value - key does not exist in server_config table"
+        );
+        return Err(sqlx::Error::RowNotFound);
+    }
+
     Ok(())
 }
 
 /// Check if server setup is complete.
 pub async fn is_setup_complete(pool: &PgPool) -> sqlx::Result<bool> {
-    let value = get_config_value(pool, "setup_complete").await?;
-    Ok(value.as_bool().unwrap_or(false))
+    let value = get_config_value(pool, "setup_complete")
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                "Failed to query setup_complete status from database"
+            );
+            e
+        })?;
+
+    match value.as_bool() {
+        Some(b) => Ok(b),
+        None => {
+            tracing::warn!(
+                actual_value = ?value,
+                "setup_complete config value is not a boolean, defaulting to false"
+            );
+            Ok(false)
+        }
+    }
 }
 
 /// Mark server setup as complete (irreversible).
