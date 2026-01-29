@@ -20,6 +20,7 @@ use crate::db::{
 };
 use crate::ws::broadcast_user_patch;
 use crate::ratelimit::NormalizedIp;
+use crate::util::format_file_size;
 
 use super::error::{AuthError, AuthResult};
 use super::jwt::{generate_token_pair, validate_refresh_token};
@@ -666,6 +667,15 @@ pub async fn upload_avatar(
     }
 
     let data = file_data.ok_or(AuthError::Validation("No avatar file provided".to_string()))?;
+
+    // SECURITY: Validate file size before processing to prevent resource exhaustion
+    if data.len() > state.config.max_avatar_size {
+        return Err(AuthError::Validation(format!(
+            "Avatar file too large ({}). Maximum size is {}",
+            format_file_size(data.len()),
+            format_file_size(state.config.max_avatar_size)
+        )));
+    }
 
     // Validate mime type from header
     let mime = content_type

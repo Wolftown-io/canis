@@ -37,8 +37,8 @@ pub enum EmojiError {
     Forbidden,
     #[error("Invalid filename")]
     InvalidFilename,
-    #[error("File too large")]
-    FileTooLarge,
+    #[error("File too large (maximum {max_size} bytes)")]
+    FileTooLarge { max_size: usize },
     #[error("Invalid file type (must be PNG, JPEG, GIF, or WebP)")]
     InvalidFileType,
     #[error("No file provided")]
@@ -53,42 +53,53 @@ pub enum EmojiError {
 
 impl IntoResponse for EmojiError {
     fn into_response(self) -> axum::response::Response {
-        let (status, code, message) = match &self {
-            EmojiError::GuildNotFound => (StatusCode::NOT_FOUND, "GUILD_NOT_FOUND", "Guild not found"),
-            EmojiError::EmojiNotFound => (StatusCode::NOT_FOUND, "EMOJI_NOT_FOUND", "Emoji not found"),
-            EmojiError::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", "Insufficient permissions"),
-            EmojiError::InvalidFilename => (
-                StatusCode::BAD_REQUEST,
-                "INVALID_FILENAME",
-                "Invalid filename",
-            ),
-            EmojiError::FileTooLarge => (
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "FILE_TOO_LARGE",
-                "File too large",
-            ),
-            EmojiError::InvalidFileType => (
-                StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                "INVALID_FILE_TYPE",
-                "Invalid file type",
-            ),
-            EmojiError::NoFile => (StatusCode::BAD_REQUEST, "NO_FILE", "No file provided"),
-            EmojiError::Storage(msg) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "STORAGE_ERROR",
-                msg.as_str(),
-            ),
-            EmojiError::Validation(msg) => (
-                StatusCode::BAD_REQUEST,
-                "VALIDATION_ERROR",
-                msg.as_str(),
-            ),
-            EmojiError::Database(err) => {
-                tracing::error!("Database error: {}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Database error")
+        match self {
+            EmojiError::FileTooLarge { max_size } => {
+                let message = format!("File too large (max {} for emojis)", crate::util::format_file_size(max_size));
+                (
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    Json(json!({
+                        "error": "FILE_TOO_LARGE",
+                        "message": message,
+                        "max_size_bytes": max_size
+                    }))
+                ).into_response()
             }
-        };
-        (status, Json(json!({ "error": code, "message": message }))).into_response()
+            _ => {
+                let (status, code, message) = match &self {
+                    EmojiError::GuildNotFound => (StatusCode::NOT_FOUND, "GUILD_NOT_FOUND", "Guild not found"),
+                    EmojiError::EmojiNotFound => (StatusCode::NOT_FOUND, "EMOJI_NOT_FOUND", "Emoji not found"),
+                    EmojiError::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", "Insufficient permissions"),
+                    EmojiError::InvalidFilename => (
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_FILENAME",
+                        "Invalid filename",
+                    ),
+                    EmojiError::InvalidFileType => (
+                        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                        "INVALID_FILE_TYPE",
+                        "Invalid file type",
+                    ),
+                    EmojiError::NoFile => (StatusCode::BAD_REQUEST, "NO_FILE", "No file provided"),
+                    EmojiError::Storage(msg) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "STORAGE_ERROR",
+                        msg.as_str(),
+                    ),
+                    EmojiError::Validation(msg) => (
+                        StatusCode::BAD_REQUEST,
+                        "VALIDATION_ERROR",
+                        msg.as_str(),
+                    ),
+                    EmojiError::Database(err) => {
+                        tracing::error!("Database error: {}", err);
+                        (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Database error")
+                    }
+                    EmojiError::FileTooLarge { .. } => unreachable!("Handled above"),
+                };
+                (status, Json(json!({ "error": code, "message": message }))).into_response()
+            }
+        }
     }
 }
 
@@ -200,7 +211,6 @@ pub async fn create_emoji(
 
     let mut name: Option<String> = None;
     let mut file_data: Option<Vec<u8>> = None;
-    let mut content_type: Option<String> = None;
 
     // Parse multipart
     while let Ok(Some(field)) = multipart.next_field().await {
@@ -211,10 +221,11 @@ pub async fn create_emoji(
                 name = Some(text);
             }
             "file" => {
-                content_type = field.content_type().map(ToString::to_string);
                 let data = field.bytes().await.map_err(|e| EmojiError::Validation(e.to_string()))?;
-                if data.len() > 256 * 1024 { // 256KB limit for emojis
-                     return Err(EmojiError::FileTooLarge);
+                if data.len() > state.config.max_emoji_size {
+                    return Err(EmojiError::FileTooLarge {
+                        max_size: state.config.max_emoji_size
+                    });
                 }
                 file_data = Some(data.to_vec());
             }
@@ -223,7 +234,6 @@ pub async fn create_emoji(
     }
 
     let file_data = file_data.ok_or(EmojiError::NoFile)?;
-    let content_type = content_type.ok_or(EmojiError::InvalidFileType)?;
     let name_str = name.ok_or(EmojiError::Validation("Name required".into()))?;
 
     // Validate request manually since we parsed multipart
@@ -232,20 +242,20 @@ pub async fn create_emoji(
         return Err(EmojiError::Validation(e.to_string()));
     }
 
-    // Validate mime type
-    if !["image/png", "image/jpeg", "image/gif", "image/webp"].contains(&content_type.as_str()) {
-        return Err(EmojiError::InvalidFileType);
-    }
+    // Validate actual file content using magic bytes (don't trust client-provided MIME type)
+    let format = image::guess_format(&file_data)
+        .map_err(|_| EmojiError::Validation("Unable to detect image format".to_string()))?;
+
+    let (content_type, extension) = match format {
+        image::ImageFormat::Png => ("image/png", "png"),
+        image::ImageFormat::Jpeg => ("image/jpeg", "jpg"),
+        image::ImageFormat::Gif => ("image/gif", "gif"),
+        image::ImageFormat::WebP => ("image/webp", "webp"),
+        _ => return Err(EmojiError::Validation("Unsupported image format. Only PNG, JPEG, GIF, and WebP are allowed.".to_string())),
+    };
 
     let animated = content_type == "image/gif";
     let emoji_id = Uuid::now_v7();
-    let extension = match content_type.as_str() {
-        "image/gif" => "gif",
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/webp" => "webp",
-        _ => "bin",
-    };
 
     let s3_key = format!("emojis/{}/{}.{}", guild_id, emoji_id, extension);
     
@@ -288,12 +298,27 @@ pub async fn create_emoji(
         guild_id,
         emojis: all_emojis,
     };
-    
+
     // Manual broadcast using Redis
-    // Need channel name helper.
     let channel = crate::ws::channels::guild_events(guild_id);
-    if let Ok(payload) = serde_json::to_string(&event) {
-        let _ = state.redis.publish::<(), _, _>(channel, payload).await;
+    match serde_json::to_string(&event) {
+        Ok(payload) => {
+            if let Err(e) = state.redis.publish::<(), _, _>(channel, payload).await {
+                tracing::error!(
+                    error = %e,
+                    guild_id = %guild_id,
+                    event = "GuildEmojiUpdated",
+                    "Failed to broadcast emoji creation via Redis - other clients will not receive real-time update"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                guild_id = %guild_id,
+                "Failed to serialize GuildEmojiUpdated event - broadcast skipped"
+            );
+        }
     }
 
     Ok(Json(emoji))
@@ -352,9 +377,26 @@ pub async fn update_emoji(
         guild_id,
         emojis: all_emojis,
     };
+
     let channel = crate::ws::channels::guild_events(guild_id);
-    if let Ok(payload) = serde_json::to_string(&event) {
-        let _ = state.redis.publish::<(), _, _>(channel, payload).await;
+    match serde_json::to_string(&event) {
+        Ok(payload) => {
+            if let Err(e) = state.redis.publish::<(), _, _>(channel, payload).await {
+                tracing::error!(
+                    error = %e,
+                    guild_id = %guild_id,
+                    event = "GuildEmojiUpdated",
+                    "Failed to broadcast emoji update via Redis - other clients will not receive real-time update"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                guild_id = %guild_id,
+                "Failed to serialize GuildEmojiUpdated event - broadcast skipped"
+            );
+        }
     }
 
     Ok(Json(updated))
@@ -409,9 +451,26 @@ pub async fn delete_emoji(
         guild_id,
         emojis: all_emojis,
     };
+
     let channel = crate::ws::channels::guild_events(guild_id);
-    if let Ok(payload) = serde_json::to_string(&event) {
-        let _ = state.redis.publish::<(), _, _>(channel, payload).await;
+    match serde_json::to_string(&event) {
+        Ok(payload) => {
+            if let Err(e) = state.redis.publish::<(), _, _>(channel, payload).await {
+                tracing::error!(
+                    error = %e,
+                    guild_id = %guild_id,
+                    event = "GuildEmojiUpdated",
+                    "Failed to broadcast emoji deletion via Redis - other clients will not receive real-time update"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                guild_id = %guild_id,
+                "Failed to serialize GuildEmojiUpdated event - broadcast skipped"
+            );
+        }
     }
 
     Ok(StatusCode::NO_CONTENT)

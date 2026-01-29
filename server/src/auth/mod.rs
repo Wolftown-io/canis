@@ -123,7 +123,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/me/avatar",
             post(handlers::upload_avatar)
-                .layer(DefaultBodyLimit::max(5 * 1024 * 1024)), // 5MB limit
+                .layer(DefaultBodyLimit::max(state.config.max_avatar_size)),
         )
         .route("/mfa/setup", post(handlers::mfa_setup))
         .route("/mfa/verify", post(handlers::mfa_verify))

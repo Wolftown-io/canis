@@ -17,6 +17,7 @@ pub mod permissions;
 pub mod presence;
 pub mod ratelimit;
 pub mod social;
+pub mod util;
 pub mod voice;
 pub mod ws;
 

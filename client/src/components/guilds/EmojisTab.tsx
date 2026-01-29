@@ -14,6 +14,7 @@ import { authState } from "@/stores/auth";
 import { isGuildOwner } from "@/stores/guilds";
 import { memberHasPermission } from "@/stores/permissions";
 import { PermissionBits } from "@/lib/permissionConstants";
+import { validateFileSize, getUploadLimitText } from "@/lib/tauri";
 
 interface EmojisTabProps {
     guildId: string;
@@ -44,9 +45,18 @@ const EmojisTab: Component<EmojisTabProps> = (props) => {
         if (!input.files?.length) return;
 
         const file = input.files[0];
-        const name = file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, "_");
 
         setUploadError(null);
+
+        // Frontend validation before upload
+        const validationError = validateFileSize(file, 'emoji');
+        if (validationError) {
+            setUploadError(validationError);
+            input.value = ""; // Clear selection
+            return;
+        }
+
+        const name = file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, "_");
         setIsUploading(true);
 
         try {
@@ -81,7 +91,7 @@ const EmojisTab: Component<EmojisTabProps> = (props) => {
                 <div>
                     <h3 class="text-lg font-semibold text-text-primary">Emojis</h3>
                     <p class="text-sm text-text-secondary">
-                        Upload custom emojis for your server.
+                        Upload custom emojis for your server. Maximum size: {getUploadLimitText('emoji')}
                     </p>
                 </div>
 
