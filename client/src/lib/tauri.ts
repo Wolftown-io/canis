@@ -70,6 +70,13 @@ interface AuthResponse {
   refresh_token: string;
   expires_in: number;
   token_type: string;
+  setup_required: boolean;
+}
+
+// Auth result type (returned by login/register)
+export interface AuthResult {
+  user: User;
+  setup_required: boolean;
 }
 
 // Browser state (when not in Tauri)
@@ -153,7 +160,37 @@ export async function refreshAccessToken(): Promise<boolean> {
       return false;
     }
 
-    const data: AuthResponse = await response.json();
+    let data: AuthResponse;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error("[Auth] Failed to parse token refresh response as JSON:", parseError);
+
+      // Clear tokens - refresh failed
+      browserState.accessToken = null;
+      browserState.refreshToken = null;
+      browserState.tokenExpiresAt = null;
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("tokenExpiresAt");
+
+      throw new Error(`Token refresh returned invalid JSON: ${parseError instanceof Error ? parseError.message : 'Parse failed'}`);
+    }
+
+    // Validate tokens are not empty
+    if (!data.access_token || !data.refresh_token) {
+      console.error("[Auth] Token refresh returned empty tokens");
+
+      // Clear any existing tokens
+      browserState.accessToken = null;
+      browserState.refreshToken = null;
+      browserState.tokenExpiresAt = null;
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("tokenExpiresAt");
+
+      throw new Error("Token refresh returned empty tokens");
+    }
 
     // Store new tokens
     browserState.accessToken = data.access_token;
@@ -215,8 +252,28 @@ async function httpRequest<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || error.error || "Request failed");
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+    try {
+      const errorBody = await response.json();
+      errorMessage = errorBody.message || errorBody.error || errorMessage;
+    } catch (parseError) {
+      // Log parse failure but continue with text fallback
+      console.warn(`[httpRequest] Failed to parse error response as JSON for ${path}:`, parseError);
+
+      try {
+        const text = await response.text();
+        if (text.length > 0 && text.length < 500) {
+          errorMessage = text;
+        }
+      } catch (textError) {
+        // Log double failure (both JSON and text parsing failed)
+        console.error(`[httpRequest] Failed to parse error response as both JSON and text for ${path}:`, textError);
+        // Use statusText as final fallback
+      }
+    }
+
+    throw new Error(errorMessage);
   }
 
   // Handle empty responses
@@ -231,7 +288,7 @@ export async function login(
   serverUrl: string,
   username: string,
   password: string
-): Promise<User> {
+): Promise<AuthResult> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("login", {
@@ -264,7 +321,12 @@ export async function login(
   console.log(`[Auth] Login successful, token expires in ${response.expires_in}s`);
 
   // Fetch user profile after login
-  return await httpRequest<User>("GET", "/auth/me");
+  const user = await httpRequest<User>("GET", "/auth/me");
+
+  return {
+    user,
+    setup_required: response.setup_required,
+  };
 }
 
 /**
@@ -285,7 +347,7 @@ export async function register(
   password: string,
   email?: string,
   displayName?: string
-): Promise<User> {
+): Promise<AuthResult> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("register", {
@@ -324,7 +386,12 @@ export async function register(
   console.log(`[Auth] Registration successful, token expires in ${response.expires_in}s`);
 
   // Fetch user profile after registration
-  return await httpRequest<User>("GET", "/auth/me");
+  const user = await httpRequest<User>("GET", "/auth/me");
+
+  return {
+    user,
+    setup_required: response.setup_required,
+  };
 }
 
 export async function logout(): Promise<void> {
@@ -371,30 +438,68 @@ export async function getCurrentUser(): Promise<User | null> {
 
   try {
     return await httpRequest<User>("GET", "/auth/me");
-  } catch {
-    // Token invalid - try to refresh
-    if (browserState.refreshToken) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn(`[Auth] Failed to fetch current user: ${errorMessage}`);
+
+    // Determine if this is an auth failure or other error
+    const isAuthError = errorMessage.includes("401") ||
+                        errorMessage.includes("403") ||
+                        errorMessage.includes("Unauthorized") ||
+                        errorMessage.includes("Forbidden");
+
+    const isJsonParseError = errorMessage.includes("invalid JSON") ||
+                            errorMessage.includes("Parse failed");
+
+    // If JSON parse failed on what might be an auth response, assume auth failure
+    // We cannot reliably determine auth state with malformed responses
+    if (isJsonParseError && errorMessage.includes("HTTP")) {
+      console.error("[Auth] JSON parse error on HTTP response - cannot determine auth state, clearing tokens");
+      // Clear all token state - safest approach when we can't parse server response
+      if (browserState.refreshTimer) {
+        clearTimeout(browserState.refreshTimer);
+        browserState.refreshTimer = null;
+      }
+      browserState.accessToken = null;
+      browserState.refreshToken = null;
+      browserState.tokenExpiresAt = null;
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("tokenExpiresAt");
+      return null;
+    }
+
+    if (isAuthError && browserState.refreshToken) {
+      console.log("[Auth] Token appears invalid, attempting refresh...");
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         try {
           return await httpRequest<User>("GET", "/auth/me");
-        } catch {
-          // Refresh didn't help, clear everything
+        } catch (retryError) {
+          console.error("[Auth] Retry after refresh failed:", retryError);
+          // Refresh didn't help, clear everything below
         }
       }
     }
 
-    // Clear all token state
-    if (browserState.refreshTimer) {
-      clearTimeout(browserState.refreshTimer);
-      browserState.refreshTimer = null;
+    // Only clear tokens if we confirmed auth failure, not on network errors
+    if (isAuthError) {
+      console.warn("[Auth] Authentication failed, clearing session");
+      // Clear all token state
+      if (browserState.refreshTimer) {
+        clearTimeout(browserState.refreshTimer);
+        browserState.refreshTimer = null;
+      }
+      browserState.accessToken = null;
+      browserState.refreshToken = null;
+      browserState.tokenExpiresAt = null;
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("tokenExpiresAt");
+    } else {
+      console.warn("[Auth] Non-auth error, keeping tokens for retry");
     }
-    browserState.accessToken = null;
-    browserState.refreshToken = null;
-    browserState.tokenExpiresAt = null;
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("tokenExpiresAt");
+
     return null;
   }
 }

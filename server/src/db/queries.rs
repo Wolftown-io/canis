@@ -327,7 +327,7 @@ pub async fn cleanup_expired_device_transfers(pool: &PgPool) -> sqlx::Result<u64
 pub async fn find_channel_by_id(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<Channel>> {
     sqlx::query_as::<_, Channel>(
         r"
-        SELECT id, name, channel_type, category_id, guild_id, topic, user_limit, position, max_screen_shares, created_at, updated_at
+        SELECT id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at
         FROM channels
         WHERE id = $1
         ",
@@ -854,7 +854,7 @@ pub async fn is_guild_member(pool: &PgPool, guild_id: Uuid, user_id: Uuid) -> sq
 pub async fn get_guild_channels(pool: &PgPool, guild_id: Uuid) -> sqlx::Result<Vec<Channel>> {
     sqlx::query_as::<_, Channel>(
         r"
-        SELECT id, name, channel_type, category_id, guild_id, topic, user_limit, position, max_screen_shares, created_at, updated_at
+        SELECT id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at
         FROM channels
         WHERE guild_id = $1
         ORDER BY position ASC
@@ -863,4 +863,110 @@ pub async fn get_guild_channels(pool: &PgPool, guild_id: Uuid) -> sqlx::Result<V
     .bind(guild_id)
     .fetch_all(pool)
     .await
+}
+
+// ============================================================================
+// Server Configuration
+// ============================================================================
+
+/// Get a server configuration value by key.
+pub async fn get_config_value(pool: &PgPool, key: &str) -> sqlx::Result<serde_json::Value> {
+    let row = sqlx::query("SELECT value FROM server_config WHERE key = $1")
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                error_debug = ?e,
+                config_key = %key,
+                "Failed to get config value from database"
+            );
+            e
+        })?;
+    Ok(row.get("value"))
+}
+
+/// Set a server configuration value.
+pub async fn set_config_value(
+    pool: &PgPool,
+    key: &str,
+    value: serde_json::Value,
+    updated_by: Uuid,
+) -> sqlx::Result<()> {
+    let result = sqlx::query(
+        "UPDATE server_config SET value = $2, updated_by = $3, updated_at = NOW()
+         WHERE key = $1",
+    )
+    .bind(key)
+    .bind(value)
+    .bind(updated_by)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            error_debug = ?e,
+            config_key = %key,
+            updated_by = %updated_by,
+            "Failed to execute config value update query"
+        );
+        e
+    })?;
+
+    if result.rows_affected() == 0 {
+        tracing::error!(
+            key = %key,
+            "Failed to update config value - key does not exist in server_config table"
+        );
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    Ok(())
+}
+
+/// Check if server setup is complete.
+pub async fn is_setup_complete(pool: &PgPool) -> sqlx::Result<bool> {
+    let value = get_config_value(pool, "setup_complete")
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                "Failed to query setup_complete status from database"
+            );
+            e
+        })?;
+
+    match value.as_bool() {
+        Some(b) => Ok(b),
+        None => {
+            tracing::warn!(
+                actual_value = ?value,
+                "setup_complete config value is not a boolean, defaulting to false"
+            );
+            Ok(false)
+        }
+    }
+}
+
+/// Mark server setup as complete (irreversible).
+pub async fn mark_setup_complete(pool: &PgPool, updated_by: Uuid) -> sqlx::Result<()> {
+    set_config_value(pool, "setup_complete", serde_json::json!(true), updated_by).await
+}
+
+/// Count total number of users in the database.
+/// Used in critical first-user registration path - errors must be logged for debugging.
+pub async fn count_users(pool: &PgPool) -> sqlx::Result<i64> {
+    let row = sqlx::query("SELECT COUNT(*) as count FROM users")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                error_debug = ?e,
+                "Failed to count users in database - this is critical for first-user registration"
+            );
+            e
+        })?;
+    Ok(row.get("count"))
 }

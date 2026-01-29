@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- First user setup wizard with automatic admin bootstrap
+  - First user to register automatically receives system admin permissions
+  - Mandatory setup wizard for configuring server name, registration policy, and legal URLs
+  - Setup completion is permanent and cannot be re-triggered (prevents takeover)
+  - Transaction-based race condition prevention for concurrent first-user registrations
+  - Setup status exposed in authentication responses (`setup_required` flag)
+  - API endpoints: `GET /api/setup/status`, `GET /api/setup/config`, `POST /api/setup/complete`
 - Right-click context menus for messages, channels, and users
   - Message menu: Copy Text, Copy Message Link, Copy ID, Delete (own messages)
   - Channel menu: Mark as Read, Mute/Unmute, Add to Favorites, Edit Channel, Copy ID
@@ -210,6 +217,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bulk upload utility script (`scripts/upload_emojis.py`)
 
 ### Changed
+- **BREAKING:** Authentication responses now include `setup_required` boolean field
+  - Affects `POST /auth/register`, `POST /auth/login`, and `POST /auth/refresh` endpoints
+  - Existing clients must handle the new field or update their deserialization logic
+  - Field indicates whether server setup wizard should be displayed
 - JWT signing algorithm upgraded from HS256 → EdDSA (Ed25519) for stronger cryptographic security
 - Infrastructure: Redis replaced with Valkey for open-source compatibility
 - API error response format standardized across all endpoints (consistent error codes)

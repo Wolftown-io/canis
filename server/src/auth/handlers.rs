@@ -14,9 +14,9 @@ use validator::Validate;
 
 use crate::api::AppState;
 use crate::db::{
-    create_session, create_user, delete_session_by_token_hash, email_exists,
-    find_session_by_token_hash, find_user_by_id, find_user_by_username, set_mfa_secret,
-    update_user_avatar, update_user_profile, username_exists,
+    create_session, delete_session_by_token_hash, email_exists,
+    find_session_by_token_hash, find_user_by_id, find_user_by_username, is_setup_complete,
+    set_mfa_secret, update_user_avatar, update_user_profile, username_exists,
 };
 use crate::ws::broadcast_user_patch;
 use crate::ratelimit::NormalizedIp;
@@ -84,6 +84,8 @@ pub struct AuthResponse {
     pub expires_in: i64,
     /// Token type (always "Bearer").
     pub token_type: String,
+    /// Whether server setup is required.
+    pub setup_required: bool,
 }
 
 /// User profile response.
@@ -177,6 +179,14 @@ fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
 
 /// Register a new local user.
 ///
+/// **First User Behavior:** The first user to register is automatically granted
+/// system admin permissions within the registration transaction. This is serialized
+/// by a FOR UPDATE lock on the server_config.setup_complete row to prevent race
+/// conditions where multiple concurrent registrations both see user_count=0.
+///
+/// After the first user is created, subsequent registrations will not receive admin
+/// permissions unless explicitly granted by an existing admin.
+///
 /// POST /auth/register
 #[tracing::instrument(skip(state, body), fields(username = %body.username))]
 pub async fn register(
@@ -185,11 +195,11 @@ pub async fn register(
     headers: HeaderMap,
     Json(body): Json<RegisterRequest>,
 ) -> AuthResult<Json<AuthResponse>> {
-    // Validate input
+    // Validate input first
     body.validate()
         .map_err(|e| AuthError::Validation(e.to_string()))?;
 
-    // Check username uniqueness
+    // Check username uniqueness (outside transaction - UNIQUE constraint will catch races)
     if username_exists(&state.db, &body.username).await? {
         return Err(AuthError::UserAlreadyExists);
     }
@@ -207,15 +217,97 @@ pub async fn register(
     // Set display name (default to username if not provided)
     let display_name = body.display_name.as_deref().unwrap_or(&body.username);
 
-    // Create user
-    let user = create_user(
-        &state.db,
-        &body.username,
-        display_name,
-        body.email.as_deref(),
-        &password_hash,
+    // Start transaction for atomic first-user detection and admin grant
+    let mut tx = state.db.begin().await.map_err(|e| {
+        tracing::error!(
+            error = %e,
+            username = %body.username,
+            "Failed to start registration transaction"
+        );
+        e
+    })?;
+
+    // FOR UPDATE on setup_complete serializes concurrent registrations by acquiring
+    // a row-level lock. Multiple transactions can BEGIN concurrently, but they will
+    // block at this SELECT FOR UPDATE until the first transaction COMMITS or ROLLS BACK.
+    // The lock is held for the entire transaction duration, preventing the race condition
+    // where two concurrent registrations both see user_count=0 and both grant admin.
+    let _lock = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM server_config WHERE key = 'setup_complete' FOR UPDATE"
     )
-    .await?;
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            username = %body.username,
+            "Failed to lock setup_complete config during registration"
+        );
+        e
+    })?;
+
+    // Now safely count users (serialized by the lock above)
+    let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                username = %body.username,
+                "Failed to count users during registration"
+            );
+            e
+        })?;
+    let is_first_user = user_count == 0;
+
+    // Create user (inline to use transaction)
+    let user = sqlx::query_as!(
+        crate::db::User,
+        r#"INSERT INTO users (username, display_name, email, password_hash, auth_method)
+           VALUES ($1, $2, $3, $4, 'local')
+           RETURNING id, username, display_name, email, password_hash,
+                     auth_method as "auth_method: _", external_id, avatar_url,
+                     status as "status: _", mfa_secret, created_at, updated_at"#,
+        body.username,
+        display_name,
+        body.email,
+        password_hash
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            username = %body.username,
+            "Failed to create user during registration - transaction will rollback"
+        );
+        e
+    })?;
+
+    // Grant system admin to first user
+    if is_first_user {
+        sqlx::query!(
+            "INSERT INTO system_admins (user_id, granted_by) VALUES ($1, $1)",
+            user.id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                user_id = %user.id,
+                username = %user.username,
+                "Failed to grant system admin to first user - transaction will rollback"
+            );
+            e
+        })?;
+
+        tracing::info!(
+            user_id = %user.id,
+            username = %user.username,
+            "First user registered and granted system admin"
+        );
+    }
 
     // Generate tokens
     let tokens = generate_token_pair(
@@ -223,30 +315,66 @@ pub async fn register(
         &state.config.jwt_private_key,
         state.config.jwt_access_expiry,
         state.config.jwt_refresh_expiry,
-    )?;
+    )
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %user.id,
+            "Failed to generate tokens - transaction will rollback"
+        );
+        e
+    })?;
 
-    // Store refresh token session
+    // Store refresh token session (inline to use transaction)
     let token_hash = hash_token(&tokens.refresh_token);
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
-    create_session(
-        &state.db,
-        user.id,
-        &token_hash,
-        expires_at,
-        Some(&addr.ip().to_string()),
-        user_agent.as_deref(),
+    let ip_str = Some(addr.ip().to_string());
+    sqlx::query(
+        r"INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
+          VALUES ($1, $2, $3, $4::inet, $5)"
     )
-    .await?;
+    .bind(user.id)
+    .bind(&token_hash)
+    .bind(expires_at)
+    .bind(ip_str.as_deref())
+    .bind(user_agent.as_deref())
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %user.id,
+            "Failed to create session - transaction will rollback"
+        );
+        e
+    })?;
 
-    tracing::info!(user_id = %user.id, "User registered");
+    // Commit transaction
+    tx.commit().await.map_err(|e| {
+        tracing::error!(
+            error = %e,
+            user_id = %user.id,
+            username = %user.username,
+            "Failed to commit registration transaction - user account rolled back"
+        );
+        e
+    })?;
+
+    // Check if setup is complete
+    let setup_complete = is_setup_complete(&state.db).await?;
+
+    if !is_first_user {
+        tracing::info!(user_id = %user.id, username = %user.username, "User registered");
+    }
 
     Ok(Json(AuthResponse {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_in: tokens.access_expires_in,
         token_type: "Bearer".to_string(),
+        setup_required: !setup_complete,
     }))
 }
 
@@ -262,11 +390,24 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> AuthResult<Json<AuthResponse>> {
     // Helper macro to record failed auth (if rate limiter is configured)
+    // SECURITY: Fails request if rate limiter is down (fail-closed pattern)
     macro_rules! record_failed_auth {
         () => {
             if let (Some(ref rl), Some(Extension(ref nip))) = (&state.rate_limiter, &normalized_ip)
             {
-                let _ = rl.record_failed_auth(&nip.0).await;
+                if let Err(e) = rl.record_failed_auth(&nip.0).await {
+                    tracing::error!(
+                        error = %e,
+                        ip = ?nip.0,
+                        username = %body.username,
+                        "SECURITY: Failed to record failed authentication - BLOCKING REQUEST to prevent rate limit bypass"
+                    );
+                    // Fail closed - deny request when rate limiter is unavailable
+                    // This prevents attackers from bypassing rate limiting by triggering rate limiter failures
+                    return Err(AuthError::Internal(
+                        "Authentication service temporarily unavailable. Please try again later.".to_string()
+                    ));
+                }
             }
         };
     }
@@ -367,13 +508,17 @@ pub async fn login(
         let _ = rl.clear_failed_auth(&nip.0).await;
     }
 
-    tracing::info!(user_id = %user.id, "User logged in");
+    // Check if setup is complete
+    let setup_complete = is_setup_complete(&state.db).await?;
+
+    tracing::info!(user_id = %user.id, setup_required = !setup_complete, "User logged in");
 
     Ok(Json(AuthResponse {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_in: tokens.access_expires_in,
         token_type: "Bearer".to_string(),
+        setup_required: !setup_complete,
     }))
 }
 
@@ -435,6 +580,9 @@ pub async fn refresh_token(
     )
     .await?;
 
+    // Check if setup is complete
+    let setup_complete = is_setup_complete(&state.db).await?;
+
     tracing::info!(user_id = %user_id, "Token refreshed");
 
     Ok(Json(AuthResponse {
@@ -442,6 +590,7 @@ pub async fn refresh_token(
         refresh_token: new_tokens.refresh_token,
         expires_in: new_tokens.access_expires_in,
         token_type: "Bearer".to_string(),
+        setup_required: !setup_complete,
     }))
 }
 
@@ -669,11 +818,17 @@ pub async fn update_profile(
         if let Err(e) = broadcast_user_patch(
             &state.redis,
             auth_user.id,
-            serde_json::Value::Object(diff),
+            serde_json::Value::Object(diff.clone()),
         )
         .await
         {
-            tracing::warn!("Failed to broadcast user patch: {}", e);
+            tracing::error!(
+                error = %e,
+                user_id = %auth_user.id,
+                changed_fields = ?updated_fields,
+                diff = ?diff,
+                "Failed to broadcast user profile update to Redis - other clients may see stale data. Consider implementing retry queue."
+            );
             // Don't fail the request, update was successful
         }
     }

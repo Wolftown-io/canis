@@ -18,6 +18,7 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   error: string | null;
+  setupRequired: boolean;
 }
 
 // Create the store
@@ -27,11 +28,32 @@ const [authState, setAuthState] = createStore<AuthState>({
   isLoading: false,
   isInitialized: false,
   error: null,
+  setupRequired: false,
 });
 
 // Derived state
 export const isAuthenticated = () => authState.user !== null;
 export const currentUser = () => authState.user;
+
+// WebSocket reconnection listener (registered once globally to prevent leaks)
+let wsReconnectListenerRegistered = false;
+
+function registerWebSocketReconnectListener() {
+  if (typeof window !== "undefined" && !wsReconnectListenerRegistered) {
+    try {
+      const handler = () => {
+        console.log("[Auth] WebSocket reconnected, clearing error message");
+        setAuthState("error", null);
+      };
+      window.addEventListener("ws-reconnected", handler);
+      wsReconnectListenerRegistered = true;
+      console.log("[Auth] WebSocket reconnection listener registered");
+    } catch (e) {
+      console.error("[Auth] Failed to register WebSocket reconnect listener:", e);
+      // Non-critical, continue
+    }
+  }
+}
 
 // Actions
 
@@ -55,11 +77,18 @@ export async function initAuth(): Promise<void> {
     if (user) {
       await initWebSocket();
       await initPresence();
+
+      // Register WebSocket reconnection listener (once globally)
+      registerWebSocketReconnectListener();
+
       try {
         await wsConnect();
         console.log("[Auth] WebSocket reconnected after session restore");
       } catch (wsErr) {
         console.error("[Auth] WebSocket reconnection failed:", wsErr);
+        // WebSocket failure is critical for real-time messaging
+        // The WebSocket module will auto-retry, but user should know there's an issue
+        setAuthState("error", "Real-time messaging temporarily unavailable. Reconnecting...");
       }
       // Initialize preferences sync after session restore
       try {
@@ -95,22 +124,30 @@ export async function login(
   setAuthState({ isLoading: true, error: null });
 
   try {
-    const user = await tauri.login(serverUrl, username, password);
+    const result = await tauri.login(serverUrl, username, password);
     setAuthState({
-      user,
+      user: result.user,
       serverUrl,
       isLoading: false,
       error: null,
+      setupRequired: result.setup_required,
     });
 
     // Initialize WebSocket and presence after login
     await initWebSocket();
     await initPresence();
+
+    // Register WebSocket reconnection listener (once globally)
+    registerWebSocketReconnectListener();
+
     try {
       await wsConnect();
     } catch (wsErr) {
       console.error("WebSocket connection failed:", wsErr);
-      // Continue even if WebSocket fails - user is still logged in
+      // WebSocket failure is critical for real-time messaging
+      // The WebSocket module will auto-retry, but user should know there's an issue
+      setAuthState({ error: "Real-time messaging temporarily unavailable. Reconnecting..." });
+      // Continue - user is still logged in and WebSocket will auto-retry
     }
 
     // Initialize preferences sync after login
@@ -125,7 +162,7 @@ export async function login(
     // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
     initIdleDetection();
 
-    return user;
+    return result.user;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setAuthState({ isLoading: false, error });
@@ -146,7 +183,7 @@ export async function register(
   setAuthState({ isLoading: true, error: null });
 
   try {
-    const user = await tauri.register(
+    const result = await tauri.register(
       serverUrl,
       username,
       password,
@@ -154,10 +191,11 @@ export async function register(
       displayName
     );
     setAuthState({
-      user,
+      user: result.user,
       serverUrl,
       isLoading: false,
       error: null,
+      setupRequired: result.setup_required,
     });
 
     // Initialize WebSocket and presence after registration
@@ -181,7 +219,7 @@ export async function register(
     // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
     initIdleDetection();
 
-    return user;
+    return result.user;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setAuthState({ isLoading: false, error });
@@ -236,5 +274,14 @@ export function updateUser(updates: Partial<User>): void {
   setAuthState("user", (prev) => (prev ? { ...prev, ...updates } : null));
 }
 
-// Export the store for reading
+/**
+ * Clear the setup required flag.
+ * Called after completing the setup wizard.
+ */
+export function clearSetupRequired(): void {
+  setAuthState("setupRequired", false);
+}
+
+// Export the store for reading only
+// Use the exported functions (login, register, logout, etc.) to modify state
 export { authState };

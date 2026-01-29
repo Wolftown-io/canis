@@ -52,6 +52,7 @@ async fn test_websocket_broadcast_flow() {
         None,
         None,
         None,
+        None,  // user_limit
     )
     .await
     .expect("Create channel failed");

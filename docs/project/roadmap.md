@@ -256,10 +256,21 @@ This roadmap outlines the development path from the current prototype to a produ
     - Refactor `emojis.rs` to use configurable `max_emoji_size`
     - Refactor `dm.rs` avatar upload to use configurable `max_avatar_size`
     - Add frontend validation before upload to provide immediate feedback
-- [ ] **[Auth] First User Setup (Admin Bootstrap)**
+- [x] **[Auth] First User Setup (Admin Bootstrap)** ✅ (PR #110)
   - First registered user automatically gets admin/superuser permissions.
-  - Server flag to detect "fresh install" state.
-  - Admin setup wizard for initial configuration.
+  - PostgreSQL row-level locking to prevent race conditions.
+  - Setup wizard with server configuration (name, registration policy, legal URLs).
+  - Compare-and-swap pattern for atomic setup completion.
+  - **Tech Debt:**
+    - [ ] Add HTTP integration tests for authorization bypass scenarios
+      - Verify non-admin cannot complete setup (403 error)
+      - Verify unauthenticated requests return 401
+      - Test concurrent setup attempts from different admins
+      - *Note:* Requires test server infrastructure (axum test utils or similar)
+    - [ ] Additional error handling improvements
+      - Review remaining error response parsing patterns
+      - Consider retry mechanisms for transient failures
+      - *Note:* Lower priority - critical issues already addressed
 - [ ] **[Auth] Forgot Password Workflow**
   - Email-based password reset with secure token generation.
   - Rate-limited reset requests to prevent abuse.
@@ -548,6 +559,14 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Recent Changes
 
 ### 2026-01-29
+- Completed **First User Setup (Admin Bootstrap)** (PR #110) - First user automatically receives system admin permissions with PostgreSQL row-level locking to prevent race conditions, setup wizard for server configuration, and atomic setup completion using compare-and-swap pattern.
+- Fixed critical security issues identified in PR review:
+  - Rate limiter fail-closed pattern (prevents bypass on Redis failure)
+  - WebSocket listener memory leak (module-level registration flag)
+  - Store encapsulation (dedicated functions instead of direct state mutation)
+  - JWT token validation before API calls (structure and expiry checks)
+  - Structured error logging for database operations (query context for debugging)
+- Added tech debt items for HTTP integration tests and additional error handling improvements.
 - **Enhanced Phase 4-5 Implementation Details**: Merged detailed implementation plans from project brain storage into main roadmap.
 - **Added Completed Items**: DM Avatars (Issue #104), Pinned Notes System (Issue #105).
 - **Added New Phase 4 Item**: Unified File Size Upload Limits - standardize avatar, emoji, and attachment size restrictions across all upload endpoints.

@@ -7,6 +7,7 @@ pub mod pins;
 pub mod preferences;
 pub mod reactions;
 mod settings;
+mod setup;
 
 use axum::{
     extract::DefaultBodyLimit, extract::State, middleware::from_fn, middleware::from_fn_with_state,
@@ -186,6 +187,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health_check))
         // Public server settings
         .route("/api/settings", get(settings::get_server_settings))
+        // Setup routes (status and config are public, complete requires auth)
+        .route("/api/setup/status", get(setup::status))
+        .route("/api/setup/config", get(setup::get_config))
+        .route("/api/setup/complete", post(setup::complete)
+            .route_layer(from_fn_with_state(state.clone(), auth::require_auth)))
         // Auth routes (pass state for middleware)
         .nest("/auth", auth::router(state.clone()))
         // Protected chat and voice routes

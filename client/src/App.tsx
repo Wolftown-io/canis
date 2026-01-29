@@ -17,6 +17,7 @@ import { AcceptanceManager } from "./components/pages";
 import { ToastContainer } from "./components/ui/Toast";
 import { ContextMenuContainer } from "./components/ui/ContextMenu";
 import E2EESetupPrompt from "./components/E2EESetupPrompt";
+import SetupWizard from "./components/SetupWizard";
 
 // Theme
 import { initTheme } from "./stores/theme";
@@ -39,6 +40,7 @@ const Layout: Component<ParentProps> = (props) => {
 // Protected route wrapper
 const ProtectedMain: Component = () => (
   <AuthGuard>
+    <SetupWizard />
     <E2EESetupPrompt />
     <AcceptanceManager />
     <Main />
