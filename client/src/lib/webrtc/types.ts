@@ -94,7 +94,10 @@ export type ScreenShareQuality = "low" | "medium" | "high" | "premium";
  * Options for starting a screen share
  */
 export interface ScreenShareOptions {
-  /** Source ID (native capture only — from enumerateCaptureSources). */
+  /**
+   * Source ID from `enumerateCaptureSources`.
+   * Required for the Tauri native adapter. Ignored by the browser adapter (uses `getDisplayMedia`).
+   */
   sourceId?: string;
   quality?: ScreenShareQuality;
   withAudio?: boolean;

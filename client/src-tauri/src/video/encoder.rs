@@ -34,6 +34,7 @@ pub struct Vp9Encoder {
     encoder: VpxEncoder,
     frame_count: u64,
     fps: u32,
+    i420_buf: Vec<u8>,
 }
 
 impl Vp9Encoder {
@@ -58,10 +59,13 @@ impl Vp9Encoder {
             "VP9 encoder initialized"
         );
 
+        let i420_buf = Vec::with_capacity((params.width * params.height * 3 / 2) as usize);
+
         Ok(Self {
             encoder,
             frame_count: 0,
             fps: params.fps,
+            i420_buf,
         })
     }
 }
@@ -72,14 +76,15 @@ impl VideoEncoder for Vp9Encoder {
         let pts_90khz = self.frame_count * 90000 / self.fps as u64;
 
         // vpx-encode expects a single contiguous I420 buffer: Y + U + V
-        let mut i420_buf = Vec::with_capacity(frame.y.len() + frame.u.len() + frame.v.len());
-        i420_buf.extend_from_slice(&frame.y);
-        i420_buf.extend_from_slice(&frame.u);
-        i420_buf.extend_from_slice(&frame.v);
+        // Reuse pre-allocated buffer to avoid per-frame allocation
+        self.i420_buf.clear();
+        self.i420_buf.extend_from_slice(&frame.y);
+        self.i420_buf.extend_from_slice(&frame.u);
+        self.i420_buf.extend_from_slice(&frame.v);
 
         let packets = self
             .encoder
-            .encode(pts_90khz as i64, &i420_buf)
+            .encode(pts_90khz as i64, &self.i420_buf)
             .map_err(|e| VideoError::EncodeFailed(format!("VP9 encode: {e}")))?;
 
         self.frame_count += 1;

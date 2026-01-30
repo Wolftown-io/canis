@@ -41,33 +41,64 @@ pub struct QualityParams {
 }
 
 impl QualityParams {
-    pub fn from_tier(tier: &str) -> Self {
+    pub fn from_tier(tier: &str) -> Result<Self, String> {
         match tier {
-            "low" => Self {
+            "low" => Ok(Self {
                 width: 854,
                 height: 480,
                 fps: 15,
                 bitrate_kbps: 500,
-            },
-            "high" => Self {
-                width: 1920,
-                height: 1080,
-                fps: 30,
-                bitrate_kbps: 3000,
-            },
-            "premium" => Self {
-                width: 1920,
-                height: 1080,
-                fps: 60,
-                bitrate_kbps: 5000,
-            },
-            // "medium" and default
-            _ => Self {
+            }),
+            "medium" => Ok(Self {
                 width: 1280,
                 height: 720,
                 fps: 30,
                 bitrate_kbps: 1500,
-            },
+            }),
+            "high" => Ok(Self {
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                bitrate_kbps: 3000,
+            }),
+            "premium" => Ok(Self {
+                width: 1920,
+                height: 1080,
+                fps: 60,
+                bitrate_kbps: 5000,
+            }),
+            _ => Err(format!("Unknown quality tier: {tier}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_tier_valid_tiers() {
+        let low = QualityParams::from_tier("low").unwrap();
+        assert_eq!(low.width, 854);
+        assert_eq!(low.fps, 15);
+
+        let medium = QualityParams::from_tier("medium").unwrap();
+        assert_eq!(medium.width, 1280);
+        assert_eq!(medium.fps, 30);
+
+        let high = QualityParams::from_tier("high").unwrap();
+        assert_eq!(high.width, 1920);
+        assert_eq!(high.bitrate_kbps, 3000);
+
+        let premium = QualityParams::from_tier("premium").unwrap();
+        assert_eq!(premium.fps, 60);
+        assert_eq!(premium.bitrate_kbps, 5000);
+    }
+
+    #[test]
+    fn from_tier_invalid_returns_error() {
+        assert!(QualityParams::from_tier("ultra").is_err());
+        assert!(QualityParams::from_tier("").is_err());
+        assert!(QualityParams::from_tier("Medium").is_err());
     }
 }

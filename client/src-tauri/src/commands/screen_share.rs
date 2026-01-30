@@ -92,7 +92,7 @@ pub async fn start_screen_share(
     }
 
     // Resolve quality params
-    let params = QualityParams::from_tier(&quality);
+    let params = QualityParams::from_tier(&quality).map_err(|e| e.to_string())?;
 
     // Verify source exists
     let target =
@@ -135,7 +135,7 @@ pub async fn start_screen_share(
     let (frame_tx, mut frame_rx) = mpsc::channel(2);
 
     // Start capturer on blocking thread
-    let capturer = FrameCapturer::new(source_id.clone(), params.fps, params.width, params.height);
+    let capturer = FrameCapturer::new(target, source_id.clone(), params.fps, params.width, params.height);
 
     let capturer_handle = capturer
         .start(frame_tx, shutdown_rx)
@@ -166,8 +166,8 @@ pub async fn start_screen_share(
                     break;
                 }
 
-                match frame_rx.blocking_recv() {
-                    Some(i420) => match encoder.encode(&i420) {
+                match frame_rx.try_recv() {
+                    Ok(i420) => match encoder.encode(&i420) {
                         Ok(packets) => {
                             if !packets.is_empty() {
                                 if pkt_tx.blocking_send(packets).is_err() {
@@ -180,7 +180,11 @@ pub async fn start_screen_share(
                             warn!("Encode error: {e}");
                         }
                     },
-                    None => {
+                    Err(mpsc::error::TryRecvError::Empty) => {
+                        // No frame available — sleep briefly then re-check shutdown
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    }
+                    Err(mpsc::error::TryRecvError::Disconnected) => {
                         info!("Frame channel closed, stopping encoder");
                         break;
                     }
@@ -193,7 +197,7 @@ pub async fn start_screen_share(
 
     // RTP sender runs as async task
     let rtp_handle = tokio::spawn(async move {
-        let mut rtp_sender = VideoRtpSender::new(video_track, 98);
+        let rtp_sender = VideoRtpSender::new(video_track);
 
         info!("RTP sender started");
 

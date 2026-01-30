@@ -43,25 +43,19 @@ fn build_vp9_payload_descriptor(is_keyframe: bool, is_first: bool, is_last: bool
 /// Sends VP9 encoded video as RTP packets to a WebRTC track.
 pub struct VideoRtpSender {
     track: Arc<TrackLocalStaticRTP>,
-    sequence_number: u16,
 }
 
 impl VideoRtpSender {
     /// Create a new RTP sender for the given video track.
-    ///
-    /// `_payload_type` is reserved for future use when manual RTP headers are needed.
-    pub fn new(track: Arc<TrackLocalStaticRTP>, _payload_type: u8) -> Self {
-        Self {
-            track,
-            sequence_number: 0,
-        }
+    pub fn new(track: Arc<TrackLocalStaticRTP>) -> Self {
+        Self { track }
     }
 
     /// Send an encoded packet as one or more RTP packets.
     ///
     /// Large frames are fragmented at `MAX_PAYLOAD_SIZE` boundaries.
     /// `TrackLocalStaticRTP::write()` handles RTP header (SSRC, PT, timestamp) internally.
-    pub async fn send_packet(&mut self, packet: &EncodedPacket) -> Result<(), VideoError> {
+    pub async fn send_packet(&self, packet: &EncodedPacket) -> Result<(), VideoError> {
         let data = &packet.data;
         let timestamp = packet.pts as u32;
 
@@ -84,15 +78,12 @@ impl VideoRtpSender {
             payload.push(descriptor);
             payload.extend_from_slice(chunk);
 
-            self.sequence_number = self.sequence_number.wrapping_add(1);
-
             self.track
                 .write(&payload)
                 .await
                 .map_err(|e| VideoError::RtpSendFailed(e.to_string()))?;
 
             trace!(
-                seq = self.sequence_number,
                 ts = timestamp,
                 len = payload.len(),
                 first = is_first,
@@ -103,5 +94,42 @@ impl VideoRtpSender {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn descriptor_keyframe_single_packet() {
+        // Keyframe, first and last (single packet): B=1, E=1, P=0
+        let desc = build_vp9_payload_descriptor(true, true, true);
+        assert_eq!(desc & 0x02, 0x00, "P bit should be 0 for keyframe");
+        assert_eq!(desc & 0x10, 0x10, "B bit should be set");
+        assert_eq!(desc & 0x20, 0x20, "E bit should be set");
+    }
+
+    #[test]
+    fn descriptor_keyframe_first_last() {
+        // Keyframe, first packet only
+        let first = build_vp9_payload_descriptor(true, true, false);
+        assert_eq!(first & 0x02, 0x00);
+        assert_eq!(first & 0x10, 0x10);
+        assert_eq!(first & 0x20, 0x00);
+
+        // Keyframe, last packet only
+        let last = build_vp9_payload_descriptor(true, false, true);
+        assert_eq!(last & 0x10, 0x00);
+        assert_eq!(last & 0x20, 0x20);
+    }
+
+    #[test]
+    fn descriptor_non_keyframe_middle() {
+        // Non-keyframe, middle packet: P=1, B=0, E=0
+        let desc = build_vp9_payload_descriptor(false, false, false);
+        assert_eq!(desc & 0x02, 0x02, "P bit should be set for non-keyframe");
+        assert_eq!(desc & 0x10, 0x00, "B bit should be 0 for middle");
+        assert_eq!(desc & 0x20, 0x00, "E bit should be 0 for middle");
     }
 }
