@@ -348,6 +348,13 @@ This roadmap outlines the development path from the current prototype to a produ
 - [ ] **[Voice] Multi-Stream Support**
   - Simultaneous Webcam and Screen Sharing.
   - Implement Simulcast (quality tiers) for bandwidth management.
+- [ ] **[Voice] Evaluate str0m as WebRTC Alternative** `Priority: Low`
+  - Current stack: webrtc-rs 0.11 (full-stack, owns I/O). Working, but project is stagnating.
+  - Alternative: [str0m](https://github.com/algesten/str0m) — Sans-IO WebRTC library (pure Rust).
+  - **Benefits:** Full I/O control, deterministic testing, better SFU fit, no hidden task spawning.
+  - **Cost:** ~5,700 lines server + ~430 lines client rewrite (different programming model).
+  - **Trigger:** Migrate when a security fix forces action on webrtc-rs, when hitting a performance wall requiring tighter I/O control, or during major voice architecture changes (e.g., MLS E2EE).
+  - mediasoup (C++ FFI) ruled out due to `unsafe_code = "forbid"` policy.
 - [ ] **[SaaS] Limits & Monetization Logic**
   - Enforce limits (storage, members) per Guild.
   - Prepare "Boost" logic for lifting limits.
