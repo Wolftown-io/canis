@@ -14,7 +14,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
 | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
 | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
-| **Phase 4** | 🔄 In Progress | 80% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator |
+| **Phase 4** | 🔄 In Progress | 84% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers |
 | **Phase 5** | 📋 Planned | 0% | - |
 
 **Production Ready Features:**
@@ -307,19 +307,14 @@ This roadmap outlines the development path from the current prototype to a produ
   - Performance-optimized database query with covering indexes
   - Automatic refresh on window focus
   - Collapsible module with total unread badge
-- [ ] **[Chat] Content Spoilers & Enhanced Mentions**
-  - **Context:** Improve privacy and moderation for sensitive content and mass notifications.
-  - **Implementation:**
-    - **Spoilers:**
-      - Add `.spoiler` CSS styles (blur/blackout) to `client/src/index.css`
-      - Update markdown renderer to support `||text||` syntax
-      - Implement "Click to Reveal" persistent state for spoiler blocks
-      - Maintain reveal state across re-renders
-    - **Mentions:**
-      - Re-add `MENTION_EVERYONE` bit (bit 23) to `GuildPermissions`
-      - Validate permission in `server/src/chat/messages.rs` during message creation
-      - Update `PermissionsTab.tsx` to include mention toggle in UI
-      - Block `@here` and `@everyone` for users without permission
+- [x] **[Chat] Content Spoilers & Enhanced Mentions** ✅ (PR #128)
+  - Content spoilers with `||text||` syntax for hiding sensitive information
+  - Click-to-reveal functionality with proper event cleanup
+  - MENTION_EVERYONE permission (bit 23) for controlling @everyone/@here mentions
+  - Server-side permission validation prevents unauthorized mass mentions
+  - ReDoS protection (500 character limit) and XSS prevention via DOMPurify
+  - 3 integration tests for permission validation (all passing)
+  - 9 unit tests for spoiler functionality
 - [x] **[Chat] Emoji Picker Polish** ✅
   - **Context:** Resolving UI regressions where the reaction window is transparent or cut off by container bounds.
   - **Implementation:**
@@ -570,8 +565,9 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Recent Changes
 
 ### 2026-01-30
+- Completed **Content Spoilers & Enhanced Mentions** (PR #128) - Content spoilers with `||text||` syntax for hiding sensitive information, MENTION_EVERYONE permission (bit 23) for controlling @everyone/@here mentions, server-side permission validation, ReDoS protection (500 char limit), XSS prevention via DOMPurify, 3 integration tests and 9 unit tests.
 - Completed **Home Page Unread Aggregator** (PR #127) - Centralized view of unread messages across all guilds and DMs in modular sidebar with optimized database queries, direct navigation, comprehensive error handling with toast notifications, and automatic refresh on window focus.
-- Phase 4 completion increased to 80% (19 of 24 features complete).
+- Phase 4 completion increased to 84% (20 of 24 features complete).
 
 ### 2026-01-29
 - Completed **First User Setup (Admin Bootstrap)** (PR #110) - First user automatically receives system admin permissions with PostgreSQL row-level locking to prevent race conditions, setup wizard for server configuration, and atomic setup completion using compare-and-swap pattern.
