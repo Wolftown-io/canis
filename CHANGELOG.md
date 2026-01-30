@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Forgot password workflow with SMTP email delivery
+  - POST /auth/forgot-password — request reset code via email
+  - POST /auth/reset-password — reset password with code
+  - SMTP configuration (SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, SMTP_TLS)
+  - Rate-limited endpoints (AuthPasswordReset category)
+  - All sessions invalidated on successful password reset
+  - No user enumeration (generic responses for unknown emails)
+  - Frontend pages: /forgot-password and /reset-password
+  - Background cleanup for expired reset tokens
+
 ### Changed
 - Modernized dependencies across all workspace crates
   - axum 0.7→0.8, tower 0.4→0.5, tower-http 0.5→0.6, utoipa 4→5

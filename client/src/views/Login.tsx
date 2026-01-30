@@ -96,6 +96,12 @@ const Login: Component = () => {
             />
           </div>
 
+          <div class="text-right">
+            <A href="/forgot-password" class="text-sm text-primary hover:underline">
+              Forgot password?
+            </A>
+          </div>
+
           <Show when={error()}>
             <div class="p-3 rounded-md text-sm" style="background-color: var(--color-error-bg); border: 1px solid var(--color-error-border); color: var(--color-error-text)">
               {error()}

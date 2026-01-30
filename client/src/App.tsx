@@ -4,6 +4,8 @@ import { Route } from "@solidjs/router";
 // Views
 import Login from "./views/Login";
 import Register from "./views/Register";
+import ForgotPassword from "./views/ForgotPassword";
+import ResetPassword from "./views/ResetPassword";
 import Main from "./views/Main";
 import ThemeDemo from "./pages/ThemeDemo";
 import InviteJoin from "./views/InviteJoin";
@@ -83,6 +85,8 @@ const ProtectedConnectionHistory: Component = () => (
 // Wrapped components for routes
 const LoginPage = () => <Layout><Login /></Layout>;
 const RegisterPage = () => <Layout><Register /></Layout>;
+const ForgotPasswordPage = () => <Layout><ForgotPassword /></Layout>;
+const ResetPasswordPage = () => <Layout><ResetPassword /></Layout>;
 const MainPage = () => <Layout><ProtectedMain /></Layout>;
 const ThemeDemoPage = () => <Layout><ThemeDemo /></Layout>;
 const InvitePage = () => <Layout><ProtectedInvite /></Layout>;
@@ -96,6 +100,8 @@ export const AppRoutes = (): JSX.Element => (
     <Route path="/demo" component={ThemeDemoPage} />
     <Route path="/login" component={LoginPage} />
     <Route path="/register" component={RegisterPage} />
+    <Route path="/forgot-password" component={ForgotPasswordPage} />
+    <Route path="/reset-password" component={ResetPasswordPage} />
     <Route path="/invite/:code" component={InvitePage} />
     <Route path="/pages/:slug" component={PagePage} />
     <Route path="/guilds/:guildId/pages/:slug" component={PagePage} />

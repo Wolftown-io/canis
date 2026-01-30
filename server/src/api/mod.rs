@@ -29,6 +29,7 @@ use crate::{
     admin, auth, chat, connectivity, crypto,
     chat::S3Client,
     config::Config,
+    email::EmailService,
     guild, pages,
     ratelimit::{rate_limit_by_user, with_category, RateLimitCategory, RateLimiter},
     social, voice,
@@ -51,6 +52,8 @@ pub struct AppState {
     pub sfu: Arc<SfuServer>,
     /// Rate limiter (optional, uses Redis)
     pub rate_limiter: Option<RateLimiter>,
+    /// Email service (optional, requires SMTP configuration)
+    pub email: Option<Arc<EmailService>>,
 }
 
 impl AppState {
@@ -63,6 +66,7 @@ impl AppState {
         s3: Option<S3Client>,
         sfu: SfuServer,
         rate_limiter: Option<RateLimiter>,
+        email: Option<EmailService>,
     ) -> Self {
         Self {
             db,
@@ -71,6 +75,7 @@ impl AppState {
             s3,
             sfu: Arc::new(sfu),
             rate_limiter,
+            email: email.map(Arc::new),
         }
     }
 

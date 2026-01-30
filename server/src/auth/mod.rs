@@ -41,6 +41,8 @@ pub fn hash_token(token: &str) -> String {
 /// - POST /register - Register a new user
 /// - POST /login - Login with username/password
 /// - POST /refresh - Refresh access token
+/// - POST /forgot-password - Request password reset email
+/// - POST /reset-password - Reset password with token
 /// - GET /oidc/providers - List OIDC providers
 /// - GET /oidc/authorize/{provider} - Initiate OIDC flow
 /// - GET /oidc/callback - OIDC callback
@@ -109,11 +111,34 @@ pub fn router(state: AppState) -> Router<AppState> {
 
     let oidc_routes = oidc_authorize_route.merge(oidc_other_routes);
 
+    // Password reset routes with rate limiting
+    let forgot_password_route = Router::new()
+        .route("/forgot-password", post(handlers::forgot_password))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_by_ip,
+        ))
+        .layer(axum_middleware::from_fn(with_category(
+            RateLimitCategory::AuthPasswordReset,
+        )));
+
+    let reset_password_route = Router::new()
+        .route("/reset-password", post(handlers::reset_password))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_by_ip,
+        ))
+        .layer(axum_middleware::from_fn(with_category(
+            RateLimitCategory::AuthPasswordReset,
+        )));
+
     // Merge all public routes
     let public_routes = login_route
         .merge(register_route)
         .merge(refresh_route)
-        .merge(oidc_routes);
+        .merge(oidc_routes)
+        .merge(forgot_password_route)
+        .merge(reset_password_route);
 
     // Protected routes (auth required)
     let protected_routes = Router::new()

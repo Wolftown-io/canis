@@ -11,6 +11,15 @@ This document tracks third-party dependencies and their licenses for the VoiceCh
 - **Usage:** Bundled font for pixel art theme UI elements
 - **Compliance:** OFL-1.1 permits bundling and redistribution with attribution. Font name may not be used for derived works without permission.
 
+## Email
+
+### lettre
+- **License:** MIT OR Apache-2.0
+- **Source:** https://crates.io/crates/lettre
+- **Version:** 0.11
+- **Usage:** SMTP email transport for transactional emails (password reset)
+- **Compliance:** Dual-licensed MIT/Apache-2.0, fully compatible with project license
+
 ## Checking Dependency Licenses
 
 ### Rust Dependencies
