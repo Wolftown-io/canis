@@ -6,7 +6,7 @@ use anyhow::Result;
 use std::net::SocketAddr;
 use tracing::info;
 
-use vc_server::{api, chat, config, db, voice};
+use vc_server::{api, chat, config, db, email, voice};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -138,13 +138,41 @@ async fn main() -> Result<()> {
                 }
                 _ => {}
             }
+
+            // Cleanup expired password reset tokens
+            match db::cleanup_expired_reset_tokens(&db_pool_clone).await {
+                Ok(count) if count > 0 => {
+                    tracing::debug!(count, "Cleaned up expired reset tokens");
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to cleanup expired reset tokens");
+                }
+                _ => {}
+            }
         }
     });
 
     info!("Voice SFU server initialized");
 
+    // Initialize email service (optional - password reset will be disabled if not configured)
+    let email_service = if config.has_smtp() {
+        match email::EmailService::new(&config) {
+            Ok(service) => {
+                info!("Email service initialized (SMTP)");
+                Some(service)
+            }
+            Err(e) => {
+                tracing::warn!("Email service initialization failed: {}. Password reset disabled.", e);
+                None
+            }
+        }
+    } else {
+        info!("SMTP not configured. Password reset disabled.");
+        None
+    };
+
     // Build application state
-    let state = api::AppState::new(db_pool.clone(), redis.clone(), config.clone(), s3, sfu, rate_limiter);
+    let state = api::AppState::new(db_pool.clone(), redis.clone(), config.clone(), s3, sfu, rate_limiter, email_service);
 
     // Build router
     let app = api::create_router(state);

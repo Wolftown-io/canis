@@ -89,6 +89,24 @@ pub struct Config {
     /// Allowed CORS origins (comma-separated, default: "*" for dev)
     /// Set to specific origins in production (e.g., "https://app.example.com")
     pub cors_allowed_origins: Vec<String>,
+
+    /// SMTP server hostname (optional, enables password reset emails)
+    pub smtp_host: Option<String>,
+
+    /// SMTP server port (default: 587)
+    pub smtp_port: u16,
+
+    /// SMTP username (required if SMTP is enabled)
+    pub smtp_username: Option<String>,
+
+    /// SMTP password (required if SMTP is enabled)
+    pub smtp_password: Option<String>,
+
+    /// SMTP sender address (e.g., "noreply@example.com")
+    pub smtp_from: Option<String>,
+
+    /// SMTP TLS mode: "starttls" (default), "tls", or "none"
+    pub smtp_tls: String,
 }
 
 impl Config {
@@ -154,6 +172,15 @@ impl Config {
                         .collect()
                 })
                 .unwrap_or_else(|| vec!["*".to_string()]),
+            smtp_host: env::var("SMTP_HOST").ok(),
+            smtp_port: env::var("SMTP_PORT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(587),
+            smtp_username: env::var("SMTP_USERNAME").ok(),
+            smtp_password: env::var("SMTP_PASSWORD").ok(),
+            smtp_from: env::var("SMTP_FROM").ok(),
+            smtp_tls: env::var("SMTP_TLS").unwrap_or_else(|_| "starttls".into()),
         })
     }
 
@@ -163,6 +190,15 @@ impl Config {
         self.oidc_issuer_url.is_some()
             && self.oidc_client_id.is_some()
             && self.oidc_client_secret.is_some()
+    }
+
+    /// Check if SMTP is configured for sending emails (password reset, etc.).
+    #[must_use]
+    pub const fn has_smtp(&self) -> bool {
+        self.smtp_host.is_some()
+            && self.smtp_username.is_some()
+            && self.smtp_password.is_some()
+            && self.smtp_from.is_some()
     }
 
     /// Check if TURN is configured.
@@ -208,6 +244,12 @@ impl Config {
             mfa_encryption_key: None,
             require_e2ee_setup: false,
             cors_allowed_origins: vec!["*".to_string()],
+            smtp_host: None,
+            smtp_port: 587,
+            smtp_username: None,
+            smtp_password: None,
+            smtp_from: None,
+            smtp_tls: "starttls".into(),
         }
     }
 }

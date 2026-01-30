@@ -55,6 +55,10 @@ pub enum AuthError {
     #[error("Invalid MFA code")]
     InvalidMfaCode,
 
+    /// Email service is not available (SMTP not configured).
+    #[error("Email service is not available")]
+    EmailNotConfigured,
+
     /// Validation error.
     #[error("Validation failed: {0}")]
     Validation(String),
@@ -99,6 +103,7 @@ impl IntoResponse for AuthError {
             Self::InvalidAuthHeader => (StatusCode::UNAUTHORIZED, "INVALID_AUTH_HEADER"),
             Self::MfaRequired => (StatusCode::FORBIDDEN, "MFA_REQUIRED"),
             Self::InvalidMfaCode => (StatusCode::UNAUTHORIZED, "INVALID_MFA"),
+            Self::EmailNotConfigured => (StatusCode::SERVICE_UNAVAILABLE, "EMAIL_NOT_CONFIGURED"),
             Self::Validation(_) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR"),
             Self::PasswordHash => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
             Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),

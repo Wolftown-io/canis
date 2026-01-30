@@ -569,6 +569,7 @@ mod tests {
             None,
             crate::voice::SfuServer::new(std::sync::Arc::new(Config::default_for_test()), None).unwrap(),
             None, // No rate limiter in tests
+            None, // No email service in tests
         )
     }
 

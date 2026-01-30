@@ -73,6 +73,9 @@ utoipa-swagger-ui.workspace = true
 # Markdown
 pulldown-cmark.workspace = true
 
+# Email
+lettre.workspace = true
+
 # Validation
 validator.workspace = true
 
