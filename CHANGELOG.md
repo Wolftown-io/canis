@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Documentation audit and cleanup
+  - Updated all version numbers in standards.md to match actual dependencies
+  - Updated project specification status to Phase 4
+  - Fixed architecture diagrams (removed mediasoup, nnnoiseless references)
+  - Removed resolved tech debt and stale persona review sections from architecture overview
+  - Fixed broken internal documentation links across all docs
+
+### Removed
+- Deleted 12 stale documentation files (session artifacts, redundant license docs, completed update checklists, dependency snapshots)
+- Removed phantom dependencies from standards documentation (jsonrpsee, nnnoiseless, metrics, x25519-dalek, ed25519-dalek)
+- Removed stale scripts (resume-session.sh, update-deps.sh)
+
 ### Added
 - Component testing infrastructure for Solid.js
   - Vitest configuration with vite-plugin-solid
@@ -318,11 +331,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - tokio-tungstenite 0.21 → 0.28 (WebSocket improvements)
   - reqwest: migrated from deprecated `rustls-tls` to `rustls` feature
   - Fixed breaking changes in tungstenite 0.28 Message::Text API
-- Added comprehensive dependency audit report (`DEPENDENCY_AUDIT.md`)
-  - Lists all 45+ dependencies with current vs latest versions
-  - Identifies critical updates (sqlx, axum) and blockers
-  - Provides phased update strategy with time estimates
-  - Documents known libsqlite3-sys version conflict
+- Conducted comprehensive dependency audit (45+ dependencies reviewed)
+  - Identified critical updates (sqlx, axum) and blockers
+  - Phased update strategy executed in subsequent releases
 
 ### Deprecated
 
