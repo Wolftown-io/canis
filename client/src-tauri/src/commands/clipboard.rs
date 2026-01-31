@@ -395,7 +395,7 @@ impl ClipboardGuard {
 
         let clear = pending
             .as_mut()
-            .ok_or(ClipboardError::SystemError("No pending clear".to_string()))?;
+            .ok_or_else(|| ClipboardError::SystemError("No pending clear".to_string()))?;
 
         // Max 2 extensions
         if clear.extensions_used >= 2 {

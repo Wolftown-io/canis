@@ -42,7 +42,7 @@ pub async fn get_platform_page(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .map(Json)
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))
 }
 
 /// Create a new platform page (system admin only).
@@ -149,7 +149,7 @@ pub async fn update_platform_page(
     let old_page = queries::get_page_by_id(&state.db, id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))?;
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))?;
 
     // Verify it's a platform page
     if old_page.guild_id.is_some() {
@@ -218,7 +218,7 @@ pub async fn delete_platform_page(
     let page = queries::get_page_by_id(&state.db, id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))?;
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))?;
 
     // Verify it's a platform page
     if page.guild_id.is_some() {
@@ -314,7 +314,7 @@ pub async fn get_guild_page(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .map(Json)
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))
 }
 
 /// Create a new guild page.
@@ -401,7 +401,7 @@ pub async fn update_guild_page(
     let old_page = queries::get_page_by_id(&state.db, id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))?;
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))?;
 
     // Verify page belongs to this guild
     if old_page.guild_id != Some(guild_id) {
@@ -464,7 +464,7 @@ pub async fn delete_guild_page(
     let page = queries::get_page_by_id(&state.db, id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))?;
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))?;
 
     // Verify page belongs to this guild
     if page.guild_id != Some(guild_id) {
@@ -522,7 +522,7 @@ pub async fn accept_page(
     let page = queries::get_page_by_id(&state.db, id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))?;
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Page not found".to_string()))?;
 
     queries::accept_page(&state.db, user.id, id, &page.content_hash)
         .await
