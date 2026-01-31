@@ -6,6 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
+use std::fmt::Write;
 use tracing::error;
 use uuid::Uuid;
 
@@ -152,8 +153,6 @@ pub async fn update_user_profile(
     // Build dynamic update query based on what's provided
     let mut query = String::from("UPDATE users SET updated_at = NOW()");
     let mut param_idx = 1;
-
-    use std::fmt::Write;
 
     if display_name.is_some() {
         write!(query, ", display_name = ${param_idx}").unwrap();

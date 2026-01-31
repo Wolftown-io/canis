@@ -623,11 +623,10 @@ pub async fn upload_dm_icon(
     let s3 = state.s3.as_ref().ok_or(UploadError::NotConfigured)?;
 
     let mut file_data: Option<Vec<u8>> = None;
-    let mut _filename: Option<String> = None; // Unused but parsed
 
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name() == Some("file") {
-            _filename = field.file_name().map(String::from);
+            let _filename = field.file_name().map(String::from); // Consumed for validation
             
             let data = field.bytes().await.map_err(|e| UploadError::Validation(e.to_string()))?;
             
