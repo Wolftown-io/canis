@@ -52,7 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Grouped by guild with channel-level unread counts
   - Direct navigation to channels with unread messages
   - Comprehensive error handling with user-friendly toast notifications
-  - Automatic refresh when window gains focus
+  - Automatic refresh when window gains focus (throttled to 30s intervals)
+  - WebSocket real-time updates with debounced refetch on new messages
+  - Skeleton loading UI matching content layout
   - Collapsible module with unread badge
   - API endpoint: `GET /api/me/unread`
   - Performance-optimized database query with covering indexes
@@ -335,6 +337,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server build failure fixed by adding `Deserialize` to `GuildEmoji`
 - **Fixed**: Pinned notes functionality restored (fixed API wrapper implementation) (#105)
 - Documentation formatting in admin handlers fixed
+- Orphaned password reset tokens cleaned up when email send fails (#130)
+- Removed unused `update_user_password` database function (#131)
 
 ### Security
 - Attachment access now enforces guild/DM membership (previously any authenticated user could access any file)
