@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tauri WebSocket event parity improvements
   - Unread count tracking in Tauri mode (matches browser mode)
   - Voice event listeners for full voice chat support in Tauri
+  - GitHub issue #132 filed to track 22 missing ServerEvent variants for full parity
 - Global toast notifications for user feedback
   - Max 5 visible toasts with auto-dismiss of oldest
   - Error toasts for failed operations (message send, mark as read, etc.)
