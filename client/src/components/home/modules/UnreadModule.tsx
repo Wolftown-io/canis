@@ -5,7 +5,7 @@
  * Provides quick navigation to channels with unread messages.
  */
 
-import { Component, Show, For, createSignal, createEffect, onMount } from "solid-js";
+import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from "solid-js";
 import { Inbox, Hash } from "lucide-solid";
 import { getUnreadAggregate, type UnreadAggregate } from "@/lib/tauri";
 import { selectGuild } from "@/stores/guilds";
@@ -47,6 +47,18 @@ const UnreadModule: Component = () => {
     }
   };
 
+  // Debounced fetch for WebSocket events (5s)
+  let wsDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+  const WS_DEBOUNCE_MS = 5_000;
+
+  const debouncedFetch = () => {
+    if (wsDebounceTimer) clearTimeout(wsDebounceTimer);
+    wsDebounceTimer = setTimeout(() => {
+      lastFetchTime = Date.now();
+      fetchUnreads();
+    }, WS_DEBOUNCE_MS);
+  };
+
   onMount(() => {
     lastFetchTime = Date.now();
     fetchUnreads();
@@ -54,8 +66,17 @@ const UnreadModule: Component = () => {
 
   createEffect(() => {
     const handleFocus = () => throttledFetch();
+    const handleUnreadUpdate = () => debouncedFetch();
     window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    window.addEventListener("unread-update", handleUnreadUpdate);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("unread-update", handleUnreadUpdate);
+    };
+  });
+
+  onCleanup(() => {
+    if (wsDebounceTimer) clearTimeout(wsDebounceTimer);
   });
 
   const totalUnread = () => unreadData()?.total ?? 0;

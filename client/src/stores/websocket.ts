@@ -314,6 +314,8 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
         if (guildId && guildId !== guildsState.activeGuildId) {
           incrementGuildUnread(guildId);
         }
+        // Notify unread module of new message
+        window.dispatchEvent(new CustomEvent("unread-update"));
       }
       break;
 
