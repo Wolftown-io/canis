@@ -387,21 +387,6 @@ pub async fn invalidate_user_reset_tokens(pool: &PgPool, user_id: Uuid) -> sqlx:
     Ok(result.rows_affected())
 }
 
-/// Update a user's password hash.
-pub async fn update_user_password(
-    pool: &PgPool,
-    user_id: Uuid,
-    password_hash: &str,
-) -> sqlx::Result<()> {
-    sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
-        .bind(password_hash)
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .map_err(db_error!("update_user_password", user_id = %user_id))?;
-    Ok(())
-}
-
 /// Clean up expired password reset tokens (for background job).
 ///
 /// Removes tokens that expired more than 24 hours ago.
