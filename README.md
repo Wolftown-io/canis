@@ -22,7 +22,7 @@ All documentation is located in the [`docs/`](docs/) directory.
 ### Getting Started
 - [System Dependencies](docs/getting-started/dependencies.md)
 - [Development Setup](docs/development/setup.md)
-- [Quick Resume (for existing devs)](docs/development/quick-resume.md)
+
 
 ### Operations
 - [Configuration Guide](docs/ops/configuration.md)
