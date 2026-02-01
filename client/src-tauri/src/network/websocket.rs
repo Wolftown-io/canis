@@ -171,6 +171,26 @@ pub enum ServerEvent {
         channel_id: String,
         name: String,
     },
+    // Screen share events
+    ScreenShareStarted {
+        channel_id: String,
+        user_id: String,
+        username: String,
+        source_label: String,
+        has_audio: bool,
+        quality: String,
+    },
+    ScreenShareStopped {
+        channel_id: String,
+        user_id: String,
+        reason: String,
+    },
+    ScreenShareQualityChanged {
+        channel_id: String,
+        user_id: String,
+        new_quality: String,
+        reason: String,
+    },
     // Reaction events
     ReactionAdd {
         channel_id: String,
@@ -425,6 +445,10 @@ fn handle_server_message(app: &AppHandle, text: &str) {
                 ServerEvent::ChannelRead { .. } => "ws:channel_read",
                 ServerEvent::DmRead { .. } => "ws:dm_read",
                 ServerEvent::DmNameUpdated { .. } => "ws:dm_name_updated",
+                // Screen share events
+                ServerEvent::ScreenShareStarted { .. } => "ws:screen_share_started",
+                ServerEvent::ScreenShareStopped { .. } => "ws:screen_share_stopped",
+                ServerEvent::ScreenShareQualityChanged { .. } => "ws:screen_share_quality_changed",
                 // Reaction events
                 ServerEvent::ReactionAdd { .. } => "ws:reaction_add",
                 ServerEvent::ReactionRemove { .. } => "ws:reaction_remove",

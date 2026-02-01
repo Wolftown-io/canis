@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { Component, Show, createEffect, createSignal, onMount, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { X, Minimize2, Maximize2, Volume2, VolumeX, Play } from "lucide-solid";
 import {
@@ -72,6 +72,51 @@ const ScreenShareViewer: Component = () => {
     const nextIndex = (currentIndex + 1) % modes.length;
     setViewMode(modes[nextIndex]);
   };
+
+  // Keyboard shortcuts (only active when viewing a screen share)
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!viewerState.viewingUserId) return;
+
+    // Ignore when typing in input elements
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    switch (e.key) {
+      case "Escape":
+        e.preventDefault();
+        stopViewing();
+        break;
+      case "v":
+      case "V":
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          cycleViewMode();
+        }
+        break;
+      case "m":
+      case "M":
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          setScreenVolume(viewerState.screenVolume === 0 ? 100 : 0);
+        }
+        break;
+      case "f":
+      case "F":
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          setViewMode("spotlight");
+        }
+        break;
+    }
+  };
+
+  onMount(() => {
+    window.addEventListener("keydown", handleKeyDown);
+  });
+
+  onCleanup(() => {
+    window.removeEventListener("keydown", handleKeyDown);
+  });
 
   return (
     <Show when={viewerState.viewingUserId && viewerState.videoTrack}>

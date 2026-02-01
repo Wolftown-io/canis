@@ -999,7 +999,7 @@ async function handleVoiceRoomState(channelId: string, participants: any[], scre
 
 // Screen share event handlers
 
-async function handleScreenShareStarted(event: any): Promise<void> {
+export async function handleScreenShareStarted(event: any): Promise<void> {
   const { voiceState, setVoiceState } = await import("@/stores/voice");
   const { produce } = await import("solid-js/store");
 
@@ -1027,7 +1027,7 @@ async function handleScreenShareStarted(event: any): Promise<void> {
   }
 }
 
-async function handleScreenShareStopped(event: any): Promise<void> {
+export async function handleScreenShareStopped(event: any): Promise<void> {
   const { voiceState, setVoiceState } = await import("@/stores/voice");
   const { produce } = await import("solid-js/store");
 
@@ -1054,7 +1054,7 @@ async function handleScreenShareStopped(event: any): Promise<void> {
   }
 }
 
-async function handleScreenShareQualityChanged(event: any): Promise<void> {
+export async function handleScreenShareQualityChanged(event: any): Promise<void> {
   const { voiceState, setVoiceState } = await import("@/stores/voice");
   const { produce } = await import("solid-js/store");
 
