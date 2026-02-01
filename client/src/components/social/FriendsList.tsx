@@ -15,6 +15,7 @@ import {
   acceptFriendRequest,
   rejectFriendRequest,
   removeFriend,
+  unblockUser,
 } from "@/stores/friends";
 import { getUserActivity } from "@/stores/presence";
 import type { Friend } from "@/lib/types";
@@ -82,6 +83,14 @@ const FriendsList: Component = () => {
       }
     } catch (err) {
       console.error("Failed to remove friend:", err);
+    }
+  };
+
+  const handleUnblock = async (userId: string) => {
+    try {
+      await unblockUser(userId);
+    } catch (err) {
+      console.error("Failed to unblock user:", err);
     }
   };
 
@@ -216,6 +225,7 @@ const FriendsList: Component = () => {
                   onAccept={handleAccept}
                   onReject={handleReject}
                   onRemove={handleRemove}
+                  onUnblock={handleUnblock}
                 />
               )}
             </For>
@@ -237,6 +247,7 @@ interface FriendItemProps {
   onAccept: (friendshipId: string) => void;
   onReject: (friendshipId: string) => void;
   onRemove: (friendshipId: string) => void;
+  onUnblock: (userId: string) => void;
 }
 
 const FriendItem: Component<FriendItemProps> = (props) => {
@@ -295,6 +306,14 @@ const FriendItem: Component<FriendItemProps> = (props) => {
             class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
           >
             Remove
+          </button>
+        </Show>
+        <Show when={props.tab === "blocked"}>
+          <button
+            onClick={() => props.onUnblock(props.friend.user_id)}
+            class="px-3 py-1.5 bg-white/10 text-text-primary rounded-lg text-sm font-medium hover:bg-white/20 transition-colors"
+          >
+            Unblock
           </button>
         </Show>
       </div>

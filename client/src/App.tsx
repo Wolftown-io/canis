@@ -1,4 +1,4 @@
-import { Component, ParentProps, JSX, onMount } from "solid-js";
+import { Component, ParentProps, JSX, onMount, createSignal, Show } from "solid-js";
 import { Route } from "@solidjs/router";
 
 // Views
@@ -20,10 +20,24 @@ import { ToastContainer } from "./components/ui/Toast";
 import { ContextMenuContainer } from "./components/ui/ContextMenu";
 import E2EESetupPrompt from "./components/E2EESetupPrompt";
 import SetupWizard from "./components/SetupWizard";
+import BlockConfirmModal from "./components/modals/BlockConfirmModal";
+import ReportModal from "./components/modals/ReportModal";
+import type { ReportTarget } from "./components/modals/ReportModal";
+
+// Context menu callbacks
+import { onShowBlockConfirm, onShowReport } from "./lib/contextMenuBuilders";
 
 // Theme
 import { initTheme } from "./stores/theme";
 import { fetchUploadLimits } from "./lib/tauri";
+
+// Global modal state
+const [blockTarget, setBlockTarget] = createSignal<{ id: string; username: string; display_name?: string } | null>(null);
+const [reportTarget, setReportTarget] = createSignal<ReportTarget | null>(null);
+
+// Register context menu callbacks
+onShowBlockConfirm((target) => setBlockTarget({ id: target.id, username: target.username, display_name: target.display_name }));
+onShowReport((target) => setReportTarget({ userId: target.userId, username: target.username, messageId: target.messageId }));
 
 // Layout wrapper
 const Layout: Component<ParentProps> = (props) => {
@@ -40,6 +54,26 @@ const Layout: Component<ParentProps> = (props) => {
       {props.children}
       <ToastContainer />
       <ContextMenuContainer />
+
+      <Show when={blockTarget()}>
+        {(target) => (
+          <BlockConfirmModal
+            userId={target().id}
+            username={target().username}
+            displayName={target().display_name}
+            onClose={() => setBlockTarget(null)}
+          />
+        )}
+      </Show>
+
+      <Show when={reportTarget()}>
+        {(target) => (
+          <ReportModal
+            target={target()}
+            onClose={() => setReportTarget(null)}
+          />
+        )}
+      </Show>
     </div>
   );
 };

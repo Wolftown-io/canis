@@ -1,7 +1,7 @@
 import { Component, Show, createMemo, For, createSignal, onMount, onCleanup } from "solid-js";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import { File, Download, SmilePlus, Copy, Link, Hash, Trash2 } from "lucide-solid";
+import { File, Download, SmilePlus, Copy, Link, Hash, Trash2, Flag } from "lucide-solid";
 import type { Message, Attachment } from "@/lib/types";
 import { formatTimestamp } from "@/lib/utils";
 import Avatar from "@/components/ui/Avatar";
@@ -11,7 +11,7 @@ import PositionedEmojiPicker from "@/components/emoji/PositionedEmojiPicker";
 import { getServerUrl, getAccessToken, addReaction, removeReaction } from "@/lib/tauri";
 import { showContextMenu, type ContextMenuEntry } from "@/components/ui/ContextMenu";
 import { currentUser } from "@/stores/auth";
-import { showUserContextMenu } from "@/lib/contextMenuBuilders";
+import { showUserContextMenu, triggerReport } from "@/lib/contextMenuBuilders";
 import { spoilerExtension } from "@/lib/markdown/spoilerExtension";
 
 interface MessageItemProps {
@@ -184,6 +184,24 @@ const MessageItem: Component<MessageItemProps> = (props) => {
         action: () => navigator.clipboard.writeText(msg.id),
       },
     ];
+
+    if (!isOwn) {
+      items.push(
+        { separator: true },
+        {
+          label: "Report Message",
+          icon: Flag,
+          danger: true,
+          action: () => {
+            triggerReport({
+              userId: msg.author.id,
+              username: msg.author.username,
+              messageId: msg.id,
+            });
+          },
+        },
+      );
+    }
 
     if (isOwn) {
       items.push(
