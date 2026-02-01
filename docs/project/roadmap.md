@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 4 (Advanced Features) - In Progress
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-01
 
 ## Quick Status Overview
 
@@ -14,7 +14,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
 | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
 | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
-| **Phase 4** | 🔄 In Progress | 84% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers |
+| **Phase 4** | 🔄 In Progress | 88% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password |
 | **Phase 5** | 📋 Planned | 0% | - |
 
 **Production Ready Features:**
@@ -277,15 +277,18 @@ This roadmap outlines the development path from the current prototype to a produ
       - Review remaining error response parsing patterns
       - Consider retry mechanisms for transient failures
       - *Note:* Lower priority - critical issues already addressed
-- [ ] **[Auth] Forgot Password Workflow**
+- [x] **[Auth] Forgot Password Workflow** ✅
   - Email-based password reset with secure token generation.
   - Rate-limited reset requests to prevent abuse.
   - Token expiration (e.g., 1 hour) with single-use enforcement.
 - [ ] **[Auth] SSO / OIDC Integration**
   - Enable "Login with Google/Microsoft" via `openidconnect`.
-- [ ] **[Voice] Screen Sharing**
-  - Update SFU to handle multiple video tracks (Webcam + Screen).
-  - Update Client UI to render "Filmstrip" or "Grid" layouts.
+- [x] **[Voice] Screen Sharing** ✅
+  - SFU handles multiple video tracks per room with per-channel limits.
+  - Spotlight/PiP/Theater viewer modes with keyboard shortcuts (Escape/V/M/F).
+  - Tauri WebSocket parity for screen share events.
+  - REST endpoints for check/start/stop with permission and limit enforcement.
+  - Server and client test coverage.
 - [x] **[UX] Advanced Browser Context Menus** ✅
   - Global `ContextMenuProvider` using Solid.js Portals
   - `ContextMenu.tsx` component with keyboard navigation (Arrow keys, Enter, Home/End, Escape)
@@ -578,10 +581,13 @@ This roadmap outlines the development path from the current prototype to a produ
   - collection_is_never_read: 1 fix (scoped unused variable locally)
   - items_after_statements: 1 fix (moved imports to module level)
 
+### 2026-02-01
+- Completed **Screen Share Tauri Parity, Tests & Viewer Shortcuts** (PR #134) - Added ScreenShareStarted/Stopped/QualityChanged to Tauri WebSocket client, keyboard shortcuts (Escape/V/M/F) for ScreenShareViewer, exported screen share handlers for testability, server event serialization tests, and client handler tests.
+
 ### 2026-01-30
 - Completed **Content Spoilers & Enhanced Mentions** (PR #128) - Content spoilers with `||text||` syntax for hiding sensitive information, MENTION_EVERYONE permission (bit 23) for controlling @everyone/@here mentions, server-side permission validation, ReDoS protection (500 char limit), XSS prevention via DOMPurify, 3 integration tests and 9 unit tests.
 - Completed **Home Page Unread Aggregator** (PR #127) - Centralized view of unread messages across all guilds and DMs in modular sidebar with optimized database queries, direct navigation, comprehensive error handling with toast notifications, and automatic refresh on window focus.
-- Phase 4 completion increased to 84% (20 of 24 features complete).
+- Phase 4 completion increased to 88% (21 of 24 features complete).
 
 ### 2026-01-29
 - Completed **First User Setup (Admin Bootstrap)** (PR #110) - First user automatically receives system admin permissions with PostgreSQL row-level locking to prevent race conditions, setup wizard for server configuration, and atomic setup completion using compare-and-swap pattern.
