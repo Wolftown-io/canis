@@ -40,6 +40,15 @@ export function getPendingBlockTarget(): UserMenuTarget | null {
 }
 
 /**
+ * Trigger the report modal programmatically (e.g. from message context menu).
+ */
+export function triggerReport(target: { userId: string; username: string; messageId?: string }): void {
+  if (showReportCallback) {
+    showReportCallback(target);
+  }
+}
+
+/**
  * Show a context menu for a user (member list, message author, etc.).
  */
 export function showUserContextMenu(event: MouseEvent, user: UserMenuTarget): void {
