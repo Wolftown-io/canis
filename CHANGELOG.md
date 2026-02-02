@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Token reset functionality for bot applications
   - Guild bot installation tracking
   - Support for guild-specific and global slash commands
+  - Slash command registration and management API
+  - Command validation (name format, description length)
+  - Bulk command registration with transactional updates
 
 ### Changed
 - Documentation audit and cleanup

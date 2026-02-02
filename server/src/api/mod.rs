@@ -3,6 +3,7 @@
 //! Central routing configuration and shared state.
 
 pub mod bots;
+pub mod commands;
 pub mod favorites;
 pub mod pins;
 pub mod preferences;
@@ -204,6 +205,17 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/applications/{id}/reset-token",
             post(bots::reset_bot_token),
+        )
+        // Slash commands
+        .route(
+            "/api/applications/{id}/commands",
+            get(commands::list_commands)
+                .put(commands::register_commands)
+                .delete(commands::delete_all_commands),
+        )
+        .route(
+            "/api/applications/{id}/commands/{command_id}",
+            delete(commands::delete_command),
         )
         // Message reactions
         .route(
