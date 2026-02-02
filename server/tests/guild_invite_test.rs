@@ -57,10 +57,7 @@ fn test_invite_code_uniqueness() {
     // Check for uniqueness (very unlikely to have collisions with 62^8 possibilities)
     let mut seen = std::collections::HashSet::new();
     for code in &codes {
-        assert!(
-            seen.insert(code.clone()),
-            "Code collision detected: {code}"
-        );
+        assert!(seen.insert(code.clone()), "Code collision detected: {code}");
     }
 }
 

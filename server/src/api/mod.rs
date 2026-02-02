@@ -266,6 +266,11 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/messages", chat::messages_public_router())
         // WebSocket
         .route("/ws", get(ws::handler))
+        // Bot Gateway WebSocket (uses bot token auth)
+        .route(
+            "/api/gateway/bot",
+            get(ws::bot_gateway::bot_gateway_handler),
+        )
         // API documentation
         .merge(api_docs())
         // Middleware

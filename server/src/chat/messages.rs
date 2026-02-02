@@ -397,9 +397,9 @@ pub async fn create(
                 )
                 .await
                 .unwrap_or(false)
-                {
-                    return Err(MessageError::Blocked);
-                }
+            {
+                return Err(MessageError::Blocked);
+            }
         }
     }
 

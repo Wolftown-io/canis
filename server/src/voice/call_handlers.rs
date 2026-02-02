@@ -254,9 +254,9 @@ pub async fn join_call(
             && block_cache::is_blocked_either_direction(&state.redis, auth.id, participant_id)
                 .await
                 .unwrap_or(false)
-            {
-                return Err(CallHandlerError::Blocked);
-            }
+        {
+            return Err(CallHandlerError::Blocked);
+        }
     }
 
     let call_service = CallService::new(state.redis.clone());

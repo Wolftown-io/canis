@@ -261,9 +261,7 @@ async fn test_failed_auth_blocks_ip_after_threshold() {
         "Block TTL should not exceed block_duration_secs"
     );
 
-    println!(
-        "Failed auth test passed: IP blocked after 3 failures, TTL = {ttl:?}s"
-    );
+    println!("Failed auth test passed: IP blocked after 3 failures, TTL = {ttl:?}s");
 }
 
 /// Test that clearing failed auth removes block.
@@ -638,9 +636,7 @@ async fn test_concurrent_requests_are_atomic() {
         "Exactly 10 requests should be blocked (got {blocked_count})"
     );
 
-    println!(
-        "Concurrent requests test passed: {allowed_count} allowed, {blocked_count} blocked"
-    );
+    println!("Concurrent requests test passed: {allowed_count} allowed, {blocked_count} blocked");
 }
 
 /// Test concurrent failed auth attempts are handled atomically.
@@ -710,9 +706,7 @@ async fn test_concurrent_failed_auth_is_atomic() {
     let blocked = limiter.is_blocked(&ip).await.expect("is_blocked failed");
     assert!(blocked, "IP should be blocked after concurrent failures");
 
-    println!(
-        "Concurrent failed auth test passed: {blocked_count} reported blocked, IP is blocked"
-    );
+    println!("Concurrent failed auth test passed: {blocked_count} reported blocked, IP is blocked");
 }
 
 /// Test that rate limit response includes correct `reset_at` timestamp.

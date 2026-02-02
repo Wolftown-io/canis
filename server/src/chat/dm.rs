@@ -307,11 +307,11 @@ pub async fn create_dm(
         && block_cache::is_blocked_either_direction(&state.redis, auth.id, body.participant_ids[0])
             .await
             .unwrap_or(false)
-        {
-            return Err(ChannelError::Validation(
-                "Cannot create DM with this user".to_string(),
-            ));
-        }
+    {
+        return Err(ChannelError::Validation(
+            "Cannot create DM with this user".to_string(),
+        ));
+    }
 
     let channel = if body.participant_ids.len() == 1 {
         // 1:1 DM

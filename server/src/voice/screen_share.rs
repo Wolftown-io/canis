@@ -527,9 +527,8 @@ mod tests {
         ];
 
         for (quality_str, expected_quality) in qualities.iter().zip(expected.iter()) {
-            let json = format!(
-                r#"{{"quality":"{quality_str}","has_audio":false,"source_label":"test"}}"#
-            );
+            let json =
+                format!(r#"{{"quality":"{quality_str}","has_audio":false,"source_label":"test"}}"#);
             let req: ScreenShareStartRequest = serde_json::from_str(&json).unwrap();
             assert_eq!(req.quality, *expected_quality);
         }

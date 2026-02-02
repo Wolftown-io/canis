@@ -18,6 +18,8 @@
 //! Sec-WebSocket-Protocol: access_token
 //! ```
 
+pub mod bot_gateway;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -1320,10 +1322,9 @@ async fn handle_pubsub(
                                 _ => false,
                             };
 
-                            if !should_filter
-                                && tx.send(event).await.is_err() {
-                                    break;
-                                }
+                            if !should_filter && tx.send(event).await.is_err() {
+                                break;
+                            }
                         }
                     }
                 }
@@ -1381,10 +1382,9 @@ async fn handle_pubsub(
                         _ => false,
                     };
 
-                    if !should_filter
-                        && tx.send(event).await.is_err() {
-                            break;
-                        }
+                    if !should_filter && tx.send(event).await.is_err() {
+                        break;
+                    }
                 }
             }
         }
