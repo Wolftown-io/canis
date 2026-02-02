@@ -3,6 +3,10 @@
 //! Dedicated WebSocket endpoint for bot applications with separate event handling
 //! and rate limiting from the user gateway.
 
+use argon2::{
+    password_hash::{PasswordHash, PasswordVerifier},
+    Argon2,
+};
 use axum::{
     extract::{
         ws::{Message, WebSocket},
@@ -13,6 +17,7 @@ use axum::{
     Extension,
 };
 use fred::{interfaces::PubsubInterface, types::RedisValue};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -108,19 +113,38 @@ struct BotConnection {
 }
 
 /// Authenticate bot token and return bot user ID and application ID.
+///
+/// Token format: "bot_user_id.secret" to enable indexed lookup
 async fn authenticate_bot_token(
     pool: &PgPool,
     token: &str,
 ) -> Result<(Uuid, Uuid), (StatusCode, String)> {
-    // Query for bot application with matching token
+    // Parse token format: "bot_user_id.secret"
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 2 {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid token format".to_string(),
+        ));
+    }
+
+    let bot_user_id = Uuid::parse_str(parts[0]).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "Invalid token format".to_string(),
+        )
+    })?;
+
+    // Look up the specific bot application (indexed query)
     let app = sqlx::query!(
         r#"
-        SELECT id, bot_user_id, token_hash
+        SELECT id, token_hash
         FROM bot_applications
-        WHERE bot_user_id IS NOT NULL AND token_hash IS NOT NULL
-        "#
+        WHERE bot_user_id = $1 AND token_hash IS NOT NULL
+        "#,
+        bot_user_id
     )
-    .fetch_all(pool)
+    .fetch_optional(pool)
     .await
     .map_err(|e| {
         error!("Database error during bot auth: {}", e);
@@ -128,21 +152,33 @@ async fn authenticate_bot_token(
             StatusCode::INTERNAL_SERVER_ERROR,
             "Internal server error".to_string(),
         )
+    })?
+    .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Invalid bot token".to_string()))?;
+
+    // Verify the token hash (constant-time operation)
+    let token_hash_str = app.token_hash.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "Invalid bot token".to_string(),
+        )
     })?;
 
-    // Check each token hash (this is inefficient but secure)
-    // In production, you'd want to optimize this with indexed lookups
-    for record in app {
-        if let Some(hash) = record.token_hash {
-            if argon2::verify_encoded(&hash, token.as_bytes()).unwrap_or(false) {
-                if let Some(bot_user_id) = record.bot_user_id {
-                    return Ok((bot_user_id, record.id));
-                }
-            }
-        }
+    let parsed_hash = PasswordHash::new(&token_hash_str).map_err(|e| {
+        error!("Failed to parse token hash: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
+
+    if Argon2::default()
+        .verify_password(token.as_bytes(), &parsed_hash)
+        .is_err()
+    {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid bot token".to_string()));
     }
 
-    Err((StatusCode::UNAUTHORIZED, "Invalid bot token".to_string()))
+    Ok((bot_user_id, app.id))
 }
 
 /// Extract bot token from WebSocket upgrade request.
@@ -289,16 +325,54 @@ async fn handle_bot_event(
             channel_id,
             content,
         } => {
-            // TODO: Create message in channel as bot user
-            // This would integrate with existing message creation logic
+            // Validate content length
+            if content.is_empty() || content.len() > 4000 {
+                return Err("Message content must be 1-4000 characters".to_string());
+            }
+
             info!(
                 bot_user_id = %bot_user_id,
                 channel_id = %channel_id,
                 "Bot sending message"
             );
 
-            // For now, just log - full implementation would create the message
-            // via the chat::messages module
+            // Create message as bot user
+            let message = crate::db::create_message(
+                &state.db,
+                channel_id,
+                bot_user_id,
+                &content,
+                false,  // Not encrypted (bots send plain text)
+                None,   // No nonce
+                None,   // No reply_to
+            )
+            .await
+            .map_err(|e| {
+                error!("Failed to create bot message: {}", e);
+                format!("Failed to create message: {}", e)
+            })?;
+
+            // Broadcast message to channel subscribers
+            crate::ws::broadcast_to_channel(
+                &state.redis,
+                channel_id,
+                &crate::ws::ServerEvent::MessageCreated {
+                    message_id: message.id,
+                    channel_id,
+                    user_id: bot_user_id,
+                    content: message.content,
+                    encrypted: message.encrypted,
+                    nonce: message.nonce,
+                    reply_to: message.reply_to,
+                    created_at: message.created_at.to_rfc3339(),
+                },
+            )
+            .await
+            .map_err(|e| {
+                warn!("Failed to broadcast bot message: {}", e);
+                format!("Failed to broadcast: {}", e)
+            })?;
+
             Ok(())
         }
         BotClientEvent::CommandResponse {
@@ -306,15 +380,49 @@ async fn handle_bot_event(
             content,
             ephemeral,
         } => {
-            // TODO: Send command response back to user
             info!(
                 interaction_id = %interaction_id,
                 ephemeral = ephemeral,
                 "Bot responding to command"
             );
 
-            // For now, just log - full implementation would send response
-            // to the user who invoked the command
+            // Store command response in Redis with expiry (5 minutes)
+            // The command invoker's WebSocket client will poll/listen for this
+            let response_key = format!("interaction:{}:response", interaction_id);
+            let response_data = serde_json::json!({
+                "content": content,
+                "ephemeral": ephemeral,
+                "bot_user_id": bot_user_id,
+            });
+
+            state
+                .redis
+                .set(
+                    &response_key,
+                    response_data.to_string(),
+                    Some(fred::types::Expiration::EX(300)),
+                    None,
+                    false,
+                )
+                .await
+                .map_err(|e| {
+                    error!("Failed to store command response: {}", e);
+                    format!("Failed to store response: {}", e)
+                })?;
+
+            // Publish event to notify waiting clients
+            state
+                .redis
+                .publish(
+                    format!("interaction:{}", interaction_id),
+                    response_data.to_string(),
+                )
+                .await
+                .map_err(|e| {
+                    error!("Failed to publish command response: {}", e);
+                    format!("Failed to publish response: {}", e)
+                })?;
+
             Ok(())
         }
     }

@@ -2,6 +2,10 @@
 //!
 //! Handlers for creating and managing bot applications.
 
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -213,16 +217,20 @@ pub async fn create_bot(
     Path(app_id): Path<Uuid>,
     claims: Claims,
 ) -> Result<(StatusCode, Json<BotTokenResponse>), (StatusCode, String)> {
-    // Check if application exists and user owns it
+    // Start a transaction to prevent race conditions
+    let mut tx = pool.begin().await.map_err(BotError::Database)?;
+
+    // Check if application exists, user owns it, and bot doesn't exist yet (within transaction)
     let app = sqlx::query!(
         r#"
         SELECT id, name, bot_user_id, owner_id
         FROM bot_applications
         WHERE id = $1
+        FOR UPDATE
         "#,
         app_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(BotError::Database)?
     .ok_or_else(|| BotError::NotFound)?;
@@ -232,36 +240,15 @@ pub async fn create_bot(
         return Err(BotError::Forbidden.into());
     }
 
-    // Check if bot user already exists
+    // Check if bot user already exists (inside transaction to prevent TOCTOU)
     if app.bot_user_id.is_some() {
         return Err(BotError::BotAlreadyCreated.into());
     }
 
-    // Generate bot token (random UUID for now, could be more sophisticated)
-    let token = Uuid::new_v4().to_string();
-
-    // Hash the token using Argon2id
-    let token_hash = argon2::hash_encoded(
-        token.as_bytes(),
-        Uuid::new_v4().as_bytes(),
-        &argon2::Config::default(),
-    )
-    .map_err(|e| {
-        tracing::error!("Failed to hash bot token: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to hash token".to_string(),
-        )
-    })?;
-
-    // Create bot user
+    // Create bot user first to get bot_user_id
     let bot_username = format!("bot-{}", app.name.to_lowercase().replace(' ', "-"));
     let bot_display_name = format!("{} (Bot)", app.name);
 
-    // Start a transaction
-    let mut tx = pool.begin().await.map_err(BotError::Database)?;
-
-    // Create user with is_bot = true
     let bot_user = sqlx::query!(
         r#"
         INSERT INTO users (username, display_name, is_bot, bot_owner_id, status)
@@ -275,6 +262,26 @@ pub async fn create_bot(
     .fetch_one(&mut *tx)
     .await
     .map_err(BotError::Database)?;
+
+    // Generate token secret
+    let token_secret = Uuid::new_v4().to_string();
+
+    // Create full token: "bot_user_id.secret" for indexed authentication
+    let token = format!("{}.{}", bot_user.id, token_secret);
+
+    // Hash the full token using Argon2id with proper CSPRNG salt
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let token_hash = argon2
+        .hash_password(token.as_bytes(), &salt)
+        .map_err(|e| {
+            tracing::error!("Failed to hash bot token: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to hash token".to_string(),
+            )
+        })?
+        .to_string();
 
     // Update application with bot_user_id and token_hash
     sqlx::query!(
@@ -336,22 +343,25 @@ pub async fn reset_bot_token(
         )
     })?;
 
-    // Generate new token
-    let token = Uuid::new_v4().to_string();
+    // Generate token secret
+    let token_secret = Uuid::new_v4().to_string();
 
-    // Hash the token
-    let token_hash = argon2::hash_encoded(
-        token.as_bytes(),
-        Uuid::new_v4().as_bytes(),
-        &argon2::Config::default(),
-    )
-    .map_err(|e| {
-        tracing::error!("Failed to hash bot token: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to hash token".to_string(),
-        )
-    })?;
+    // Create full token: "bot_user_id.secret" for indexed authentication
+    let token = format!("{}.{}", bot_user_id, token_secret);
+
+    // Hash the token with proper CSPRNG salt
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let token_hash = argon2
+        .hash_password(token.as_bytes(), &salt)
+        .map_err(|e| {
+            tracing::error!("Failed to hash bot token: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to hash token".to_string(),
+            )
+        })?
+        .to_string();
 
     // Update token_hash
     sqlx::query!(
