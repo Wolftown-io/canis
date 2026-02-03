@@ -65,8 +65,8 @@ mod tests {
         pool: &PgPool,
         owner_id: Uuid,
     ) -> Result<Uuid, sqlx::Error> {
-        // VIEW_CHANNEL = 1 << 24, VOICE_CONNECT = 1 << 20
-        let permissions = (1i64 << 24) | (1i64 << 20);
+        // VIEW_CHANNEL = 1 << 24, VOICE_CONNECT = 1 << 5
+        let permissions = (1i64 << 24) | (1i64 << 5);
 
         // Create guild
         let guild_id = Uuid::new_v4();

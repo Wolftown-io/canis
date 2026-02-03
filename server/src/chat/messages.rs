@@ -954,15 +954,20 @@ mod tests {
             Path(channel.id),
             Query(query),
         )
-        .await
-        .expect("Handler should not fail");
+        .await;
 
-        let messages = &result.0.items;
-
-        // Due to CASCADE DELETE, messages are deleted when user is deleted
-        // This test verifies the handler doesn't crash when messages reference deleted users
-        // In production, the messages would be gone due to CASCADE
-        assert_eq!(messages.len(), 0, "Messages should be deleted via CASCADE");
+        // Due to CASCADE DELETE, when user is deleted:
+        // 1. Guild is deleted (user is owner)
+        // 2. Channel is deleted (guild is deleted)
+        // 3. Messages are deleted (channel is deleted)
+        // So the handler should return ChannelNotFound error
+        assert!(result.is_err(), "Should fail with ChannelNotFound");
+        match result.unwrap_err() {
+            MessageError::ChannelNotFound => {
+                // Expected - channel was CASCADE deleted
+            }
+            other => panic!("Expected ChannelNotFound, got: {:?}", other),
+        }
     }
 
     #[sqlx::test]
