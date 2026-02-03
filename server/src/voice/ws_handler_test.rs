@@ -44,7 +44,11 @@ mod tests {
     }
 
     /// Helper to create test channel in database with guild permissions.
-    async fn create_test_channel(pool: &PgPool, name: &str, guild_id: Uuid) -> Result<Uuid, sqlx::Error> {
+    async fn create_test_channel(
+        pool: &PgPool,
+        name: &str,
+        guild_id: Uuid,
+    ) -> Result<Uuid, sqlx::Error> {
         let row = sqlx::query(
             "INSERT INTO channels (name, channel_type, position, guild_id) VALUES ($1, 'voice', 0, $2) RETURNING id"
         )
@@ -66,29 +70,25 @@ mod tests {
 
         // Create guild
         let guild_id = Uuid::new_v4();
-        sqlx::query(
-            "INSERT INTO guilds (id, name, owner_id) VALUES ($1, $2, $3)"
-        )
-        .bind(guild_id)
-        .bind("Test Voice Guild")
-        .bind(owner_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, $2, $3)")
+            .bind(guild_id)
+            .bind("Test Voice Guild")
+            .bind(owner_id)
+            .execute(pool)
+            .await?;
 
         // Add owner as member
-        sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)"
-        )
-        .bind(guild_id)
-        .bind(owner_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(guild_id)
+            .bind(owner_id)
+            .execute(pool)
+            .await?;
 
         // Create @everyone role with VIEW_CHANNEL + VOICE_CONNECT
         let everyone_role_id = Uuid::new_v4();
         sqlx::query(
             "INSERT INTO guild_roles (id, guild_id, name, permissions, position, is_default)
-             VALUES ($1, $2, '@everyone', $3, 0, true)"
+             VALUES ($1, $2, '@everyone', $3, 0, true)",
         )
         .bind(everyone_role_id)
         .bind(guild_id)
@@ -98,7 +98,7 @@ mod tests {
 
         // Assign @everyone role to owner
         sqlx::query(
-            "INSERT INTO guild_member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)"
+            "INSERT INTO guild_member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)",
         )
         .bind(guild_id)
         .bind(owner_id)
@@ -110,27 +110,28 @@ mod tests {
     }
 
     /// Helper to add a user to an existing guild
-    async fn add_user_to_guild(pool: &PgPool, guild_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
+    async fn add_user_to_guild(
+        pool: &PgPool,
+        guild_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
         // Add as guild member
-        sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)"
-        )
-        .bind(guild_id)
-        .bind(user_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(guild_id)
+            .bind(user_id)
+            .execute(pool)
+            .await?;
 
         // Get @everyone role
-        let everyone_role: (Uuid,) = sqlx::query_as(
-            "SELECT id FROM guild_roles WHERE guild_id = $1 AND is_default = true"
-        )
-        .bind(guild_id)
-        .fetch_one(pool)
-        .await?;
+        let everyone_role: (Uuid,) =
+            sqlx::query_as("SELECT id FROM guild_roles WHERE guild_id = $1 AND is_default = true")
+                .bind(guild_id)
+                .fetch_one(pool)
+                .await?;
 
         // Assign @everyone role
         sqlx::query(
-            "INSERT INTO guild_member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)"
+            "INSERT INTO guild_member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)",
         )
         .bind(guild_id)
         .bind(user_id)
