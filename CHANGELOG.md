@@ -448,6 +448,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused `update_user_password` database function (#131)
 
 ### Security
+- **CRITICAL FIX**: WebSocket event filtering race condition that could allow blocked users' messages to leak through
+  - Replaced `try_read()` with `blocking_read()` in WebSocket event filtering for messages, typing indicators, voice events, and presence updates
+  - Previous implementation used `try_read().map(...).unwrap_or(false)` which would fail open on lock contention, allowing blocked users' events through
+  - Fix ensures block checks never fail open - will wait for lock rather than returning false on contention
+  - Affects MessageNew, TypingStart, TypingStop, VoiceUserJoined, VoiceUserLeft, CallParticipantJoined, CallParticipantLeft, PresenceUpdate, and RichPresenceUpdate events
 - Attachment access now enforces guild/DM membership (previously any authenticated user could access any file)
 - CORS hardened with configurable origins for production (development mode allows any origin)
 - Request-ID header propagation for security tracing and correlation
