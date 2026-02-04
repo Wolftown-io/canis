@@ -131,7 +131,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
                 fallback={
                   /* Not Elevated State */
                   <div class="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
-                    <div class="flex items-center gap-2 text-text-secondary">
+                    <div class="flex items-center gap-2 text-text-primary">
                       <Shield class="w-4 h-4" />
                       <span class="text-sm">Session not elevated</span>
                     </div>

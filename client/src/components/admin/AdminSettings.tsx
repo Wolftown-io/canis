@@ -266,8 +266,8 @@ const AdminSettings: Component = () => {
         <Show when={!adminState.isElevated}>
           <div class="p-4 rounded-xl bg-status-warning/10 border border-status-warning/30">
             <div class="flex items-center gap-3">
-              <AlertTriangle class="w-5 h-5 text-status-warning" />
-              <p class="text-sm text-status-warning">
+              <AlertTriangle class="w-5 h-5 text-accent-warning" />
+              <p class="text-sm text-text-primary">
                 Settings require an elevated session. Elevate your session to make changes.
               </p>
             </div>
