@@ -317,7 +317,7 @@ const GuildsPanel: Component = () => {
         </Show>
 
           {/* Table Header */}
-          <div class="grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 border-b border-white/10 bg-white/5 text-xs font-medium text-text-secondary uppercase tracking-wide sticky top-0">
+          <div class="grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 border-b border-white/10 bg-surface-layer1 text-xs font-medium text-text-secondary uppercase tracking-wide sticky top-0 z-10">
             <div class="flex items-center">
               <button
                 onClick={() => allSelected() ? clearGuildSelection() : selectAllGuilds()}
