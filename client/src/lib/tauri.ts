@@ -664,7 +664,23 @@ export async function uploadAvatar(file: File): Promise<User> {
     throw new Error(error);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
+  let token: string | null = null;
+  let baseUrl: string;
+
+  if (isTauri) {
+    // In Tauri mode, get auth info from the Rust backend
+    const { invoke } = await import("@tauri-apps/api/core");
+    const authInfo = await invoke<[string, string] | null>("get_auth_info");
+    if (!authInfo) {
+      throw new Error("Not authenticated");
+    }
+    baseUrl = authInfo[0].replace(/\/+$/, "");
+    token = authInfo[1];
+  } else {
+    token = browserState.accessToken || localStorage.getItem("accessToken");
+    baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
+  }
+
   const headers: Record<string, string> = {};
 
   if (token) {
@@ -673,8 +689,6 @@ export async function uploadAvatar(file: File): Promise<User> {
 
   const formData = new FormData();
   formData.append("avatar", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/auth/me/avatar`, {
     method: "POST",
@@ -797,10 +811,22 @@ export async function uploadFile(
     throw new Error(error);
   }
 
-  // For now, we use standard fetch for both Browser and Tauri
-  // Tauri 2.0 supports fetch with proper configuration
+  let token: string | null = null;
+  let baseUrl: string;
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const authInfo = await invoke<[string, string] | null>("get_auth_info");
+    if (!authInfo) {
+      throw new Error("Not authenticated");
+    }
+    baseUrl = authInfo[0].replace(/\/+$/, "");
+    token = authInfo[1];
+  } else {
+    token = browserState.accessToken || localStorage.getItem("accessToken");
+    baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
+  }
+
   const headers: Record<string, string> = {};
 
   if (token) {
@@ -810,8 +836,6 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("message_id", messageId);
   formData.append("file", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/messages/upload`, {
     method: "POST",
@@ -865,7 +889,22 @@ export async function uploadMessageWithFile(
     throw new Error(error);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
+  let token: string | null = null;
+  let baseUrl: string;
+
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const authInfo = await invoke<[string, string] | null>("get_auth_info");
+    if (!authInfo) {
+      throw new Error("Not authenticated");
+    }
+    baseUrl = authInfo[0].replace(/\/+$/, "");
+    token = authInfo[1];
+  } else {
+    token = browserState.accessToken || localStorage.getItem("accessToken");
+    baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
+  }
+
   const headers: Record<string, string> = {};
 
   if (token) {
@@ -877,8 +916,6 @@ export async function uploadMessageWithFile(
   if (content) {
     formData.append("content", content);
   }
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/messages/channel/${channelId}/upload`, {
     method: "POST",
@@ -1201,7 +1238,22 @@ export async function uploadGuildEmoji(
     throw new Error(validationError);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
+  let token: string | null = null;
+  let baseUrl: string;
+
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const authInfo = await invoke<[string, string] | null>("get_auth_info");
+    if (!authInfo) {
+      throw new Error("Not authenticated");
+    }
+    baseUrl = authInfo[0].replace(/\/+$/, "");
+    token = authInfo[1];
+  } else {
+    token = browserState.accessToken || localStorage.getItem("accessToken");
+    baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
+  }
+
   const headers: Record<string, string> = {};
 
   if (token) {
@@ -1211,8 +1263,6 @@ export async function uploadGuildEmoji(
   const formData = new FormData();
   formData.append("name", name);
   formData.append("file", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/guilds/${guildId}/emojis`, {
     method: "POST",

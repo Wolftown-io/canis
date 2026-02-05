@@ -293,6 +293,21 @@ pub async fn get_current_user(state: State<'_, AppState>) -> Result<Option<User>
     Ok(None)
 }
 
+/// Get auth info for fetch-based operations (e.g., file uploads).
+///
+/// Returns the server URL and access token so the webview can make
+/// authenticated fetch requests directly (needed for multipart uploads).
+#[command]
+pub async fn get_auth_info(
+    state: State<'_, AppState>,
+) -> Result<Option<(String, String)>, String> {
+    let auth = state.auth.read().await;
+    match (&auth.server_url, &auth.access_token) {
+        (Some(url), Some(token)) => Ok(Some((url.clone(), token.clone()))),
+        _ => Ok(None),
+    }
+}
+
 /// OIDC login response returned to the frontend.
 #[derive(Debug, Serialize)]
 pub struct OidcLoginResult {

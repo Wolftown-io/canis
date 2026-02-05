@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Avatar and file uploads in Tauri desktop app (#150)
+  - Added `get_auth_info` Tauri command to expose auth credentials to the webview
+  - Upload functions now properly retrieve auth token and server URL in Tauri mode
+  - Also fixes file attachment and emoji uploads in the desktop client
 - File attachment uploads in text chat (#149)
   - Fixed AWS SDK panic when initializing S3 client (missing tokio sleep implementation)
   - MinIO bucket now automatically initialized in development environment
