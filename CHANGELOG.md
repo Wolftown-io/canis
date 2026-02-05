@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Full WebSocket event parity for Tauri desktop client (#132)
+  - Admin events (ban/unban, suspend/unsuspend, reports) now received in desktop app
+  - Friend request and block events now received in desktop app
+  - Voice stats, preferences sync, and state patch events now received in desktop app
+  - Screen share events now have Tauri listeners (Rust enum already existed)
 - Virtual scrolling for message lists using `@tanstack/solid-virtual`
   - Only ~30 DOM nodes rendered regardless of message count (previously all messages in DOM)
   - Smart height estimation based on message content (images, code blocks, reactions)
