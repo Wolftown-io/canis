@@ -199,7 +199,8 @@ pub async fn register_commands(
     sqlx::query!(
         r#"
         DELETE FROM slash_commands
-        WHERE application_id = $1 AND ($2::uuid IS NULL AND guild_id IS NULL OR guild_id = $2)
+        WHERE application_id = $1
+          AND (($2::uuid IS NULL AND guild_id IS NULL) OR guild_id = $2)
         "#,
         app_id,
         query.guild_id
@@ -283,7 +284,8 @@ pub async fn list_commands(
         r#"
         SELECT id, application_id, guild_id, name, description, options, created_at
         FROM slash_commands
-        WHERE application_id = $1 AND ($2::uuid IS NULL AND guild_id IS NULL OR guild_id = $2)
+        WHERE application_id = $1
+          AND (($2::uuid IS NULL AND guild_id IS NULL) OR guild_id = $2)
         ORDER BY name
         "#,
         app_id,
@@ -393,7 +395,8 @@ pub async fn delete_all_commands(
     sqlx::query!(
         r#"
         DELETE FROM slash_commands
-        WHERE application_id = $1 AND ($2::uuid IS NULL AND guild_id IS NULL OR guild_id = $2)
+        WHERE application_id = $1
+          AND (($2::uuid IS NULL AND guild_id IS NULL) OR guild_id = $2)
         "#,
         app_id,
         query.guild_id

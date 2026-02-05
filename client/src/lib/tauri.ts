@@ -769,21 +769,71 @@ export async function sendMessage(
   content: string,
   options?: { encrypted?: boolean; nonce?: string }
 ): Promise<Message> {
+  const result = await sendMessageWithStatus(channelId, content, options);
+  return result.message;
+}
+
+export interface SendMessageResult {
+  message: Message;
+  status: number;
+}
+
+export async function sendMessageWithStatus(
+  channelId: string,
+  content: string,
+  options?: { encrypted?: boolean; nonce?: string }
+): Promise<SendMessageResult> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("send_message", {
+    const message = await invoke<Message>("send_message", {
       channelId,
       content,
       encrypted: options?.encrypted,
       nonce: options?.nonce,
     });
+
+    // Tauri command interface currently does not expose HTTP status.
+    return { message, status: 201 };
   }
 
-  return httpRequest<Message>("POST", `/api/messages/channel/${channelId}`, {
-    content,
-    encrypted: options?.encrypted ?? false,
-    nonce: options?.nonce,
+  const token = browserState.accessToken || localStorage.getItem("accessToken");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const baseUrl = browserState.serverUrl.replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/api/messages/channel/${channelId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      content,
+      encrypted: options?.encrypted ?? false,
+      nonce: options?.nonce,
+    }),
   });
+
+  if (!response.ok) {
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+    try {
+      const errorBody = await response.json();
+      errorMessage = errorBody.message || errorBody.error || errorMessage;
+    } catch (_parseError) {
+      const text = await response.text();
+      if (text.length > 0 && text.length < 500) {
+        errorMessage = text;
+      }
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  const message = (await response.json()) as Message;
+  return { message, status: response.status };
 }
 
 export async function uploadFile(

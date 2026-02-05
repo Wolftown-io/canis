@@ -2,7 +2,7 @@
  * Bot Applications API
  */
 
-import { getAuthToken } from '../auth';
+import { getAccessToken } from '../tauri';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -56,7 +56,7 @@ export interface RegisterCommandsRequest {
 export async function createBotApplication(
   data: CreateApplicationRequest
 ): Promise<BotApplication> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(`${API_BASE}/api/applications`, {
     method: 'POST',
     headers: {
@@ -78,7 +78,7 @@ export async function createBotApplication(
  * List all bot applications for the current user.
  */
 export async function listBotApplications(): Promise<BotApplication[]> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(`${API_BASE}/api/applications`, {
     method: 'GET',
     headers: {
@@ -97,7 +97,7 @@ export async function listBotApplications(): Promise<BotApplication[]> {
  * Get a specific bot application by ID.
  */
 export async function getBotApplication(id: string): Promise<BotApplication> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(`${API_BASE}/api/applications/${id}`, {
     method: 'GET',
     headers: {
@@ -116,7 +116,7 @@ export async function getBotApplication(id: string): Promise<BotApplication> {
  * Delete a bot application.
  */
 export async function deleteBotApplication(id: string): Promise<void> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(`${API_BASE}/api/applications/${id}`, {
     method: 'DELETE',
     headers: {
@@ -134,7 +134,7 @@ export async function deleteBotApplication(id: string): Promise<void> {
  * **WARNING: The token is only shown once!**
  */
 export async function createBotUser(applicationId: string): Promise<BotTokenResponse> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(`${API_BASE}/api/applications/${applicationId}/bot`, {
     method: 'POST',
     headers: {
@@ -155,7 +155,7 @@ export async function createBotUser(applicationId: string): Promise<BotTokenResp
  * **WARNING: The new token is only shown once!**
  */
 export async function resetBotToken(applicationId: string): Promise<BotTokenResponse> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(`${API_BASE}/api/applications/${applicationId}/reset-token`, {
     method: 'POST',
     headers: {
@@ -178,7 +178,7 @@ export async function registerSlashCommands(
   data: RegisterCommandsRequest,
   guildId?: string
 ): Promise<SlashCommand[]> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const url = new URL(`${API_BASE}/api/applications/${applicationId}/commands`);
   if (guildId) {
     url.searchParams.set('guild_id', guildId);
@@ -208,7 +208,7 @@ export async function listSlashCommands(
   applicationId: string,
   guildId?: string
 ): Promise<SlashCommand[]> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const url = new URL(`${API_BASE}/api/applications/${applicationId}/commands`);
   if (guildId) {
     url.searchParams.set('guild_id', guildId);
@@ -235,7 +235,7 @@ export async function deleteSlashCommand(
   applicationId: string,
   commandId: string
 ): Promise<void> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const response = await fetch(
     `${API_BASE}/api/applications/${applicationId}/commands/${commandId}`,
     {
@@ -258,7 +258,7 @@ export async function deleteAllSlashCommands(
   applicationId: string,
   guildId?: string
 ): Promise<void> {
-  const token = getAuthToken();
+  const token = getAccessToken();
   const url = new URL(`${API_BASE}/api/applications/${applicationId}/commands`);
   if (guildId) {
     url.searchParams.set('guild_id', guildId);

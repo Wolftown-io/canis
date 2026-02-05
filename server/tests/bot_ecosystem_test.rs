@@ -496,6 +496,144 @@ async fn test_list_slash_commands() {
     delete_user(&app.pool, user_id).await;
 }
 
+/// Test guild-scoped command operations stay isolated per application.
+#[tokio::test]
+async fn test_guild_scoped_commands_are_isolated_per_application() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let create_guild_req = TestApp::request(Method::POST, "/api/guilds")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&json!({ "name": "Commands Scope Guild" })).unwrap(),
+        ))
+        .unwrap();
+    let create_guild_resp = app.oneshot(create_guild_req).await;
+    assert_eq!(create_guild_resp.status(), 200);
+    let guild_body = create_guild_resp
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let guild_json: serde_json::Value = serde_json::from_slice(&guild_body).unwrap();
+    let guild_id = guild_json["id"].as_str().unwrap();
+
+    let mut app_ids = Vec::new();
+    for app_name in ["Scoped Bot A", "Scoped Bot B"] {
+        let create_req = TestApp::request(Method::POST, "/api/applications")
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({ "name": app_name })).unwrap(),
+            ))
+            .unwrap();
+
+        let create_resp = app.oneshot(create_req).await;
+        assert_eq!(create_resp.status(), 201);
+        let body = create_resp.into_body().collect().await.unwrap().to_bytes();
+        let app_data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        app_ids.push(app_data["id"].as_str().unwrap().to_string());
+    }
+
+    let register_a_req = TestApp::request(
+        Method::PUT,
+        &format!(
+            "/api/applications/{}/commands?guild_id={}",
+            app_ids[0], guild_id
+        ),
+    )
+    .header("Authorization", format!("Bearer {}", token))
+    .header("Content-Type", "application/json")
+    .body(Body::from(
+        serde_json::to_string(&json!({
+            "commands": [{
+                "name": "alpha",
+                "description": "alpha",
+                "options": []
+            }]
+        }))
+        .unwrap(),
+    ))
+    .unwrap();
+    let register_a_resp = app.oneshot(register_a_req).await;
+    assert_eq!(register_a_resp.status(), 200);
+
+    let register_b_req = TestApp::request(
+        Method::PUT,
+        &format!(
+            "/api/applications/{}/commands?guild_id={}",
+            app_ids[1], guild_id
+        ),
+    )
+    .header("Authorization", format!("Bearer {}", token))
+    .header("Content-Type", "application/json")
+    .body(Body::from(
+        serde_json::to_string(&json!({
+            "commands": [{
+                "name": "beta",
+                "description": "beta",
+                "options": []
+            }]
+        }))
+        .unwrap(),
+    ))
+    .unwrap();
+    let register_b_resp = app.oneshot(register_b_req).await;
+    assert_eq!(register_b_resp.status(), 200);
+
+    let list_a_req = TestApp::request(
+        Method::GET,
+        &format!(
+            "/api/applications/{}/commands?guild_id={}",
+            app_ids[0], guild_id
+        ),
+    )
+    .header("Authorization", format!("Bearer {}", token))
+    .body(Body::empty())
+    .unwrap();
+    let list_a_resp = app.oneshot(list_a_req).await;
+    assert_eq!(list_a_resp.status(), 200);
+    let body = list_a_resp.into_body().collect().await.unwrap().to_bytes();
+    let commands_a: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(commands_a.len(), 1);
+    assert_eq!(commands_a[0]["name"], "alpha");
+
+    let delete_a_req = TestApp::request(
+        Method::DELETE,
+        &format!(
+            "/api/applications/{}/commands?guild_id={}",
+            app_ids[0], guild_id
+        ),
+    )
+    .header("Authorization", format!("Bearer {}", token))
+    .body(Body::empty())
+    .unwrap();
+    let delete_a_resp = app.oneshot(delete_a_req).await;
+    assert_eq!(delete_a_resp.status(), 204);
+
+    let list_b_req = TestApp::request(
+        Method::GET,
+        &format!(
+            "/api/applications/{}/commands?guild_id={}",
+            app_ids[1], guild_id
+        ),
+    )
+    .header("Authorization", format!("Bearer {}", token))
+    .body(Body::empty())
+    .unwrap();
+    let list_b_resp = app.oneshot(list_b_req).await;
+    assert_eq!(list_b_resp.status(), 200);
+    let body = list_b_resp.into_body().collect().await.unwrap().to_bytes();
+    let commands_b: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(commands_b.len(), 1);
+    assert_eq!(commands_b[0]["name"], "beta");
+
+    delete_user(&app.pool, user_id).await;
+}
+
 /// Test deleting a slash command.
 #[tokio::test]
 async fn test_delete_slash_command() {
