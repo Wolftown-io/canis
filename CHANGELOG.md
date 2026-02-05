@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Drag handle opacity increased from 40% to 60%
   - Connection status dot enlarged and changed to green with subtle glow
   - Quality indicator now uses theme colors instead of hardcoded values
+- Favorite star button not responding to clicks in channel list (#152)
+  - Fixed invalid nested `<button>` HTML structure in ChannelItem that prevented click events from reaching the star toggle
+  - Converted outer channel button to a `<div>` with proper `role="button"` and keyboard accessibility
 - Potential message loss when WebSocket message arrives during pagination load
   - `addMessage` now re-reads store state after async decryption to avoid overwriting concurrent prepends
 - File attachment uploads in text chat (#149)
