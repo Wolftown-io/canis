@@ -46,7 +46,8 @@ async fn test_first_user_detection_works() {
            VALUES ($1, $2, $3, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         username,
         "First User",
         "hash"
@@ -198,7 +199,8 @@ async fn test_mark_setup_complete() {
            VALUES ($1, $2, $3, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         test_username,
         "Setup Test",
         "hash"
@@ -313,7 +315,8 @@ async fn test_config_validation() {
            VALUES ($1, $2, $3, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         test_username,
         "Validation Test",
         "hash"
@@ -433,7 +436,8 @@ async fn test_second_user_not_admin() {
            VALUES ($1, $2, $3, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         second_username,
         "User 2",
         "hash"

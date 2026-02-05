@@ -292,7 +292,8 @@ pub async fn register(
            VALUES ($1, $2, $3, $4, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         body.username,
         display_name,
         body.email,
@@ -1301,7 +1302,8 @@ pub async fn oidc_callback(
                    VALUES ($1, $2, $3, 'oidc', $4, $5)
                    RETURNING id, username, display_name, email, password_hash,
                              auth_method as "auth_method: _", external_id, avatar_url,
-                             status as "status: _", mfa_secret, created_at, updated_at"#,
+                             status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                             created_at, updated_at"#,
                 username,
                 display_name,
                 user_info.email,

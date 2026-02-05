@@ -203,18 +203,26 @@ export async function sendMessage(
   channelId: string,
   content: string
 ): Promise<Message | null> {
-  if (!content.trim()) {
+  const trimmedContent = content.trim();
+
+  if (!trimmedContent) {
     return null;
   }
 
   setMessagesState({ error: null });
 
   try {
-    const message = await tauri.sendMessage(channelId, content.trim());
+    const { message, status } = await tauri.sendMessageWithStatus(
+      channelId,
+      trimmedContent
+    );
+
+    // Slash command invocations return 202 Accepted and are not persisted as messages.
+    const suppressLocalEcho = status === 202;
 
     // Add the sent message to the store (check for duplicates since WebSocket may have already added it)
     const prev = messagesState.byChannel[channelId] || [];
-    if (!prev.some((m) => m.id === message.id)) {
+    if (!suppressLocalEcho && !prev.some((m) => m.id === message.id)) {
       setMessagesState("byChannel", channelId, [...prev, message]);
     }
 

@@ -70,7 +70,8 @@ async fn test_first_user_receives_admin_sequential() {
            VALUES ($1, $2, $3, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         username1,
         "First User",
         "hash"
@@ -130,7 +131,8 @@ async fn test_first_user_receives_admin_sequential() {
            VALUES ($1, $2, $3, 'local')
            RETURNING id, username, display_name, email, password_hash,
                      auth_method as "auth_method: _", external_id, avatar_url,
-                     status as "status: _", mfa_secret, created_at, updated_at"#,
+                     status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                     created_at, updated_at"#,
         username2,
         "Second User",
         "hash"
@@ -225,7 +227,8 @@ async fn test_concurrent_registrations_only_one_gets_admin() {
                    VALUES ($1, $2, $3, 'local')
                    RETURNING id, username, display_name, email, password_hash,
                              auth_method as "auth_method: _", external_id, avatar_url,
-                             status as "status: _", mfa_secret, created_at, updated_at"#,
+                             status as "status: _", mfa_secret, is_bot, bot_owner_id,
+                             created_at, updated_at"#,
                 username.clone(),
                 format!("User {}", i),
                 "hash"

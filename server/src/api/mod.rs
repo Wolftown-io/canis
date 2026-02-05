@@ -2,6 +2,8 @@
 //!
 //! Central routing configuration and shared state.
 
+pub mod bots;
+pub mod commands;
 pub mod favorites;
 pub mod pins;
 pub mod preferences;
@@ -11,8 +13,7 @@ mod setup;
 pub mod unread;
 
 use axum::{
-    extract::DefaultBodyLimit,
-    extract::State,
+    extract::{DefaultBodyLimit, FromRef, State},
     middleware::from_fn,
     middleware::from_fn_with_state,
     routing::{delete, get, post, put},
@@ -63,6 +64,12 @@ pub struct AppState {
     pub email: Option<Arc<EmailService>>,
     /// OIDC provider manager (optional, requires MFA encryption key)
     pub oidc_manager: Option<Arc<OidcProviderManager>>,
+}
+
+impl FromRef<AppState> for PgPool {
+    fn from_ref(state: &AppState) -> Self {
+        state.db.clone()
+    }
 }
 
 impl AppState {
@@ -190,6 +197,31 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/me/unread", get(unread::get_unread_aggregate))
         .nest("/api/keys", crypto::router())
         .nest("/api/users/{user_id}/keys", crypto::user_keys_router())
+        // Bot management routes
+        .route(
+            "/api/applications",
+            get(bots::list_applications).post(bots::create_application),
+        )
+        .route(
+            "/api/applications/{id}",
+            get(bots::get_application).delete(bots::delete_application),
+        )
+        .route("/api/applications/{id}/bot", post(bots::create_bot))
+        .route(
+            "/api/applications/{id}/reset-token",
+            post(bots::reset_bot_token),
+        )
+        // Slash commands
+        .route(
+            "/api/applications/{id}/commands",
+            get(commands::list_commands)
+                .put(commands::register_commands)
+                .delete(commands::delete_all_commands),
+        )
+        .route(
+            "/api/applications/{id}/commands/{command_id}",
+            delete(commands::delete_command),
+        )
         // Message reactions
         .route(
             "/api/channels/{channel_id}/messages/{message_id}/reactions",
@@ -239,6 +271,11 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/messages", chat::messages_public_router())
         // WebSocket
         .route("/ws", get(ws::handler))
+        // Bot Gateway WebSocket (uses bot token auth)
+        .route(
+            "/api/gateway/bot",
+            get(ws::bot_gateway::bot_gateway_handler),
+        )
         // API documentation
         .merge(api_docs())
         // Middleware

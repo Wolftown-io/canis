@@ -621,3 +621,65 @@ pub async fn reorder_channels(
 
     Ok(StatusCode::NO_CONTENT)
 }
+
+/// Install a bot into a guild.
+///
+/// `POST /api/guilds/:guild_id/bots/:bot_id/add`
+#[tracing::instrument(skip(state))]
+pub async fn add_bot_to_guild(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((guild_id, bot_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, GuildError> {
+    let _ctx =
+        require_guild_permission(&state.db, guild_id, auth.id, GuildPermissions::MANAGE_GUILD)
+            .await
+            .map_err(|e| match e {
+                PermissionError::NotGuildMember => GuildError::Forbidden,
+                other => GuildError::Permission(other),
+            })?;
+
+    let bot_exists = sqlx::query!(
+        "SELECT id FROM users WHERE id = $1 AND is_bot = true",
+        bot_id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    if bot_exists.is_none() {
+        return Err(GuildError::NotFound);
+    }
+
+    let app = sqlx::query!(
+        "SELECT id, owner_id, public FROM bot_applications WHERE bot_user_id = $1",
+        bot_id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    let app = match app {
+        Some(app) => app,
+        None => return Err(GuildError::NotFound),
+    };
+
+    if !app.public && app.owner_id != auth.id {
+        return Err(GuildError::NotFound);
+    }
+
+    let application_id = app.id;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO guild_bot_installations (guild_id, application_id, installed_by)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (guild_id, application_id) DO NOTHING
+        "#,
+        guild_id,
+        application_id,
+        auth.id
+    )
+    .execute(&state.db)
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}

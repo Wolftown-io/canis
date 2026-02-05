@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/leave", post(handlers::leave_guild))
         .route("/{id}/members", get(handlers::list_members))
         .route("/{id}/members/{user_id}", delete(handlers::kick_member))
+        .route("/{id}/bots/{bot_id}/add", post(handlers::add_bot_to_guild))
         .route("/{id}/channels", get(handlers::list_channels))
         .route("/{id}/channels/reorder", post(handlers::reorder_channels))
         // Role routes

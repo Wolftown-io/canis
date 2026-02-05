@@ -8,6 +8,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Bot ecosystem infrastructure (Phase 5)
+  - Database schema for bot users, applications, and slash commands
+  - Bot application management API (create, list, get, delete)
+  - Bot user creation with secure token generation (Argon2id)
+  - Token reset functionality for bot applications
+  - Guild bot installation tracking
+  - Support for guild-specific and global slash commands
+  - Slash command registration and management API
+  - Command validation (name format, description length)
+  - Bulk command registration with transactional updates
+  - Bot gateway WebSocket endpoint (`/api/gateway/bot`)
+  - Bot token authentication for gateway connections
+  - Separate event system for bots (CommandInvoked, MessageCreated, GuildJoined/Left)
+  - Redis pub/sub on `bot:{bot_id}` channels for bot-specific events
+  - Slash command invocation routing from `/command` chat input to installed bots
+  - Guild bot install endpoint for admins (`POST /api/guilds/{id}/bots/{bot_id}/add`)
+  - Comprehensive integration tests (14 tests covering applications, commands, auth, ownership)
+  - Bot applications management UI in settings
+  - API client library for bot operations (applications, commands, tokens)
+  - Token display modal with copy functionality and security warnings
+  - Application CRUD interface with validation
+  - Bot message sending with channel membership authorization
+  - Command response handling with Redis storage and 5-minute TTL
+  - Input validation for bot messages and command responses (1-4000 characters)
+
+### Changed
+- Bot token format changed to "bot_user_id.secret" for indexed authentication (breaking change for existing bots)
+
+### Security
+- Fixed O(n) authentication DoS vulnerability in bot token verification (now uses indexed lookup)
+- Fixed TOCTOU race condition in bot user creation (moved check inside transaction with FOR UPDATE lock)
+- Fixed TOCTOU race condition in bot token reset (added transaction with FOR UPDATE lock)
+- Replaced weak UUID salt with proper CSPRNG (SaltString + OsRng) for Argon2 password hashing
+- Added channel membership authorization for bot message creation
+- Added content length validation for command responses to prevent Redis exhaustion
+- Added inbound bot gateway rate limiting to reduce abuse risk from compromised bot tokens
+- Bound command response interactions to the invoking bot identity before accepting responses
 - Slack-style message threads for organized side-discussions
   - Thread replies appear in a sidebar panel, keeping the main channel feed clean
   - Thread indicators show reply count and last reply time on parent messages

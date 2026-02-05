@@ -18,6 +18,8 @@
 //! Sec-WebSocket-Protocol: access_token
 //! ```
 
+pub mod bot_gateway;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

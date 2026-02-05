@@ -28,6 +28,10 @@ pub struct User {
     pub status: UserStatus,
     /// Encrypted MFA secret for TOTP.
     pub mfa_secret: Option<String>,
+    /// Whether this user account is a bot.
+    pub is_bot: bool,
+    /// The user who owns this bot (only set for bot users).
+    pub bot_owner_id: Option<Uuid>,
     /// When the user was created.
     pub created_at: DateTime<Utc>,
     /// When the user was last updated.
@@ -324,4 +328,63 @@ pub struct UnreadAggregate {
     pub dms: Vec<ChannelUnread>,
     /// Total unread count across everything.
     pub total: i64,
+}
+
+/// Bot application model.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct BotApplication {
+    /// Unique application ID.
+    pub id: Uuid,
+    /// User who owns this application.
+    pub owner_id: Uuid,
+    /// Application name.
+    pub name: String,
+    /// Application description.
+    pub description: Option<String>,
+    /// Associated bot user ID.
+    pub bot_user_id: Option<Uuid>,
+    /// Argon2id hash of the bot token.
+    pub token_hash: Option<String>,
+    /// Whether the bot is listed publicly.
+    pub public: bool,
+    /// When the application was created.
+    pub created_at: DateTime<Utc>,
+    /// When the application was last updated.
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Slash command model.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct SlashCommand {
+    /// Unique command ID.
+    pub id: Uuid,
+    /// Application this command belongs to.
+    pub application_id: Uuid,
+    /// Guild this command is registered in (None for global commands).
+    pub guild_id: Option<Uuid>,
+    /// Command name.
+    pub name: String,
+    /// Command description.
+    pub description: String,
+    /// Command options/parameters as JSON.
+    pub options: Option<serde_json::Value>,
+    /// When the command was created.
+    pub created_at: DateTime<Utc>,
+    /// When the command was last updated.
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Guild bot installation model.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct GuildBotInstallation {
+    /// Unique installation ID.
+    pub id: Uuid,
+    /// Guild where the bot is installed.
+    pub guild_id: Uuid,
+    /// Bot application that is installed.
+    pub application_id: Uuid,
+    /// User who installed the bot.
+    pub installed_by: Uuid,
+    /// When the bot was installed.
+    pub installed_at: DateTime<Utc>,
 }
