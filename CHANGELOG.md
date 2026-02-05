@@ -7,10 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Virtual scrolling for message lists using `@tanstack/solid-virtual`
+  - Only ~30 DOM nodes rendered regardless of message count (previously all messages in DOM)
+  - Smart height estimation based on message content (images, code blocks, reactions)
+  - Handles 10,000+ message histories efficiently
+- Infinite scroll pagination: scroll to top to load older messages automatically
+  - IntersectionObserver-based sentinel with scroll position preservation
+  - "Beginning of conversation" marker when full history is loaded
+- Configurable memory eviction for message history (default: 2000 messages per channel)
+  - Drops messages far from viewport, re-fetches on scroll back
+
 ### Fixed
+- Voice island visibility and contrast issues (#151)
+  - Disconnect button now uses higher contrast background and white icon for better visibility
+  - Drag handle opacity increased from 40% to 60%
+  - Connection status dot enlarged and changed to green with subtle glow
+  - Quality indicator now uses theme colors instead of hardcoded values
+- Favorite star button not responding to clicks in channel list (#152)
+  - Fixed invalid nested `<button>` HTML structure in ChannelItem that prevented click events from reaching the star toggle
+  - Converted outer channel button to a `<div>` with proper `role="button"` and keyboard accessibility
+- Avatar and file uploads in Tauri desktop app (#150)
+  - Added `get_auth_info` Tauri command to expose auth credentials to the webview
+  - Upload functions now properly retrieve auth token and server URL in Tauri mode
+  - Also fixes file attachment and emoji uploads in the desktop client
+- Volume slider now controls notification sound volume in Tauri desktop app (#146)
+  - Tauri `play_sound` command now accepts and applies volume setting
+  - Both notification playback and test sound respect the volume slider
+- Screen share volume slider thumb now visible and interactive (#146)
+  - Added proper CSS pseudo-selectors for the range input thumb
 - Sound notification testing now plays audio in browser/webview mode (#145)
   - Added missing sound .wav files to `public/sounds/` for static serving
   - Previously only embedded in Tauri binary, causing 404 for browser fetch
+- Potential message loss when WebSocket message arrives during pagination load
+  - `addMessage` now re-reads store state after async decryption to avoid overwriting concurrent prepends
 - File attachment uploads in text chat (#149)
   - Fixed AWS SDK panic when initializing S3 client (missing tokio sleep implementation)
   - MinIO bucket now automatically initialized in development environment

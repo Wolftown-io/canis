@@ -656,6 +656,29 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+/**
+ * Get auth credentials for fetch-based uploads.
+ * In Tauri mode, retrieves from Rust backend state.
+ * In browser mode, reads from browserState/localStorage.
+ */
+async function getUploadAuth(): Promise<{ token: string | null; baseUrl: string }> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const authInfo = await invoke<[string, string] | null>("get_auth_info");
+    if (!authInfo) {
+      throw new Error("Not authenticated");
+    }
+    return {
+      baseUrl: authInfo[0].replace(/\/+$/, ""),
+      token: authInfo[1],
+    };
+  }
+  return {
+    token: browserState.accessToken || localStorage.getItem("accessToken"),
+    baseUrl: (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, ""),
+  };
+}
+
 export async function uploadAvatar(file: File): Promise<User> {
   // Frontend validation
   const error = validateFileSize(file, 'avatar');
@@ -664,17 +687,15 @@ export async function uploadAvatar(file: File): Promise<User> {
     throw new Error(error);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
-  const headers: Record<string, string> = {};
+  const { token, baseUrl } = await getUploadAuth();
 
+  const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
   const formData = new FormData();
   formData.append("avatar", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/auth/me/avatar`, {
     method: "POST",
@@ -797,12 +818,9 @@ export async function uploadFile(
     throw new Error(error);
   }
 
-  // For now, we use standard fetch for both Browser and Tauri
-  // Tauri 2.0 supports fetch with proper configuration
+  const { token, baseUrl } = await getUploadAuth();
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
   const headers: Record<string, string> = {};
-
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -810,8 +828,6 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("message_id", messageId);
   formData.append("file", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/messages/upload`, {
     method: "POST",
@@ -865,9 +881,9 @@ export async function uploadMessageWithFile(
     throw new Error(error);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
-  const headers: Record<string, string> = {};
+  const { token, baseUrl } = await getUploadAuth();
 
+  const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -877,8 +893,6 @@ export async function uploadMessageWithFile(
   if (content) {
     formData.append("content", content);
   }
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/messages/channel/${channelId}/upload`, {
     method: "POST",
@@ -1201,9 +1215,9 @@ export async function uploadGuildEmoji(
     throw new Error(validationError);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
-  const headers: Record<string, string> = {};
+  const { token, baseUrl } = await getUploadAuth();
 
+  const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -1211,8 +1225,6 @@ export async function uploadGuildEmoji(
   const formData = new FormData();
   formData.append("name", name);
   formData.append("file", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/guilds/${guildId}/emojis`, {
     method: "POST",
