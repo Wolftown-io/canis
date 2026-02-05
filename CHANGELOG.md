@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Favorite star button not responding to clicks in channel list (#152)
+  - Fixed invalid nested `<button>` HTML structure in ChannelItem that prevented click events from reaching the star toggle
+  - Converted outer channel button to a `<div>` with proper `role="button"` and keyboard accessibility
 - File attachment uploads in text chat (#149)
   - Fixed AWS SDK panic when initializing S3 client (missing tokio sleep implementation)
   - MinIO bucket now automatically initialized in development environment
