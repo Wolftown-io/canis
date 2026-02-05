@@ -194,8 +194,24 @@ curl http://localhost:8080/api/guilds \
 5. Make frontend changes in `client/src/`
 6. Both server and client support hot reload during development
 
+## File Uploads (Optional)
+
+To enable file uploads in development, start MinIO:
+
+```bash
+# Start with storage profile
+docker compose -f docker-compose.dev.yml --profile storage up -d
+
+# Initialize the bucket
+docker exec canis-dev-minio mc alias set local http://localhost:9000 minioadmin minioadmin
+docker exec canis-dev-minio mc mb --ignore-existing local/voicechat
+```
+
+See [File Uploads Development Guide](file-uploads.md) for details.
+
 ## Additional Resources
 
 - [Project Specification](../project/specification.md)
 - [Architecture Documentation](../architecture/overview.md)
 - [Standards & Protocols](standards.md)
+- [File Uploads Development Guide](file-uploads.md)

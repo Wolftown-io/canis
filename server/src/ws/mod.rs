@@ -46,8 +46,10 @@ use crate::{
 const ACTIVITY_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// State for activity rate limiting and deduplication.
+///
+/// **Internal:** Exposed for integration tests only.
 #[derive(Default)]
-struct ActivityState {
+pub struct ActivityState {
     /// Last activity update timestamp.
     last_update: Option<Instant>,
     /// Last activity data for deduplication.
@@ -563,6 +565,37 @@ pub enum ServerEvent {
         user_id: Uuid,
     },
 
+    // Thread events
+    /// New reply in a thread (broadcast to channel for indicator updates)
+    ThreadReplyNew {
+        /// Channel containing the thread.
+        channel_id: Uuid,
+        /// Thread parent message ID.
+        parent_id: Uuid,
+        /// Full reply message object.
+        message: serde_json::Value,
+        /// Updated thread info for the parent.
+        thread_info: serde_json::Value,
+    },
+    /// Thread reply deleted (broadcast to channel for indicator updates)
+    ThreadReplyDelete {
+        /// Channel containing the thread.
+        channel_id: Uuid,
+        /// Thread parent message ID.
+        parent_id: Uuid,
+        /// Deleted reply message ID.
+        message_id: Uuid,
+        /// Updated thread info for the parent.
+        thread_info: serde_json::Value,
+    },
+    /// Thread read position updated (sent to user's sessions only)
+    ThreadRead {
+        /// Thread parent message ID.
+        thread_parent_id: Uuid,
+        /// Last read message ID in the thread.
+        last_read_message_id: Option<Uuid>,
+    },
+
     // DM metadata events
     /// DM channel name was updated (broadcast to all participants)
     DmNameUpdated {
@@ -599,6 +632,20 @@ pub enum ServerEvent {
     /// Guild was unsuspended
     AdminGuildUnsuspended {
         /// Guild ID that was unsuspended.
+        guild_id: Uuid,
+        /// Guild name for display.
+        guild_name: String,
+    },
+    /// User was permanently deleted
+    AdminUserDeleted {
+        /// User ID that was deleted.
+        user_id: Uuid,
+        /// Username for display.
+        username: String,
+    },
+    /// Guild was permanently deleted
+    AdminGuildDeleted {
+        /// Guild ID that was deleted.
         guild_id: Uuid,
         /// Guild name for display.
         guild_name: String,
@@ -1040,7 +1087,10 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
 }
 
 /// Handle a client message.
-async fn handle_client_message(
+///
+/// **Internal:** Exposed for integration tests only.
+#[allow(clippy::implicit_hasher)]
+pub async fn handle_client_message(
     text: &str,
     user_id: Uuid,
     state: &AppState,
@@ -1070,6 +1120,19 @@ async fn handle_client_message(
                 return Ok(());
             }
 
+            // Check if user has VIEW_CHANNEL permission
+            if crate::permissions::require_channel_access(&state.db, user_id, channel_id)
+                .await
+                .is_err()
+            {
+                tx.send(ServerEvent::Error {
+                    code: "forbidden".to_string(),
+                    message: "You don't have permission to view this channel".to_string(),
+                })
+                .await?;
+                return Ok(());
+            }
+
             // Add to subscribed channels
             subscribed_channels.write().await.insert(channel_id);
 
@@ -1084,6 +1147,18 @@ async fn handle_client_message(
         }
 
         ClientEvent::Typing { channel_id } => {
+            // Check if user has VIEW_CHANNEL permission
+            let permission_result: Result<_, crate::permissions::PermissionError> =
+                crate::permissions::require_channel_access(&state.db, user_id, channel_id).await;
+
+            if permission_result.is_err() {
+                warn!(
+                    "User {} attempted to send typing indicator for channel {} without permission",
+                    user_id, channel_id
+                );
+                return Ok(()); // Silently ignore unauthorized typing indicator
+            }
+
             // Broadcast typing indicator
             broadcast_to_channel(
                 &state.redis,
@@ -1097,6 +1172,15 @@ async fn handle_client_message(
         }
 
         ClientEvent::StopTyping { channel_id } => {
+            // Check if user has VIEW_CHANNEL permission
+            let permission_result: Result<_, crate::permissions::PermissionError> =
+                crate::permissions::require_channel_access(&state.db, user_id, channel_id).await;
+
+            if permission_result.is_err() {
+                warn!("User {} attempted to send stop typing indicator for channel {} without permission", user_id, channel_id);
+                return Ok(()); // Silently ignore unauthorized stop typing indicator
+            }
+
             // Broadcast stop typing
             broadcast_to_channel(
                 &state.redis,
@@ -1301,11 +1385,9 @@ async fn handle_pubsub(
                                         .and_then(|id| id.as_str())
                                         .and_then(|id| Uuid::parse_str(id).ok())
                                         .is_some_and(|author_id| {
-                                            // Use try_read to avoid deadlocks in hot path
-                                            blocked_users
-                                                .try_read()
-                                                .map(|set| set.contains(&author_id))
-                                                .unwrap_or(false)
+                                            // Block check must not fail open
+                                            // Use blocking_read since we're in a sync closure within async context
+                                            blocked_users.blocking_read().contains(&author_id)
                                         })
                                 }
                                 ServerEvent::TypingStart { user_id: uid, .. }
@@ -1314,10 +1396,9 @@ async fn handle_pubsub(
                                 | ServerEvent::VoiceUserLeft { user_id: uid, .. }
                                 | ServerEvent::CallParticipantJoined { user_id: uid, .. }
                                 | ServerEvent::CallParticipantLeft { user_id: uid, .. } => {
-                                    blocked_users
-                                        .try_read()
-                                        .map(|set| set.contains(uid))
-                                        .unwrap_or(false)
+                                    // Block check must not fail open
+                                    // Use blocking_read since we're in a sync closure within async context
+                                    blocked_users.blocking_read().contains(uid)
                                 }
                                 _ => false,
                             };
@@ -1375,10 +1456,11 @@ async fn handle_pubsub(
                 if let Ok(event) = serde_json::from_str::<ServerEvent>(&payload) {
                     let should_filter = match &event {
                         ServerEvent::PresenceUpdate { user_id: uid, .. }
-                        | ServerEvent::RichPresenceUpdate { user_id: uid, .. } => blocked_users
-                            .try_read()
-                            .map(|set| set.contains(uid))
-                            .unwrap_or(false),
+                        | ServerEvent::RichPresenceUpdate { user_id: uid, .. } => {
+                            // Block check must not fail open
+                            // Use blocking_read since we're in a sync closure within async context
+                            blocked_users.blocking_read().contains(uid)
+                        }
                         _ => false,
                     };
 

@@ -500,6 +500,53 @@ pub async fn delete_channel(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
     Ok(result.rows_affected() > 0)
 }
 
+/// Get a channel by ID (alias for `find_channel_by_id`).
+///
+/// This is a convenience wrapper for use in permission checks.
+pub async fn get_channel_by_id(pool: &PgPool, channel_id: Uuid) -> sqlx::Result<Option<Channel>> {
+    find_channel_by_id(pool, channel_id).await
+}
+
+/// Check if a user is a participant in a DM channel.
+pub async fn is_dm_participant(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> sqlx::Result<bool> {
+    let result: Option<(bool,)> = sqlx::query_as(
+        r"
+        SELECT EXISTS(
+            SELECT 1
+            FROM dm_participants
+            WHERE channel_id = $1 AND user_id = $2
+        )
+        ",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(result.map(|(exists,)| exists).unwrap_or(false))
+}
+
+/// Get all permission overrides for a channel.
+pub async fn get_channel_overrides(
+    pool: &PgPool,
+    channel_id: Uuid,
+) -> sqlx::Result<Vec<crate::permissions::models::ChannelOverride>> {
+    sqlx::query_as::<_, crate::permissions::models::ChannelOverride>(
+        r"
+        SELECT id, channel_id, role_id, allow_permissions, deny_permissions
+        FROM channel_overrides
+        WHERE channel_id = $1
+        ",
+    )
+    .bind(channel_id)
+    .fetch_all(pool)
+    .await
+}
+
 // ============================================================================
 // Channel Member Queries
 // ============================================================================
@@ -608,6 +655,7 @@ pub async fn list_messages(
             SELECT m.* FROM messages m
             WHERE m.channel_id = $1
               AND m.deleted_at IS NULL
+              AND m.parent_id IS NULL
               AND (m.created_at, m.id) < (
                 SELECT created_at, id FROM messages WHERE id = $2
               )
@@ -626,6 +674,7 @@ pub async fn list_messages(
             SELECT * FROM messages
             WHERE channel_id = $1
               AND deleted_at IS NULL
+              AND parent_id IS NULL
             ORDER BY created_at DESC, id DESC
             LIMIT $2
             ",
@@ -712,7 +761,17 @@ pub async fn delete_message(pool: &PgPool, id: Uuid, user_id: Uuid) -> sqlx::Res
 }
 
 /// Admin delete a message (ignores `user_id` check).
+/// If the message is a thread reply, also decrements the parent's thread counters.
 pub async fn admin_delete_message(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
+    // Fetch parent_id before deletion so we can update thread counters
+    let parent_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT parent_id FROM messages WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+
     let result = sqlx::query(
         r"
         UPDATE messages
@@ -723,31 +782,204 @@ pub async fn admin_delete_message(pool: &PgPool, id: Uuid) -> sqlx::Result<bool>
     .bind(id)
     .execute(pool)
     .await?;
-    Ok(result.rows_affected() > 0)
+
+    let deleted = result.rows_affected() > 0;
+
+    // Decrement parent thread counters if this was a thread reply
+    if deleted {
+        if let Some(parent_id) = parent_id {
+            let _ = decrement_thread_counters(pool, parent_id).await;
+        }
+    }
+
+    Ok(deleted)
 }
 
-/// Search messages within a guild using `PostgreSQL` full-text search.
-/// Uses `websearch_to_tsquery` for user-friendly query syntax (supports AND, OR, quotes).
-pub async fn search_messages(
+// ============================================================================
+// Thread Queries
+// ============================================================================
+
+/// List thread replies for a parent message (chronological, oldest first).
+pub async fn list_thread_replies(
     pool: &PgPool,
-    guild_id: Uuid,
+    parent_id: Uuid,
+    after: Option<Uuid>,
+    limit: i64,
+) -> sqlx::Result<Vec<Message>> {
+    if let Some(after_id) = after {
+        sqlx::query_as::<_, Message>(
+            r"
+            SELECT m.* FROM messages m
+            WHERE m.parent_id = $1
+              AND m.deleted_at IS NULL
+              AND (m.created_at, m.id) > (
+                SELECT created_at, id FROM messages WHERE id = $2
+              )
+            ORDER BY m.created_at ASC, m.id ASC
+            LIMIT $3
+            ",
+        )
+        .bind(parent_id)
+        .bind(after_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_as::<_, Message>(
+            r"
+            SELECT * FROM messages
+            WHERE parent_id = $1
+              AND deleted_at IS NULL
+            ORDER BY created_at ASC, id ASC
+            LIMIT $2
+            ",
+        )
+        .bind(parent_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    }
+}
+
+/// Create a thread reply atomically: insert reply + update parent counters.
+#[allow(clippy::too_many_arguments)]
+pub async fn create_thread_reply(
+    pool: &PgPool,
+    parent_id: Uuid,
+    channel_id: Uuid,
+    user_id: Uuid,
+    content: &str,
+    encrypted: bool,
+    nonce: Option<&str>,
+    reply_to: Option<Uuid>,
+) -> sqlx::Result<Message> {
+    let mut tx = pool.begin().await?;
+
+    let message = sqlx::query_as::<_, Message>(
+        r"
+        INSERT INTO messages (channel_id, user_id, content, encrypted, nonce, reply_to, parent_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+        ",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .bind(content)
+    .bind(encrypted)
+    .bind(nonce)
+    .bind(reply_to)
+    .bind(parent_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Update parent message counters
+    sqlx::query(
+        r"
+        UPDATE messages
+        SET thread_reply_count = thread_reply_count + 1,
+            thread_last_reply_at = $2
+        WHERE id = $1
+        ",
+    )
+    .bind(parent_id)
+    .bind(message.created_at)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(message)
+}
+
+/// Decrement thread counters on parent after a reply is deleted.
+pub async fn decrement_thread_counters(pool: &PgPool, parent_id: Uuid) -> sqlx::Result<()> {
+    // Decrement count and recalculate last_reply_at from remaining replies
+    sqlx::query(
+        r"
+        UPDATE messages
+        SET thread_reply_count = GREATEST(thread_reply_count - 1, 0),
+            thread_last_reply_at = (
+                SELECT MAX(created_at) FROM messages
+                WHERE parent_id = $1 AND deleted_at IS NULL
+            )
+        WHERE id = $1
+        ",
+    )
+    .bind(parent_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Get distinct participant `user_ids` for a thread.
+pub async fn get_thread_participants(
+    pool: &PgPool,
+    parent_id: Uuid,
+    limit: i64,
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar::<_, Uuid>(
+        r"
+        SELECT DISTINCT user_id FROM messages
+        WHERE parent_id = $1 AND deleted_at IS NULL
+        ORDER BY user_id
+        LIMIT $2
+        ",
+    )
+    .bind(parent_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
+/// Upsert thread read position for a user.
+pub async fn update_thread_read_state(
+    pool: &PgPool,
+    user_id: Uuid,
+    thread_parent_id: Uuid,
+    last_read_message_id: Option<Uuid>,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        r"
+        INSERT INTO thread_read_state (user_id, thread_parent_id, last_read_at, last_read_message_id)
+        VALUES ($1, $2, NOW(), $3)
+        ON CONFLICT (user_id, thread_parent_id)
+        DO UPDATE SET last_read_at = NOW(), last_read_message_id = $3
+        ",
+    )
+    .bind(user_id)
+    .bind(thread_parent_id)
+    .bind(last_read_message_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Search messages within specific channels using `PostgreSQL` full-text search.
+/// Uses `websearch_to_tsquery` for user-friendly query syntax (supports AND, OR, quotes).
+///
+/// **Security:** Only searches in channels the user has access to (provided as `channel_ids`).
+pub async fn search_messages_in_channels(
+    pool: &PgPool,
+    channel_ids: &[Uuid],
     query: &str,
     limit: i64,
     offset: i64,
 ) -> sqlx::Result<Vec<Message>> {
+    if channel_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
     sqlx::query_as::<_, Message>(
         r"
         SELECT m.*
         FROM messages m
-        JOIN channels c ON m.channel_id = c.id
-        WHERE c.guild_id = $1
+        WHERE m.channel_id = ANY($1)
           AND m.deleted_at IS NULL
           AND m.content_search @@ websearch_to_tsquery('english', $2)
         ORDER BY m.created_at DESC
         LIMIT $3 OFFSET $4
         ",
     )
-    .bind(guild_id)
+    .bind(channel_ids)
     .bind(query)
     .bind(limit)
     .bind(offset)
@@ -755,23 +987,28 @@ pub async fn search_messages(
     .await
 }
 
-/// Count total search results for pagination.
-pub async fn count_search_messages(
+/// Count total search results in specific channels for pagination.
+///
+/// **Security:** Only counts messages in channels the user has access to (provided as `channel_ids`).
+pub async fn count_search_messages_in_channels(
     pool: &PgPool,
-    guild_id: Uuid,
+    channel_ids: &[Uuid],
     query: &str,
 ) -> sqlx::Result<i64> {
+    if channel_ids.is_empty() {
+        return Ok(0);
+    }
+
     let result: (i64,) = sqlx::query_as(
         r"
         SELECT COUNT(*)
         FROM messages m
-        JOIN channels c ON m.channel_id = c.id
-        WHERE c.guild_id = $1
+        WHERE m.channel_id = ANY($1)
           AND m.deleted_at IS NULL
           AND m.content_search @@ websearch_to_tsquery('english', $2)
         ",
     )
-    .bind(guild_id)
+    .bind(channel_ids)
     .bind(query)
     .fetch_one(pool)
     .await?;

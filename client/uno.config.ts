@@ -43,6 +43,8 @@ export default defineConfig({
       accent: {
         primary: "var(--color-accent-primary)",
         danger: "var(--color-accent-danger)",
+        success: "var(--color-accent-success)",
+        warning: "var(--color-accent-warning)",
       },
       error: {
         bg: "var(--color-error-bg)",

@@ -1031,7 +1031,19 @@ async fn test_slash_command_invocation_publishes_to_bot_channel() {
     .unwrap();
 
     let create_msg_resp = app.oneshot(create_msg_req).await;
-    assert_eq!(create_msg_resp.status(), 202);
+    let create_msg_status = create_msg_resp.status();
+    let create_msg_body = create_msg_resp
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    assert_eq!(
+        create_msg_status,
+        202,
+        "expected 202 for slash invocation, got body: {}",
+        String::from_utf8_lossy(&create_msg_body)
+    );
 
     let persisted_count = sqlx::query_scalar!(
         "SELECT COUNT(*) as \"count!\" FROM messages WHERE channel_id = $1",

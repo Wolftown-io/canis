@@ -8,19 +8,19 @@ interface QualityIndicatorProps {
   class?: string;
 }
 
-// Map semantic quality levels to visual colors
+// Map semantic quality levels to theme-aware colors
 const qualityColors: Record<QualityLevel, string> = {
-  good: 'bg-green-500',
-  warning: 'bg-yellow-500',
-  poor: 'bg-red-500',
-  unknown: 'bg-gray-500',
+  good: 'bg-accent-success',
+  warning: 'bg-accent-warning',
+  poor: 'bg-accent-danger',
+  unknown: 'bg-text-secondary',
 };
 
 const qualityTextColors: Record<QualityLevel, string> = {
-  good: 'text-green-500',
-  warning: 'text-yellow-500',
-  poor: 'text-red-500',
-  unknown: 'text-gray-500',
+  good: 'text-accent-success',
+  warning: 'text-accent-warning',
+  poor: 'text-accent-danger',
+  unknown: 'text-text-secondary',
 };
 
 export const QualityIndicator: Component<QualityIndicatorProps> = (props) => {
@@ -32,7 +32,7 @@ export const QualityIndicator: Component<QualityIndicatorProps> = (props) => {
       <Show
         when={!isLoading()}
         fallback={
-          <div class="w-2 h-2 rounded-full bg-gray-500 animate-pulse" />
+          <div class="w-2 h-2 rounded-full bg-text-secondary animate-pulse" />
         }
       >
         <Show

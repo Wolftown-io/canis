@@ -463,12 +463,32 @@ This roadmap outlines the development path from the current prototype to a produ
     - **Integration:** Launch on first login, can be retriggered from settings
 - [ ] **[UX] Advanced Search & Discovery**
   - **Full-Text Search:**
-    - **Backend:** Implement full-text search indexing using PostgreSQL pg_search or dedicated search index
-    - **Backend:** Index messages across all DMs and guilds user has access to
-    - **Backend:** Support filters: date range, channel, author, has:link, has:file
-    - **Frontend:** Create `GlobalSearch.tsx` results page with filters
-    - **Frontend:** Show message context with jump-to-message links
-    - **Performance:** Add pagination and result limits
+    - ✅ **Backend:** Implement full-text search indexing using PostgreSQL tsvector with GIN index
+    - ✅ **Backend:** Guild-scoped message search with `websearch_to_tsquery` (supports AND, OR, quotes, negation)
+    - ✅ **Backend:** Permission validation (guild membership check) and rate limit enforcement
+    - ✅ **Backend:** Bulk user/channel lookups to prevent N+1 queries
+    - ✅ **Frontend:** Search panel overlay (`SearchPanel.tsx`) with debounced input and pagination
+    - ✅ **Frontend:** XSS-safe result highlighting and click-to-navigate with message highlight
+    - ✅ **Performance:** Pagination implemented (limit/offset with clamping to max 100)
+    - [ ] **Backend:** Extend to DM message search
+    - [ ] **Backend:** Support advanced filters: date range, channel, author, has:link, has:file
+    - [ ] **Backend:** Add relevance ranking with `ts_rank` (currently sorted by date only)
+    - [ ] **Backend:** Use `ts_headline` for server-side context snippets (currently client-side highlighting)
+    - [ ] **Frontend:** Create global search UI with multi-guild/DM scope
+    - [ ] **Frontend:** Add search syntax help tooltip (AND, OR, quotes, negation)
+    - **Tech Debt:**
+      - [ ] Implement channel-level permission filtering (currently all guild members see all channels)
+      - [ ] Add rate limiting to search endpoint (expensive queries need protection)
+      - [ ] Add integration tests for search edge cases:
+        - Empty queries, special characters (`@#$%^&*()`), very long queries (>1000 chars)
+        - Large result sets (10k+ messages), complex queries with multiple AND/OR operators
+        - Deleted messages in results, concurrent searches from same user
+      - [ ] Add security tests:
+        - Non-member search attempts, SQL injection via search query
+        - XSS via malicious search result content
+        - Channel permission bypass attempts (when private channels are implemented)
+      - [ ] Add search query analytics logging for UX insights
+      - [ ] Monitor and optimize search performance at scale
   - **Bulk Read Management:**
     - **Backend:** Add bulk mark-as-read API endpoints
     - **Frontend:** Implement "Mark all as read" in `MessagesState`

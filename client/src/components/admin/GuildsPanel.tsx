@@ -19,6 +19,7 @@ import {
   Download,
   Square,
   CheckSquare,
+  Trash2,
 } from "lucide-solid";
 import {
   adminState,
@@ -27,6 +28,7 @@ import {
   loadGuildDetails,
   suspendGuild,
   unsuspendGuild,
+  deleteGuild,
   searchGuilds,
   toggleGuildSelection,
   selectAllGuilds,
@@ -49,6 +51,8 @@ const GuildsPanel: Component = () => {
   const [showSuspendDialog, setShowSuspendDialog] = createSignal(false);
   const [showBulkSuspendDialog, setShowBulkSuspendDialog] = createSignal(false);
   const [bulkSuspendReason, setBulkSuspendReason] = createSignal("");
+  const [showDeleteDialog, setShowDeleteDialog] = createSignal(false);
+  const [deleteConfirmText, setDeleteConfirmText] = createSignal("");
   const [actionLoading, setActionLoading] = createSignal(false);
   const [focusedIndex, setFocusedIndex] = createSignal(-1);
 
@@ -190,6 +194,29 @@ const GuildsPanel: Component = () => {
     }
   };
 
+  // Handle delete action
+  const handleDelete = async () => {
+    const guild = selectedGuild();
+    if (!guild) return;
+
+    setActionLoading(true);
+    try {
+      const success = await deleteGuild(guild.id);
+      if (success) {
+        setShowDeleteDialog(false);
+        setDeleteConfirmText("");
+        showToast({
+          type: "success",
+          title: "Guild deleted",
+          message: `${guild.name} has been permanently deleted`,
+          duration: 5000,
+        });
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Format date for display
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr);
@@ -317,7 +344,7 @@ const GuildsPanel: Component = () => {
         </Show>
 
           {/* Table Header */}
-          <div class="grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 border-b border-white/10 bg-white/5 text-xs font-medium text-text-secondary uppercase tracking-wide sticky top-0">
+          <div class="grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 border-b border-white/10 bg-surface-layer1 text-xs font-medium text-text-secondary uppercase tracking-wide sticky top-0 z-10">
             <div class="flex items-center">
               <button
                 onClick={() => allSelected() ? clearGuildSelection() : selectAllGuilds()}
@@ -418,13 +445,13 @@ const GuildsPanel: Component = () => {
                     <Show
                       when={guild.suspended_at}
                       fallback={
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-success/20 text-status-success">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-success/20 text-accent-success">
                           <CheckCircle class="w-3 h-3" />
                           Active
                         </span>
                       }
                     >
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-error/20 text-status-error">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-error/20 text-accent-danger">
                         <Ban class="w-3 h-3" />
                         Suspended
                       </span>
@@ -564,13 +591,13 @@ const GuildsPanel: Component = () => {
                     <Show
                       when={guild().suspended_at}
                       fallback={
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-success/20 text-status-success">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-success/20 text-accent-success">
                           <CheckCircle class="w-3 h-3" />
                           Active
                         </span>
                       }
                     >
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-error/20 text-status-error">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-error/20 text-accent-danger">
                         <Ban class="w-3 h-3" />
                         Suspended
                       </span>
@@ -668,7 +695,7 @@ const GuildsPanel: Component = () => {
                 </div>
 
                 <Show when={!adminState.isElevated}>
-                  <div class="p-3 rounded-lg bg-status-warning/10 border border-status-warning/30 text-status-warning text-xs">
+                  <div class="p-3 rounded-lg bg-status-warning/10 border border-status-warning/30 text-text-primary text-xs">
                     Requires elevation to perform actions
                   </div>
                 </Show>
@@ -695,6 +722,15 @@ const GuildsPanel: Component = () => {
                     {actionLoading() ? "Processing..." : "Unsuspend Guild"}
                   </button>
                 </Show>
+
+                <button
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={!adminState.isElevated || actionLoading()}
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-status-error/50 text-status-error font-medium transition-colors hover:bg-status-error/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 class="w-4 h-4" />
+                  Delete Guild
+                </button>
               </div>
             </div>
           </div>
@@ -820,6 +856,66 @@ const GuildsPanel: Component = () => {
                   class="flex-1 px-4 py-2 rounded-lg bg-status-error text-white font-medium transition-colors hover:bg-status-error/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {actionLoading() ? "Suspending..." : `Suspend ${getSelectedGuildCount()} Guilds`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Show>
+
+      {/* Delete Guild Dialog */}
+      <Show when={showDeleteDialog()}>
+        <div class="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => { setShowDeleteDialog(false); setDeleteConfirmText(""); }}
+          />
+
+          {/* Dialog */}
+          <div
+            class="relative rounded-xl border border-white/10 w-[400px] shadow-2xl animate-[fadeIn_0.15s_ease-out]"
+            style="background-color: var(--color-surface-layer1)"
+          >
+            <div class="p-5 space-y-4">
+              <h3 class="text-lg font-bold text-status-error">
+                Delete Guild
+              </h3>
+
+              <p class="text-sm text-text-secondary">
+                Are you sure you want to permanently delete{" "}
+                <span class="font-medium text-text-primary">
+                  {selectedGuild()?.name}
+                </span>
+                ? This action is <span class="font-bold text-status-error">irreversible</span> and will remove all channels, messages, roles, and member data.
+              </p>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-text-secondary">
+                  Type <span class="font-mono text-text-primary">{selectedGuild()?.name}</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText()}
+                  onInput={(e) => setDeleteConfirmText(e.currentTarget.value)}
+                  placeholder={selectedGuild()?.name}
+                  class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-text-primary placeholder-text-secondary/50 focus:outline-none focus:border-status-error text-sm"
+                />
+              </div>
+
+              <div class="flex gap-3 pt-2">
+                <button
+                  onClick={() => { setShowDeleteDialog(false); setDeleteConfirmText(""); }}
+                  class="flex-1 px-4 py-2 rounded-lg bg-white/10 text-text-primary font-medium transition-colors hover:bg-white/20"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteConfirmText() !== selectedGuild()?.name || actionLoading()}
+                  class="flex-1 px-4 py-2 rounded-lg bg-status-error text-white font-medium transition-colors hover:bg-status-error/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading() ? "Deleting..." : "Delete Permanently"}
                 </button>
               </div>
             </div>

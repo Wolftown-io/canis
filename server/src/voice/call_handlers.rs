@@ -198,7 +198,7 @@ pub async fn start_call(
     for &target_id in &target_users {
         if block_cache::is_blocked_either_direction(&state.redis, auth.id, target_id)
             .await
-            .unwrap_or(false)
+            .unwrap_or(!state.config.block_check_fail_open)
         {
             return Err(CallHandlerError::Blocked);
         }
@@ -253,7 +253,7 @@ pub async fn join_call(
         if participant_id != auth.id
             && block_cache::is_blocked_either_direction(&state.redis, auth.id, participant_id)
                 .await
-                .unwrap_or(false)
+                .unwrap_or(!state.config.block_check_fail_open)
         {
             return Err(CallHandlerError::Blocked);
         }

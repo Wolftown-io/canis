@@ -12,7 +12,8 @@ use aws_sdk_s3::{
     primitives::ByteStream,
     Client,
 };
-use std::time::Duration;
+use aws_smithy_async::rt::sleep::TokioSleep;
+use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tracing::info;
 
@@ -62,7 +63,10 @@ impl S3Client {
         let mut s3_config_builder = aws_sdk_s3::Config::builder()
             .region(region)
             .stalled_stream_protection(StalledStreamProtectionConfig::disabled())
-            .identity_cache(IdentityCache::no_cache());
+            .identity_cache(IdentityCache::no_cache())
+            // Provide tokio sleep implementation for timeouts
+            .sleep_impl(Arc::new(TokioSleep::new()))
+            .behavior_version_latest();
 
         // Configure credentials from environment
         if let (Ok(access_key), Ok(secret_key)) = (

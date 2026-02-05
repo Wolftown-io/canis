@@ -86,6 +86,12 @@ pub struct Config {
     /// Whether E2EE setup is required before using the app (default: false)
     pub require_e2ee_setup: bool,
 
+    /// Whether to fail open (allow actions) when Redis block checks fail (default: false)
+    ///
+    /// When false (recommended): Block checks fail-closed, rejecting DMs/calls if Redis is unavailable.
+    /// When true: Block checks fail-open, allowing actions if Redis is unavailable (prioritizes availability).
+    pub block_check_fail_open: bool,
+
     /// Allowed CORS origins (comma-separated, default: "*" for dev)
     /// Set to specific origins in production (e.g., "<https://app.example.com>")
     pub cors_allowed_origins: Vec<String>,
@@ -162,6 +168,10 @@ impl Config {
             turn_credential: env::var("TURN_CREDENTIAL").ok(),
             mfa_encryption_key: env::var("MFA_ENCRYPTION_KEY").ok(),
             require_e2ee_setup: env::var("REQUIRE_E2EE_SETUP")
+                .ok()
+                .map(|v| v.to_lowercase() == "true" || v == "1")
+                .unwrap_or(false),
+            block_check_fail_open: env::var("BLOCK_CHECK_FAIL_OPEN")
                 .ok()
                 .map(|v| v.to_lowercase() == "true" || v == "1")
                 .unwrap_or(false),
@@ -246,6 +256,7 @@ impl Config {
             turn_credential: None,
             mfa_encryption_key: None,
             require_e2ee_setup: false,
+            block_check_fail_open: false,
             cors_allowed_origins: vec!["*".to_string()],
             smtp_host: None,
             smtp_port: 587,

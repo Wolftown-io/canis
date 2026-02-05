@@ -656,6 +656,29 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+/**
+ * Get auth credentials for fetch-based uploads.
+ * In Tauri mode, retrieves from Rust backend state.
+ * In browser mode, reads from browserState/localStorage.
+ */
+async function getUploadAuth(): Promise<{ token: string | null; baseUrl: string }> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const authInfo = await invoke<[string, string] | null>("get_auth_info");
+    if (!authInfo) {
+      throw new Error("Not authenticated");
+    }
+    return {
+      baseUrl: authInfo[0].replace(/\/+$/, ""),
+      token: authInfo[1],
+    };
+  }
+  return {
+    token: browserState.accessToken || localStorage.getItem("accessToken"),
+    baseUrl: (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, ""),
+  };
+}
+
 export async function uploadAvatar(file: File): Promise<User> {
   // Frontend validation
   const error = validateFileSize(file, 'avatar');
@@ -664,17 +687,15 @@ export async function uploadAvatar(file: File): Promise<User> {
     throw new Error(error);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
-  const headers: Record<string, string> = {};
+  const { token, baseUrl } = await getUploadAuth();
 
+  const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
   const formData = new FormData();
   formData.append("avatar", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/auth/me/avatar`, {
     method: "POST",
@@ -836,6 +857,65 @@ export async function sendMessageWithStatus(
   return { message, status: response.status };
 }
 
+// ============================================================================
+// Thread API Functions
+// ============================================================================
+
+export async function getThreadReplies(
+  parentId: string,
+  after?: string,
+  limit?: number,
+): Promise<PaginatedMessages> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_thread_replies", { parentId, after, limit });
+  }
+
+  const params = new URLSearchParams();
+  if (after) params.set("after", after);
+  if (limit) params.set("limit", limit.toString());
+  const query = params.toString();
+
+  return httpRequest<PaginatedMessages>(
+    "GET",
+    `/api/messages/${parentId}/thread${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function sendThreadReply(
+  parentId: string,
+  channelId: string,
+  content: string,
+  options?: { encrypted?: boolean; nonce?: string },
+): Promise<Message> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("send_thread_reply", {
+      parentId,
+      channelId,
+      content,
+      encrypted: options?.encrypted,
+      nonce: options?.nonce,
+    });
+  }
+
+  return httpRequest<Message>("POST", `/api/messages/channel/${channelId}`, {
+    content,
+    encrypted: options?.encrypted ?? false,
+    nonce: options?.nonce,
+    parent_id: parentId,
+  });
+}
+
+export async function markThreadRead(parentId: string): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("mark_thread_read", { parentId });
+  }
+
+  return httpRequest<void>("POST", `/api/messages/${parentId}/thread/read`);
+}
+
 export async function uploadFile(
   messageId: string,
   file: File
@@ -847,12 +927,9 @@ export async function uploadFile(
     throw new Error(error);
   }
 
-  // For now, we use standard fetch for both Browser and Tauri
-  // Tauri 2.0 supports fetch with proper configuration
+  const { token, baseUrl } = await getUploadAuth();
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
   const headers: Record<string, string> = {};
-
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -860,8 +937,6 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("message_id", messageId);
   formData.append("file", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/messages/upload`, {
     method: "POST",
@@ -915,9 +990,9 @@ export async function uploadMessageWithFile(
     throw new Error(error);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
-  const headers: Record<string, string> = {};
+  const { token, baseUrl } = await getUploadAuth();
 
+  const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -927,8 +1002,6 @@ export async function uploadMessageWithFile(
   if (content) {
     formData.append("content", content);
   }
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/messages/channel/${channelId}/upload`, {
     method: "POST",
@@ -1251,9 +1324,9 @@ export async function uploadGuildEmoji(
     throw new Error(validationError);
   }
 
-  const token = browserState.accessToken || localStorage.getItem("accessToken");
-  const headers: Record<string, string> = {};
+  const { token, baseUrl } = await getUploadAuth();
 
+  const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -1261,8 +1334,6 @@ export async function uploadGuildEmoji(
   const formData = new FormData();
   formData.append("name", name);
   formData.append("file", file);
-
-  const baseUrl = (browserState.serverUrl || "http://localhost:8080").replace(/\/+$/, "");
 
   const response = await fetch(`${baseUrl}/api/guilds/${guildId}/emojis`, {
     method: "POST",
@@ -2748,6 +2819,40 @@ export async function adminUnsuspendGuild(
   return httpRequest<{ suspended: boolean; guild_id: string }>(
     "POST",
     `/api/admin/guilds/${guildId}/unsuspend`
+  );
+}
+
+/**
+ * Permanently delete a user (requires elevation).
+ */
+export async function adminDeleteUser(
+  userId: string
+): Promise<{ deleted: boolean; id: string }> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("admin_delete_user", { user_id: userId });
+  }
+
+  return httpRequest<{ deleted: boolean; id: string }>(
+    "DELETE",
+    `/api/admin/users/${userId}`
+  );
+}
+
+/**
+ * Permanently delete a guild (requires elevation).
+ */
+export async function adminDeleteGuild(
+  guildId: string
+): Promise<{ deleted: boolean; id: string }> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("admin_delete_guild", { guild_id: guildId });
+  }
+
+  return httpRequest<{ deleted: boolean; id: string }>(
+    "DELETE",
+    `/api/admin/guilds/${guildId}`
   );
 }
 

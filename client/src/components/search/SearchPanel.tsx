@@ -98,28 +98,29 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
   return (
     <div class="absolute inset-0 z-50 flex flex-col bg-surface-layer2">
       {/* Search Header */}
-      <div class="p-3 border-b border-white/10">
-        <div class="relative">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+      <div class="flex items-center justify-between px-3 py-2 border-b border-white/10">
+        <div class="relative flex-1 max-w-md">
+          <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary" />
           <input
             type="text"
             placeholder="Search messages..."
             value={inputValue()}
             onInput={handleInput}
             autofocus
-            class="w-full pl-10 pr-10 py-2 rounded-lg text-sm text-text-primary placeholder:text-text-secondary bg-surface-layer1 border border-white/10 outline-none focus:ring-2 focus:ring-accent-primary/30"
+            class="w-full pl-8 pr-3 py-1.5 rounded-md text-sm text-text-primary placeholder:text-text-secondary bg-surface-layer1 border border-white/10 outline-none focus:ring-1 focus:ring-accent-primary/30"
           />
-          <button
-            onClick={props.onClose}
-            class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-secondary hover:text-text-primary rounded transition-colors"
-          >
-            <X class="w-4 h-4" />
-          </button>
         </div>
+        <button
+          onClick={props.onClose}
+          class="ml-3 p-1.5 text-text-secondary hover:text-text-primary rounded transition-colors"
+        >
+          <X class="w-4 h-4" />
+        </button>
+      </div>
         <Show when={searchState.total > 0}>
-          <p class="mt-2 text-xs text-text-secondary">
+          <span class="ml-3 text-xs text-text-secondary">
             {searchState.total} result{searchState.total !== 1 ? "s" : ""}
-          </p>
+          </span>
         </Show>
       </div>
 

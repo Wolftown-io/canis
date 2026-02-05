@@ -54,12 +54,16 @@ pub fn run() {
             commands::auth::login,
             commands::auth::logout,
             commands::auth::get_current_user,
+            commands::auth::get_auth_info,
             commands::auth::register,
             commands::auth::oidc_authorize,
             // Chat commands
             commands::chat::get_channels,
             commands::chat::get_messages,
             commands::chat::send_message,
+            commands::chat::get_thread_replies,
+            commands::chat::send_thread_reply,
+            commands::chat::mark_thread_read,
             // Voice commands
             commands::voice::join_voice,
             commands::voice::leave_voice,
@@ -129,8 +133,10 @@ pub fn run() {
             commands::admin::admin_de_elevate,
             commands::admin::admin_ban_user,
             commands::admin::admin_unban_user,
+            commands::admin::admin_delete_user,
             commands::admin::admin_suspend_guild,
             commands::admin::admin_unsuspend_guild,
+            commands::admin::admin_delete_guild,
             // Crypto commands
             commands::crypto::get_server_settings,
             commands::crypto::get_backup_status,

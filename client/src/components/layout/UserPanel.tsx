@@ -8,6 +8,7 @@
  */
 
 import { Component, Show, createSignal, onMount } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import { Settings, Shield, LogOut } from "lucide-solid";
 import { authState, logout } from "@/stores/auth";
 import { adminState, checkAdminStatus } from "@/stores/admin";
@@ -20,6 +21,7 @@ import { AdminQuickModal } from "@/components/admin";
 import type { CustomStatus } from "@/lib/types";
 
 const UserPanel: Component = () => {
+  const navigate = useNavigate();
   const user = () => authState.user;
   const [showSettings, setShowSettings] = createSignal(false);
   const [showAdmin, setShowAdmin] = createSignal(false);
@@ -94,7 +96,7 @@ const UserPanel: Component = () => {
                 "text-text-secondary hover:text-accent-primary": !adminState.isElevated,
               }}
               title={adminState.isElevated ? "Admin Panel (Elevated)" : "Admin Panel"}
-              onClick={() => setShowAdmin(true)}
+              onClick={() => navigate("/admin")}
             >
               <Shield class="w-4 h-4" />
             </button>

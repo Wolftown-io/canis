@@ -45,6 +45,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added content length validation for command responses to prevent Redis exhaustion
 - Added inbound bot gateway rate limiting to reduce abuse risk from compromised bot tokens
 - Bound command response interactions to the invoking bot identity before accepting responses
+- Slack-style message threads for organized side-discussions
+  - Thread replies appear in a sidebar panel, keeping the main channel feed clean
+  - Thread indicators show reply count and last reply time on parent messages
+  - "Reply in Thread" action in message context menu and hover toolbar
+  - Per-thread read tracking with real-time WebSocket updates
+- Full WebSocket event parity for Tauri desktop client (#132)
+  - Admin events (ban/unban, suspend/unsuspend, reports) now received in desktop app
+  - Friend request and block events now received in desktop app
+  - Voice stats, preferences sync, and state patch events now received in desktop app
+  - Screen share events now have Tauri listeners (Rust enum already existed)
+- Delete user option in admin panel with confirmation dialog (#147)
+- Delete guild option in admin panel with confirmation dialog (#148)
+- Virtual scrolling for message lists using `@tanstack/solid-virtual`
+  - Only ~30 DOM nodes rendered regardless of message count (previously all messages in DOM)
+  - Smart height estimation based on message content (images, code blocks, reactions)
+  - Handles 10,000+ message histories efficiently
+- Infinite scroll pagination: scroll to top to load older messages automatically
+  - IntersectionObserver-based sentinel with scroll position preservation
+  - "Beginning of conversation" marker when full history is loaded
+- Configurable memory eviction for message history (default: 2000 messages per channel)
+  - Drops messages far from viewport, re-fetches on scroll back
+
+### Fixed
+- Voice island visibility and contrast issues (#151)
+  - Disconnect button now uses higher contrast background and white icon for better visibility
+  - Drag handle opacity increased from 40% to 60%
+  - Connection status dot enlarged and changed to green with subtle glow
+  - Quality indicator now uses theme colors instead of hardcoded values
+- Favorite star button not responding to clicks in channel list (#152)
+  - Fixed invalid nested `<button>` HTML structure in ChannelItem that prevented click events from reaching the star toggle
+  - Converted outer channel button to a `<div>` with proper `role="button"` and keyboard accessibility
+- Avatar and file uploads in Tauri desktop app (#150)
+  - Added `get_auth_info` Tauri command to expose auth credentials to the webview
+  - Upload functions now properly retrieve auth token and server URL in Tauri mode
+  - Also fixes file attachment and emoji uploads in the desktop client
+- Volume slider now controls notification sound volume in Tauri desktop app (#146)
+  - Tauri `play_sound` command now accepts and applies volume setting
+  - Both notification playback and test sound respect the volume slider
+- Screen share volume slider thumb now visible and interactive (#146)
+  - Added proper CSS pseudo-selectors for the range input thumb
+- Sound notification testing now plays audio in browser/webview mode (#145)
+  - Added missing sound .wav files to `public/sounds/` for static serving
+  - Previously only embedded in Tauri binary, causing 404 for browser fetch
+- Potential message loss when WebSocket message arrives during pagination load
+  - `addMessage` now re-reads store state after async decryption to avoid overwriting concurrent prepends
+- File attachment uploads in text chat (#149)
+  - Fixed AWS SDK panic when initializing S3 client (missing tokio sleep implementation)
+  - MinIO bucket now automatically initialized in development environment
+  - Added comprehensive file uploads documentation (docs/development/file-uploads.md)
+  - Added MinIO initialization script (scripts/init-minio.sh)
+  - Updated setup guide with file upload configuration steps
+
+### Added
+- Message input enhancements for improved UX
+  - Multi-line textarea with auto-resize (min 1 line, max 8 lines)
+  - Shift+Enter for newlines, Enter to send
+  - IME composition support for CJK input (Chinese, Japanese, Korean)
+  - Persistent drafts with localStorage (auto-saves every 300ms, max 50 drafts with LRU eviction)
+  - Drafts skip E2EE channels to prevent plaintext leaks
+  - Proper cleanup of draft event listeners on logout to prevent memory leaks
+  - Graceful localStorage quota exceeded handling (auto-reduces to 25 drafts and retries)
+  - Quick message actions toolbar (hover to reveal: 4 quick emojis + emoji picker + context menu)
+  - @user autocomplete with arrow key navigation (works in both guild channels and DMs)
+  - Prefix matches prioritized in autocomplete results for better relevance
+  - :emoji: autocomplete with support for both standard and custom guild emojis
+  - False positive prevention for autocomplete (ignores email addresses, times, URLs)
+  - Smart positioning for autocomplete popup using floating-ui with autoUpdate
+  - Autocomplete closes when clicking away from trigger in textarea
+  - Full ARIA support for autocomplete popup (role="listbox", aria-activedescendant, aria-selected)
+  - ARIA labels for all message action buttons (emoji reactions, picker, context menu)
+
+### Added
+- Channel-level permission system (VIEW_CHANNEL)
+  - New VIEW_CHANNEL permission bit (bit 24) controls channel visibility and access
+  - Users must have VIEW_CHANNEL to see channels in lists, read messages, or interact with channels
+  - Permission checks integrated across all major endpoints (22+ endpoints):
+    - Search: Filters channels by VIEW_CHANNEL before searching messages
+    - Channel retrieval: GET /api/channels/:id requires VIEW_CHANNEL
+    - Message operations: List, create, edit, delete messages all require VIEW_CHANNEL
+    - Reactions: Add, remove, and list reactions require VIEW_CHANNEL
+    - Typing indicators: Both start and stop typing require VIEW_CHANNEL
+    - Voice operations: Join requires VOICE_CONNECT, leave/mute require VIEW_CHANNEL
+    - Screen sharing: Start requires SCREEN_SHARE permission
+    - Favorites: Add/remove favorites requires VIEW_CHANNEL
+  - Message sending also validates SEND_MESSAGES permission for guild channels
+  - Voice channel join validates both VIEW_CHANNEL and VOICE_CONNECT permissions
+  - Database migration adds VIEW_CHANNEL to all existing roles for backward compatibility
+  - Channel permission overrides (allow/deny) fully supported for granular access control
+  - DM channels remain accessible only to participants (no guild permissions apply)
+  - Guild owners bypass all channel-level restrictions
+  - Comprehensive integration tests (18 tests covering all permission scenarios)
+  - Detailed documentation with mermaid diagrams (docs/features/channel-permissions.md)
+
+### Added
+- New `BLOCK_CHECK_FAIL_OPEN` configuration option for Redis block check behavior
+  - When false (default, recommended): Block checks fail-closed, rejecting DMs/calls if Redis is unavailable (secure default)
+  - When true: Block checks fail-open, allowing actions if Redis is unavailable (prioritizes availability over security)
+  - Affects DM creation, DM message sending, call initiation, and call joining
+  - Provides explicit control over availability vs security tradeoff during Redis outages
 
 ### Changed
 - Documentation audit and cleanup
@@ -60,6 +159,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed stale scripts (resume-session.sh, update-deps.sh)
 
 ### Added
+- PostgreSQL native full-text search for guild messages
+  - Backend: tsvector column with GIN index for fast full-text search using `websearch_to_tsquery`
+  - Backend: Guild-scoped search API with permission validation and pagination (`GET /api/guilds/:id/search`)
+  - Backend: Bulk user/channel lookup optimization to prevent N+1 queries
+  - Frontend: Search panel overlay with debounced input (300ms) and XSS-safe result highlighting
+  - Frontend: Click-to-navigate to messages with highlight parameter support
+  - Migration: `content_search` generated column with automatic updates on message edits
 - Absolute user blocking with server-side enforcement
   - Block/unblock via context menu with confirmation modal
   - Blocked users cannot send DMs, friend requests, or initiate calls
@@ -117,6 +223,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Suppress false-positive `missing_const_for_fn` lint in vc-crypto
   - Fix `many_single_char_names` in BGRA→I420 color conversion
   - Remove unnecessary raw string hashes in SQL queries
+
+### Security
+- Fixed channel permission bypass in favorites endpoint
+  - Add favorite (POST /api/me/favorites/:channel_id) now validates VIEW_CHANNEL permission
+  - Previously only checked guild membership, allowing users to favorite channels they couldn't view
+  - Fixes potential information disclosure where channel existence could be inferred without proper access
 
 ### Changed
 - Upgraded vite-plugin-solid to 2.11.10 for vitest 4 compatibility
@@ -452,6 +564,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused `update_user_password` database function (#131)
 
 ### Security
+- **CRITICAL FIX**: WebSocket event filtering race condition that could allow blocked users' messages to leak through
+  - Replaced `try_read()` with `blocking_read()` in WebSocket event filtering for messages, typing indicators, voice events, and presence updates
+  - Previous implementation used `try_read().map(...).unwrap_or(false)` which would fail open on lock contention, allowing blocked users' events through
+  - Fix ensures block checks never fail open - will wait for lock rather than returning false on contention
+  - Affects MessageNew, TypingStart, TypingStop, VoiceUserJoined, VoiceUserLeft, CallParticipantJoined, CallParticipantLeft, PresenceUpdate, and RichPresenceUpdate events
 - Attachment access now enforces guild/DM membership (previously any authenticated user could access any file)
 - CORS hardened with configurable origins for production (development mode allows any origin)
 - Request-ID header propagation for security tracing and correlation
