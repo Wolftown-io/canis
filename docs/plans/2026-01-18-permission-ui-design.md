@@ -108,6 +108,7 @@ Slide-out panel within the modal:
 - Disabled checkboxes for permissions the editor doesn't have (escalation prevention)
 - Warning text explains why a permission is disabled
 - `@everyone` editor hides forbidden permissions entirely
+- **Security:** API explicitly forbids granting dangerous permissions (e.g. `MANAGE_GUILD`, `BAN_MEMBERS`) to `@everyone` even if UI checks are bypassed
 - [+ Add Member] opens a member picker dropdown
 - Unsaved changes trigger confirmation on Back/Cancel
 
