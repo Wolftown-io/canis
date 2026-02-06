@@ -32,7 +32,7 @@ pub enum BotClientEvent {
     },
     /// Respond to a slash command invocation.
     CommandResponse {
-        /// Interaction ID (from CommandInvoked event).
+        /// Interaction ID (from `CommandInvoked` event).
         interaction_id: Uuid,
         /// Response content.
         content: String,
@@ -96,7 +96,7 @@ pub enum BotServerEvent {
 
 /// Authenticate bot token and return bot user ID and application ID.
 ///
-/// Token format: "bot_user_id.secret" to enable indexed lookup
+/// Token format: `bot_user_id.secret` to enable indexed lookup
 #[instrument(skip(pool, token))]
 async fn authenticate_bot_token(
     pool: &PgPool,
@@ -174,7 +174,7 @@ pub async fn bot_gateway_handler(
     let token = extract_bot_token(&headers).ok_or_else(|| {
         (
             StatusCode::UNAUTHORIZED,
-            "Missing or invalid Authorization header (expected: Bot <token>)".to_string(),
+            "Missing or invalid Authorization header (expected: `Bot <token>`)".to_string(),
         )
     })?;
 
@@ -188,21 +188,16 @@ pub async fn bot_gateway_handler(
     );
 
     // Upgrade to WebSocket
-    Ok(ws.on_upgrade(move |socket| handle_bot_socket(socket, state, bot_user_id, application_id)))
+    Ok(ws.on_upgrade(move |socket| handle_bot_socket(socket, state, bot_user_id)))
 }
 
 /// Handle bot WebSocket connection.
-async fn handle_bot_socket(
-    socket: WebSocket,
-    state: AppState,
-    bot_user_id: Uuid,
-    application_id: Uuid,
-) {
+async fn handle_bot_socket(socket: WebSocket, state: AppState, bot_user_id: Uuid) {
     let (mut sender, mut receiver) = socket.split();
 
     // Create Redis subscriber for bot events
     let redis_client = state.redis.clone();
-    let bot_channel = format!("bot:{}", bot_user_id);
+    let bot_channel = format!("bot:{bot_user_id}");
 
     // Spawn subscriber task
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<BotServerEvent>();
@@ -254,9 +249,7 @@ async fn handle_bot_socket(
             if let Message::Text(text) = msg {
                 match serde_json::from_str::<BotClientEvent>(&text) {
                     Ok(event) => {
-                        if let Err(e) =
-                            handle_bot_event(event, &state_clone, bot_user_id, application_id).await
-                        {
+                        if let Err(e) = handle_bot_event(event, &state_clone, bot_user_id).await {
                             error!("Error handling bot event: {}", e);
                         }
                     }
@@ -294,10 +287,9 @@ async fn handle_bot_event(
     event: BotClientEvent,
     state: &AppState,
     bot_user_id: Uuid,
-    _application_id: Uuid,
 ) -> Result<(), String> {
     if let Some(rate_limiter) = &state.rate_limiter {
-        let identifier = format!("bot_ws:{}", bot_user_id);
+        let identifier = format!("bot_ws:{bot_user_id}");
         let rate_result = rate_limiter
             .check(RateLimitCategory::WsMessage, &identifier)
             .await
@@ -343,8 +335,8 @@ async fn handle_bot_event(
             .fetch_optional(&state.db)
             .await
             .map_err(|e| {
-                error!("Failed to check channel membership: {}", e);
-                format!("Failed to verify channel access: {}", e)
+                error!("Failed to check channel membership: {e}");
+                format!("Failed to verify channel access: {e}")
             })?;
 
             if has_access.is_none() {
@@ -368,8 +360,8 @@ async fn handle_bot_event(
             )
             .await
             .map_err(|e| {
-                error!("Failed to create bot message: {}", e);
-                format!("Failed to create message: {}", e)
+                error!("Failed to create bot message: {e}");
+                format!("Failed to create message: {e}")
             })?;
 
             // Broadcast message to channel subscribers
@@ -394,8 +386,8 @@ async fn handle_bot_event(
             )
             .await
             .map_err(|e| {
-                warn!("Failed to broadcast bot message: {}", e);
-                format!("Failed to broadcast: {}", e)
+                warn!("Failed to broadcast bot message: {e}");
+                format!("Failed to broadcast: {e}")
             })?;
 
             Ok(())
@@ -416,7 +408,7 @@ async fn handle_bot_event(
                 "Bot responding to command"
             );
 
-            let owner_key = format!("interaction:{}:owner", interaction_id);
+            let owner_key = format!("interaction:{interaction_id}:owner");
             let expected_owner = state
                 .redis
                 .get::<Option<String>, _>(&owner_key)
@@ -444,7 +436,7 @@ async fn handle_bot_event(
 
             // Store command response in Redis with expiry (5 minutes)
             // The command invoker's WebSocket client will poll/listen for this
-            let response_key = format!("interaction:{}:response", interaction_id);
+            let response_key = format!("interaction:{interaction_id}:response");
             let response_data = serde_json::json!({
                 "content": content,
                 "ephemeral": ephemeral,
@@ -462,21 +454,21 @@ async fn handle_bot_event(
                 )
                 .await
                 .map_err(|e| {
-                    error!("Failed to store command response: {}", e);
-                    format!("Failed to store response: {}", e)
+                    error!("Failed to store command response: {e}");
+                    format!("Failed to store response: {e}")
                 })?;
 
             // Publish event to notify waiting clients
             state
                 .redis
                 .publish::<(), _, _>(
-                    format!("interaction:{}", interaction_id),
+                    format!("interaction:{interaction_id}"),
                     response_data.to_string(),
                 )
                 .await
                 .map_err(|e| {
-                    error!("Failed to publish command response: {}", e);
-                    format!("Failed to publish response: {}", e)
+                    error!("Failed to publish command response: {e}");
+                    format!("Failed to publish response: {e}")
                 })?;
 
             Ok(())

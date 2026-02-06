@@ -265,7 +265,7 @@ pub async fn create_bot(
     let token_secret = Uuid::new_v4().to_string();
 
     // Create full token: "bot_user_id.secret" for indexed authentication
-    let token = format!("{}.{}", bot_user.id, token_secret);
+    let token = format!("{}.{token_secret}", bot_user.id);
 
     // Hash the full token using Argon2id with proper CSPRNG salt
     let salt = SaltString::generate(&mut OsRng);
@@ -349,7 +349,7 @@ pub async fn reset_bot_token(
     let token_secret = Uuid::new_v4().to_string();
 
     // Create full token: "bot_user_id.secret" for indexed authentication
-    let token = format!("{}.{}", bot_user_id, token_secret);
+    let token = format!("{bot_user_id}.{token_secret}");
 
     // Hash the token with proper CSPRNG salt
     let salt = SaltString::generate(&mut OsRng);

@@ -500,7 +500,7 @@ pub async fn create(
                             MessageError::Validation("Invalid slash command payload".to_string())
                         })?;
 
-                        let owner_key = format!("interaction:{}:owner", interaction_id);
+                        let owner_key = format!("interaction:{interaction_id}:owner");
                         let owner_value = bot_user_id.to_string();
                         let routing_redis = db::create_redis_client(&state.config.redis_url)
                             .await
@@ -531,7 +531,7 @@ pub async fn create(
                             })?;
 
                         routing_redis
-                            .publish::<(), _, _>(format!("bot:{}", bot_user_id), payload)
+                            .publish::<(), _, _>(format!("bot:{bot_user_id}"), payload)
                             .await
                             .map_err(|e| {
                                 warn!(error = %e, "Failed to publish slash command invocation");
@@ -1439,7 +1439,7 @@ mod tests {
             MessageError::ChannelNotFound => {
                 // Expected - channel was CASCADE deleted
             }
-            other => panic!("Expected ChannelNotFound, got: {:?}", other),
+            other => panic!("Expected ChannelNotFound, got: {other:?}"),
         }
     }
 

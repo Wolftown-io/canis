@@ -66,16 +66,21 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libasound2-dev \
+            libvpx-dev \
             libpipewire-0.3-dev \
             libssl-dev
 
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
-        run: choco install -y pkgconfiglite
+        run: choco install -y pkgconfiglite libvpx
 
       - name: Set CMake policy floor for macOS
         if: runner.os == 'macOS'
         run: echo "CMAKE_POLICY_VERSION_MINIMUM=3.5" >> "$GITHUB_ENV"
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install pkg-config libvpx
 
       # macOS - install target for universal builds
       - name: Install macOS ARM target

@@ -53,7 +53,6 @@ scap = "0.0.8"
 
 # Video encoding
 vpx-encode = { version = "0.3", features = ["vp9"] }
-openh264 = "0.6"
 
 # Image encoding (thumbnails)
 image = { version = "0.25", default-features = false, features = ["png"] }

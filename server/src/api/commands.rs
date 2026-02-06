@@ -148,7 +148,7 @@ fn validate_command_name(name: &str) -> Result<(), CommandError> {
 }
 
 /// Validate command description.
-fn validate_command_description(desc: &str) -> Result<(), CommandError> {
+const fn validate_command_description(desc: &str) -> Result<(), CommandError> {
     if desc.is_empty() || desc.len() > 100 {
         return Err(CommandError::InvalidDescription);
     }
