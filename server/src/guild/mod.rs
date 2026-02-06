@@ -65,8 +65,6 @@ pub fn router() -> Router<AppState> {
             "/{id}/categories/reorder",
             post(categories::reorder_categories),
         )
-        // Search route
-        .route("/{id}/search", get(search::search_messages))
         // Pages routes (nested)
         .nest("/{id}/pages", pages::guild_pages_router())
         // Emoji routes

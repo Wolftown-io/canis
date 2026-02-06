@@ -42,6 +42,8 @@ pub struct RateLimits {
     pub ws_message: LimitConfig,
     /// Voice channel join attempts
     pub voice_join: LimitConfig,
+    /// Search operations
+    pub search: LimitConfig,
     /// Failed authentication tracking
     pub failed_auth: FailedAuthConfig,
     /// Failed auth as `LimitConfig` (for consistency in `get_limit_config`)
@@ -132,6 +134,10 @@ impl Default for RateLimits {
                 requests: 5, // 5 joins per minute should be plenty for normal use
                 window_secs: 60,
             },
+            search: LimitConfig {
+                requests: 15,
+                window_secs: 60,
+            },
             failed_auth_as_limit: LimitConfig {
                 requests: failed_auth.max_failures,
                 window_secs: failed_auth.window_secs,
@@ -159,6 +165,7 @@ impl RateLimitConfig {
     /// - `RATE_LIMIT_READ`: Read limit as "`requests,window_secs`"
     /// - `RATE_LIMIT_WS_CONNECT`: WebSocket connect limit as "`requests,window_secs`"
     /// - `RATE_LIMIT_WS_MESSAGE`: WebSocket message limit as "`requests,window_secs`"
+    /// - `RATE_LIMIT_SEARCH`: Search limit as "`requests,window_secs`"
     /// - `RATE_LIMIT_FAILED_AUTH`: Failed auth as "`max_failures,block_duration_secs,window_secs`"
     pub fn from_env() -> Self {
         let mut config = Self::default();
@@ -228,6 +235,11 @@ impl RateLimitConfig {
         if let Ok(val) = std::env::var("RATE_LIMIT_VOICE_JOIN") {
             if let Some(limit) = parse_limit_config(&val) {
                 config.limits.voice_join = limit;
+            }
+        }
+        if let Ok(val) = std::env::var("RATE_LIMIT_SEARCH") {
+            if let Some(limit) = parse_limit_config(&val) {
+                config.limits.search = limit;
             }
         }
         if let Ok(val) = std::env::var("RATE_LIMIT_FAILED_AUTH") {
