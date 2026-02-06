@@ -44,6 +44,9 @@ export const PermissionBits = {
 
   // Mentions (bit 23)
   MENTION_EVERYONE: 1 << 23,
+
+  // Channel access (bit 24)
+  VIEW_CHANNEL: 1 << 24,
 } as const;
 
 export type PermissionBit = (typeof PermissionBits)[keyof typeof PermissionBits];
@@ -67,9 +70,34 @@ export interface PermissionDefinition {
   forbiddenForEveryone: boolean;
 }
 
+export const CHANNEL_OVERRIDE_PERMISSION_KEYS = [
+  "VIEW_CHANNEL",
+  "SEND_MESSAGES",
+  "EMBED_LINKS",
+  "ATTACH_FILES",
+  "ADD_REACTIONS",
+  "USE_EMOJI",
+  "MANAGE_MESSAGES",
+  "MENTION_EVERYONE",
+  "VOICE_CONNECT",
+  "VOICE_SPEAK",
+  "VOICE_MUTE_OTHERS",
+  "VOICE_DEAFEN_OTHERS",
+  "VOICE_MOVE_MEMBERS",
+  "CREATE_INVITE",
+] as const;
+
 // All permissions with their definitions
 export const PERMISSIONS: PermissionDefinition[] = [
   // Content permissions
+  {
+    key: "VIEW_CHANNEL",
+    bit: PermissionBits.VIEW_CHANNEL,
+    name: "View Channel",
+    description: "Allows viewing channels and reading their message history",
+    category: "content",
+    forbiddenForEveryone: false,
+  },
   {
     key: "SEND_MESSAGES",
     bit: PermissionBits.SEND_MESSAGES,
@@ -274,6 +302,14 @@ export const PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+const CHANNEL_OVERRIDE_PERMISSION_KEY_SET = new Set<string>(
+  CHANNEL_OVERRIDE_PERMISSION_KEYS
+);
+
+export const CHANNEL_OVERRIDE_PERMISSIONS = PERMISSIONS.filter((permission) =>
+  CHANNEL_OVERRIDE_PERMISSION_KEY_SET.has(permission.key)
+);
+
 // Category display names
 export const CATEGORY_NAMES: Record<PermissionCategory, string> = {
   content: "Content",
@@ -310,6 +346,7 @@ export function togglePermission(permissions: number, bit: number): number {
 
 // Default permission presets (matching server)
 export const EVERYONE_DEFAULT =
+  PermissionBits.VIEW_CHANNEL |
   PermissionBits.SEND_MESSAGES |
   PermissionBits.EMBED_LINKS |
   PermissionBits.ATTACH_FILES |

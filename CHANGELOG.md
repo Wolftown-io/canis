@@ -68,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Drops messages far from viewport, re-fetches on scroll back
 
 ### Fixed
+- Channel permission overrides now show only channel-relevant permissions
+  - Added `View Channel` to channel override controls so visibility can be managed explicitly
+  - Removed guild-level permission toggles from the channel override editor to reduce confusing options
+- Member moderation controls now appear for users who can kick but cannot manage roles
+  - The member "Manage" dropdown is shown when you have kick authority over a target based on role hierarchy
+  - Role assignment controls stay hidden unless you have `MANAGE_ROLES`, reducing confusing disabled actions
 - Voice island visibility and contrast issues (#151)
   - Disconnect button now uses higher contrast background and white icon for better visibility
   - Drag handle opacity increased from 40% to 60%
