@@ -46,13 +46,15 @@ async fn create_guild(pool: &sqlx::PgPool, owner_id: Uuid) -> Uuid {
 async fn create_channel(pool: &sqlx::PgPool, guild_id: Uuid, name: &str) -> Uuid {
     let channel_id = Uuid::now_v7();
 
-    sqlx::query("INSERT INTO channels (id, guild_id, name, channel_type) VALUES ($1, $2, $3, 'text')")
-        .bind(channel_id)
-        .bind(guild_id)
-        .bind(name)
-        .execute(pool)
-        .await
-        .expect("Failed to create channel");
+    sqlx::query(
+        "INSERT INTO channels (id, guild_id, name, channel_type) VALUES ($1, $2, $3, 'text')",
+    )
+    .bind(channel_id)
+    .bind(guild_id)
+    .bind(name)
+    .execute(pool)
+    .await
+    .expect("Failed to create channel");
 
     channel_id
 }
@@ -133,7 +135,11 @@ async fn delete_guild(pool: &sqlx::PgPool, guild_id: Uuid) {
 }
 
 /// Helper: guild search GET request.
-fn guild_search_request(guild_id: Uuid, query_string: &str, token: &str) -> axum::http::Request<Body> {
+fn guild_search_request(
+    guild_id: Uuid,
+    query_string: &str,
+    token: &str,
+) -> axum::http::Request<Body> {
     TestApp::request(
         Method::GET,
         &format!("/api/guilds/{guild_id}/search?{query_string}"),
@@ -300,20 +306,13 @@ async fn test_guild_search_author_filter() {
     insert_message(&app.pool, channel_id, user_b, "Test from user B").await;
 
     // Filter by user_b
-    let req = guild_search_request(
-        guild_id,
-        &format!("q=test&author_id={user_b}"),
-        &token,
-    );
+    let req = guild_search_request(guild_id, &format!("q=test&author_id={user_b}"), &token);
     let resp = app.oneshot(req).await;
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
     assert_eq!(json["total"], 1);
-    assert_eq!(
-        json["results"][0]["author"]["id"],
-        user_b.to_string()
-    );
+    assert_eq!(json["results"][0]["author"]["id"], user_b.to_string());
 
     delete_guild(&app.pool, guild_id).await;
     delete_user(&app.pool, user_a).await;
@@ -338,11 +337,7 @@ async fn test_guild_search_channel_filter() {
     insert_message(&app.pool, ch_b, user_id, "Test in channel B").await;
 
     // Filter to channel_a only
-    let req = guild_search_request(
-        guild_id,
-        &format!("q=test&channel_id={ch_a}"),
-        &token,
-    );
+    let req = guild_search_request(guild_id, &format!("q=test&channel_id={ch_a}"), &token);
     let resp = app.oneshot(req).await;
     assert_eq!(resp.status(), 200);
 
@@ -381,7 +376,10 @@ async fn test_guild_search_has_link() {
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
-    assert_eq!(json["total"], 1, "Only the message with a link should match");
+    assert_eq!(
+        json["total"], 1,
+        "Only the message with a link should match"
+    );
 
     delete_guild(&app.pool, guild_id).await;
     delete_user(&app.pool, user_id).await;
@@ -400,7 +398,8 @@ async fn test_guild_search_has_file() {
     let channel_id = create_channel(&app.pool, guild_id, "general").await;
     let token = generate_access_token(&app.config, user_id);
 
-    let msg_with_file = insert_message(&app.pool, channel_id, user_id, "Test with attachment").await;
+    let msg_with_file =
+        insert_message(&app.pool, channel_id, user_id, "Test with attachment").await;
     insert_attachment(&app.pool, msg_with_file).await;
     insert_message(&app.pool, channel_id, user_id, "Test without attachment").await;
 
@@ -409,7 +408,10 @@ async fn test_guild_search_has_file() {
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
-    assert_eq!(json["total"], 1, "Only the message with attachment should match");
+    assert_eq!(
+        json["total"], 1,
+        "Only the message with attachment should match"
+    );
 
     delete_guild(&app.pool, guild_id).await;
     delete_user(&app.pool, user_id).await;
@@ -536,7 +538,10 @@ async fn test_dm_search_only_own_dms() {
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
-    assert_eq!(json["total"], 1, "User A should only see their own DM results");
+    assert_eq!(
+        json["total"], 1,
+        "User A should only see their own DM results"
+    );
     assert_eq!(json["results"][0]["channel_id"], dm_ab.to_string());
 
     // Cleanup
@@ -611,7 +616,10 @@ async fn test_dm_search_excludes_encrypted() {
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
-    assert_eq!(json["total"], 1, "Encrypted DM should be excluded from search");
+    assert_eq!(
+        json["total"], 1,
+        "Encrypted DM should be excluded from search"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM channels WHERE id = $1")
