@@ -663,9 +663,8 @@ pub async fn create(
     // Broadcast via Redis pub-sub
     let message_json = serde_json::to_value(&response).unwrap_or_default();
 
-    if body.parent_id.is_some() {
+    if let Some(parent_id) = body.parent_id {
         // Thread reply: broadcast ThreadReplyNew with updated thread info
-        let parent_id = body.parent_id.unwrap();
         let thread_info = build_thread_info(&state.db, parent_id).await;
         let thread_info_json = serde_json::to_value(&thread_info).unwrap_or_default();
 

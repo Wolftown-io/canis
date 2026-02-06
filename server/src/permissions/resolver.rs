@@ -39,12 +39,18 @@ pub fn compute_guild_permissions(
 
     // Apply channel overrides if provided
     if let Some(overrides) = channel_overrides {
+        let mut role_allow = GuildPermissions::empty();
+        let mut role_deny = GuildPermissions::empty();
+
         for role in user_roles {
             if let Some(ovr) = overrides.iter().find(|o| o.role_id == role.id) {
-                perms |= ovr.allow_permissions;
-                perms &= !ovr.deny_permissions; // Deny wins
+                role_allow |= ovr.allow_permissions;
+                role_deny |= ovr.deny_permissions;
             }
         }
+
+        perms |= role_allow;
+        perms &= !role_deny; // Deny wins regardless of role iteration order
     }
 
     perms
@@ -490,5 +496,80 @@ mod tests {
         assert!(perms.has(GuildPermissions::VOICE_CONNECT));
         // EMBED_LINKS from role2
         assert!(perms.has(GuildPermissions::EMBED_LINKS));
+    }
+
+    #[test]
+    fn test_channel_override_deny_wins_regardless_of_role_order() {
+        let user_id = Uuid::new_v4();
+        let owner_id = Uuid::new_v4();
+        let guild_id = Uuid::new_v4();
+        let channel_id = Uuid::new_v4();
+        let allow_role_id = Uuid::new_v4();
+        let deny_role_id = Uuid::new_v4();
+
+        let everyone = GuildPermissions::VIEW_CHANNEL;
+
+        let allow_role = GuildRole {
+            id: allow_role_id,
+            guild_id,
+            name: "AllowRole".to_string(),
+            color: None,
+            permissions: GuildPermissions::empty(),
+            position: 100,
+            is_default: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let deny_role = GuildRole {
+            id: deny_role_id,
+            guild_id,
+            name: "DenyRole".to_string(),
+            color: None,
+            permissions: GuildPermissions::empty(),
+            position: 200,
+            is_default: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let allow_override = ChannelOverride {
+            id: Uuid::new_v4(),
+            channel_id,
+            role_id: allow_role_id,
+            allow_permissions: GuildPermissions::VIEW_CHANNEL,
+            deny_permissions: GuildPermissions::empty(),
+        };
+
+        let deny_override = ChannelOverride {
+            id: Uuid::new_v4(),
+            channel_id,
+            role_id: deny_role_id,
+            allow_permissions: GuildPermissions::empty(),
+            deny_permissions: GuildPermissions::VIEW_CHANNEL,
+        };
+
+        let overrides = [allow_override, deny_override];
+
+        // Order A: allow role first, deny role second.
+        let perms_a = compute_guild_permissions(
+            user_id,
+            owner_id,
+            everyone,
+            &[allow_role.clone(), deny_role.clone()],
+            Some(&overrides),
+        );
+
+        // Order B: deny role first, allow role second.
+        let perms_b = compute_guild_permissions(
+            user_id,
+            owner_id,
+            everyone,
+            &[deny_role, allow_role],
+            Some(&overrides),
+        );
+
+        assert!(!perms_a.has(GuildPermissions::VIEW_CHANNEL));
+        assert!(!perms_b.has(GuildPermissions::VIEW_CHANNEL));
     }
 }

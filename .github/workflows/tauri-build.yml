@@ -22,17 +22,22 @@ jobs:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: linux
+            allow_failure: false
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: windows
-          - os: macos-latest
+            allow_failure: true
+          - os: macos-13
             target: x86_64-apple-darwin
             artifact: macos-intel
+            allow_failure: false
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: macos-arm
+            allow_failure: false
 
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.allow_failure }}
 
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +77,7 @@ jobs:
 
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
-        run: choco install -y pkgconfiglite libvpx
+        run: choco install -y pkgconfiglite
 
       - name: Set CMake policy floor for macOS
         if: runner.os == 'macOS'

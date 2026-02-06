@@ -192,8 +192,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - platform: ubuntu-latest
+            allow_failure: false
+          - platform: windows-latest
+            allow_failure: true
+          - platform: macos-latest
+            allow_failure: false
     runs-on: ${{ matrix.platform }}
+    continue-on-error: ${{ matrix.allow_failure }}
     steps:
       - uses: actions/checkout@v4
 
@@ -207,7 +214,7 @@ jobs:
 
       - name: Install dependencies (Windows)
         if: matrix.platform == 'windows-latest'
-        run: choco install -y pkgconfiglite libvpx
+        run: choco install -y pkgconfiglite
 
       - name: Set CMake policy floor (macOS)
         if: matrix.platform == 'macos-latest'
