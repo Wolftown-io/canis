@@ -11,6 +11,7 @@ import {
   removeMemberRole,
   canManageRole,
   memberHasPermission,
+  canModerateMember,
 } from "@/stores/permissions";
 import { authState } from "@/stores/auth";
 import { isGuildOwner, kickMember } from "@/stores/guilds";
@@ -35,6 +36,16 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
 
   const canManageThisRole = (rolePosition: number): boolean => {
     return canManageRole(props.guildId, currentUserId(), isOwner(), rolePosition);
+  };
+
+  const canManageRolesPermission = () => {
+    if (isOwner()) return true;
+    return memberHasPermission(
+      props.guildId,
+      currentUserId(),
+      isOwner(),
+      PermissionBits.MANAGE_ROLES
+    );
   };
 
   const handleToggleRole = async (roleId: string, hasRole: boolean) => {
@@ -70,7 +81,14 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
     if (isMemberOwner()) return false;
     if (props.userId === currentUserId()) return false;
     if (isOwner()) return true;
-    return memberHasPermission(props.guildId, currentUserId(), isOwner(), PermissionBits.KICK_MEMBERS);
+
+    return canModerateMember(
+      props.guildId,
+      currentUserId(),
+      props.userId,
+      isOwner(),
+      PermissionBits.KICK_MEMBERS
+    );
   };
 
   return (
@@ -88,50 +106,58 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
           class="absolute right-0 top-full mt-1 py-1 rounded-lg border border-white/10 shadow-xl z-20 min-w-[200px]"
           style="background-color: var(--color-surface-layer2)"
         >
-          {/* Role assignment section */}
-          <div class="px-3 py-1.5 text-xs font-semibold text-text-secondary uppercase">
-            Assign Role
-          </div>
-          <Show
-            when={roles().length > 0}
-            fallback={
-              <div class="px-3 py-2 text-sm text-text-secondary">No roles available</div>
-            }
-          >
-            <For each={roles()}>
-              {(role) => {
-                const hasRole = memberRoleIds().includes(role.id);
-                const canManage = canManageThisRole(role.position);
+          <Show when={canManageRolesPermission()}>
+            <>
+              {/* Role assignment section */}
+              <div class="px-3 py-1.5 text-xs font-semibold text-text-secondary uppercase">
+                Assign Role
+              </div>
+              <Show
+                when={roles().length > 0}
+                fallback={
+                  <div class="px-3 py-2 text-sm text-text-secondary">No roles available</div>
+                }
+              >
+                <For each={roles()}>
+                  {(role) => {
+                    const hasRole = memberRoleIds().includes(role.id);
+                    const canManage = canManageThisRole(role.position);
 
-                return (
-                  <label
-                    class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-white/10 transition-colors"
-                    classList={{ "opacity-50 cursor-not-allowed": !canManage }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={hasRole}
-                      disabled={!canManage}
-                      onChange={() => canManage && handleToggleRole(role.id, hasRole)}
-                      class="w-4 h-4 rounded border-white/20 text-accent-primary"
-                    />
-                    <div
-                      class="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{
-                        "background-color": role.color || "transparent",
-                        border: role.color ? "none" : "1px solid var(--color-text-secondary)",
-                      }}
-                    />
-                    <span class="text-sm text-text-primary">{role.name}</span>
-                  </label>
-                );
-              }}
-            </For>
+                    return (
+                      <label
+                        class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-white/10 transition-colors"
+                        classList={{ "opacity-50 cursor-not-allowed": !canManage }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={hasRole}
+                          disabled={!canManage}
+                          onChange={() => canManage && handleToggleRole(role.id, hasRole)}
+                          class="w-4 h-4 rounded border-white/20 text-accent-primary"
+                        />
+                        <div
+                          class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{
+                            "background-color": role.color || "transparent",
+                            border: role.color ? "none" : "1px solid var(--color-text-secondary)",
+                          }}
+                        />
+                        <span class="text-sm text-text-primary">{role.name}</span>
+                      </label>
+                    );
+                  }}
+                </For>
+              </Show>
+            </>
           </Show>
 
           {/* Kick section */}
           <Show when={canKick()}>
-            <div class="border-t border-white/10 mt-1 pt-1">
+            <div
+              classList={{
+                "border-t border-white/10 mt-1 pt-1": canManageRolesPermission(),
+              }}
+            >
               <button
                 onClick={handleKick}
                 class="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors"

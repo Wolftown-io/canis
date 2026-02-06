@@ -183,6 +183,10 @@ CONSTRAINT valid_position CHECK (position >= 0)
 - Regex: `^[a-z0-9_]{3,32}$`
 - Matches database constraint
 
+✅ **@everyone permission validation** (`src/guild/roles.rs`)
+- Prevents assignment of dangerous permissions (e.g., `MANAGE_GUILD`, `BAN_MEMBERS`, `ADMINISTRATOR`) to the default role
+- Enforced at API level regardless of client checks
+
 ✅ **Password requirements** (`src/auth/handlers.rs:40`)
 - Length: 8-128 characters
 - Hashed with Argon2id before storage

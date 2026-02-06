@@ -98,6 +98,18 @@ jobs:
         run: cargo test --all-features --workspace --exclude vc-client --tests -- --test-threads=1
 
   # ===========================================================================
+  # @everyone Security Integration Test (Dockerized)
+  # ===========================================================================
+  everyone-security:
+    name: Everyone Security Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ignored @everyone security integration test
+        run: make test-everyone-security
+
+  # ===========================================================================
   # License Check
   # ===========================================================================
   licenses:
@@ -166,7 +178,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [rust-lint, rust-test, licenses]
+    needs: [rust-lint, rust-test, everyone-security, licenses]
     steps:
       - uses: actions/checkout@v4
 
@@ -188,7 +200,7 @@ jobs:
   # ===========================================================================
   tauri:
     name: Tauri ${{ matrix.platform }}
-    needs: [rust-lint, rust-test, frontend, licenses]
+    needs: [rust-lint, rust-test, everyone-security, frontend, licenses]
     strategy:
       fail-fast: false
       matrix:

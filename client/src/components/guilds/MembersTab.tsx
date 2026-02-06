@@ -5,7 +5,13 @@
 import { Component, createSignal, createMemo, For, Show, onMount } from "solid-js";
 import { Search, Crown } from "lucide-solid";
 import { guildsState, loadGuildMembers, getGuildMembers } from "@/stores/guilds";
-import { loadGuildRoles, loadMemberRoles, getMemberRoles, memberHasPermission } from "@/stores/permissions";
+import {
+  loadGuildRoles,
+  loadMemberRoles,
+  getMemberRoles,
+  memberHasPermission,
+  canModerateMember,
+} from "@/stores/permissions";
 import { getUserActivity } from "@/stores/presence";
 import { PermissionBits } from "@/lib/permissionConstants";
 import { authState } from "@/stores/auth";
@@ -37,6 +43,19 @@ const MembersTab: Component<MembersTabProps> = (props) => {
       props.isOwner,
       PermissionBits.MANAGE_ROLES
     );
+
+  const canModerate = (memberUserId: string): boolean => {
+    const currentUserId = authState.user?.id;
+    if (!currentUserId) return false;
+
+    return canModerateMember(
+      props.guildId,
+      currentUserId,
+      memberUserId,
+      props.isOwner,
+      PermissionBits.KICK_MEMBERS
+    );
+  };
 
   const guild = () => guildsState.guilds.find((g) => g.id === props.guildId);
   const members = () => getGuildMembers(props.guildId);
@@ -204,7 +223,7 @@ const MembersTab: Component<MembersTabProps> = (props) => {
                   </div>
 
                   {/* Manage dropdown - replaces kick button */}
-                  <Show when={canManageRoles() && !isMemberOwner()}>
+                  <Show when={!isMemberOwner() && (canManageRoles() || canModerate(member.user_id))}>
                     <MemberRoleDropdown
                       guildId={props.guildId}
                       userId={member.user_id}
