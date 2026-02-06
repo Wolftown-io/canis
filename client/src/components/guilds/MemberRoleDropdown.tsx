@@ -82,14 +82,6 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
     if (props.userId === currentUserId()) return false;
     if (isOwner()) return true;
 
-    const hasKickPermission = memberHasPermission(
-      props.guildId,
-      currentUserId(),
-      isOwner(),
-      PermissionBits.KICK_MEMBERS
-    );
-    if (!hasKickPermission) return false;
-
     return canModerateMember(
       props.guildId,
       currentUserId(),
