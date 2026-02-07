@@ -78,6 +78,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: true
+          docker-images: false
+          tool-cache: false
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -91,11 +98,17 @@ jobs:
         with:
           tool: sqlx-cli
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Run migrations
         run: sqlx migrate run --source server/migrations
 
       - name: Run tests
-        run: cargo test --all-features --workspace --exclude vc-client --tests -- --test-threads=1
+        timeout-minutes: 20
+        run: cargo nextest run --all-features --workspace --exclude vc-client -j 1
 
   # ===========================================================================
   # @everyone Security Integration Test (Dockerized)

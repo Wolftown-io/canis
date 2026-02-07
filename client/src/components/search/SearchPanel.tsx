@@ -1,62 +1,90 @@
 /**
  * SearchPanel Component
  *
- * Displays message search results with pagination.
- * Shown as overlay when searching in the sidebar.
+ * Displays message search results with pagination and advanced filters.
+ * Supports both guild and DM search modes.
  */
 
-import { Component, Show, For, createSignal, createEffect } from "solid-js";
+import { Component, Show, For, createSignal, onCleanup } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Search, X, Loader2, Hash } from "lucide-solid";
-import { searchState, search, loadMore, clearSearch, hasMore } from "@/stores/search";
+import { Search, X, Loader2, Hash, Filter, Link, Paperclip } from "lucide-solid";
+import { searchState, search, searchDMs, loadMore, clearSearch, hasMore } from "@/stores/search";
 import { getActiveGuild } from "@/stores/guilds";
+import type { SearchFilters } from "@/lib/types";
 import Avatar from "@/components/ui/Avatar";
 import { formatTimestamp } from "@/lib/utils";
 
 interface SearchPanelProps {
   onClose: () => void;
+  mode?: "guild" | "dm";
 }
 
 const SearchPanel: Component<SearchPanelProps> = (props) => {
   const navigate = useNavigate();
   const [inputValue, setInputValue] = createSignal("");
+  const [showFilters, setShowFilters] = createSignal(false);
+  const [dateFrom, setDateFrom] = createSignal("");
+  const [dateTo, setDateTo] = createSignal("");
+  const [authorFilter, setAuthorFilter] = createSignal("");
+  const [hasFilter, setHasFilter] = createSignal<"link" | "file" | "">("");
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const mode = () => props.mode ?? "guild";
+
+  const buildFilters = (): SearchFilters => {
+    const filters: SearchFilters = {};
+    if (dateFrom()) filters.date_from = new Date(dateFrom()).toISOString();
+    if (dateTo()) {
+      const endDate = new Date(dateTo());
+      endDate.setHours(23, 59, 59, 999);
+      filters.date_to = endDate.toISOString();
+    }
+    if (authorFilter()) filters.author_id = authorFilter();
+    if (hasFilter()) filters.has = hasFilter() as "link" | "file";
+    return filters;
+  };
+
+  const triggerSearch = () => {
+    const value = inputValue();
+    if (value.trim().length < 2) {
+      clearSearch();
+      return;
+    }
+
+    const filters = buildFilters();
+    if (mode() === "dm") {
+      searchDMs(value, filters);
+    } else {
+      const guild = getActiveGuild();
+      if (guild) {
+        search(guild.id, value, filters);
+      }
+    }
+  };
 
   // Debounced search
   const handleInput = (e: Event) => {
     const value = (e.target as HTMLInputElement).value;
     setInputValue(value);
 
-    // Clear existing timeout
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
 
-    // Debounce search by 300ms
-    searchTimeout = setTimeout(() => {
-      const guild = getActiveGuild();
-      if (guild && value.trim().length >= 2) {
-        search(guild.id, value);
-      } else if (value.trim().length < 2) {
-        clearSearch();
-      }
-    }, 300);
+    searchTimeout = setTimeout(triggerSearch, 300);
   };
 
   // Navigate to the message's channel when clicked
   const handleResultClick = (channelId: string, messageId: string) => {
-    const guild = getActiveGuild();
-    if (guild) {
-      navigate(`/guilds/${guild.id}/channels/${channelId}?highlight=${messageId}`);
-      props.onClose();
+    if (mode() === "dm") {
+      navigate(`/home/dm/${channelId}?highlight=${messageId}`);
+    } else {
+      const guild = getActiveGuild();
+      if (guild) {
+        navigate(`/guilds/${guild.id}/channels/${channelId}?highlight=${messageId}`);
+      }
     }
-  };
-
-  // Escape HTML to prevent XSS
-  const escapeHtml = (text: string): string => {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    props.onClose();
   };
 
   // Escape regex special characters
@@ -64,35 +92,41 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   };
 
-  // Highlight search terms in content (XSS-safe)
-  const highlightMatches = (content: string) => {
+  // Split content into segments: plain text and highlighted matches
+  const highlightParts = (content: string): { text: string; highlight: boolean }[] => {
     const query = searchState.query.toLowerCase();
-    if (!query) return escapeHtml(content);
+    if (!query) return [{ text: content, highlight: false }];
 
-    // First escape HTML in content
-    const safeContent = escapeHtml(content);
-
-    // Simple word-based highlighting (not using Postgres ts_headline)
     const words = query.split(/\s+/).filter(w => w.length >= 2);
-    let result = safeContent;
+    if (words.length === 0) return [{ text: content, highlight: false }];
 
-    for (const word of words) {
-      // Escape regex special characters in search word
-      const safeWord = escapeRegex(word);
-      const regex = new RegExp(`(${safeWord})`, "gi");
-      result = result.replace(regex, '<mark class="bg-accent-primary/30 text-text-primary rounded px-0.5">$1</mark>');
+    const pattern = words.map(escapeRegex).join("|");
+    const regex = new RegExp(`(${pattern})`, "gi");
+
+    const parts: { text: string; highlight: boolean }[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ text: content.slice(lastIndex, match.index), highlight: false });
+      }
+      parts.push({ text: match[0], highlight: true });
+      lastIndex = regex.lastIndex;
     }
 
-    return result;
+    if (lastIndex < content.length) {
+      parts.push({ text: content.slice(lastIndex), highlight: false });
+    }
+
+    return parts.length > 0 ? parts : [{ text: content, highlight: false }];
   };
 
   // Cleanup on unmount
-  createEffect(() => {
-    return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-    };
+  onCleanup(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
   });
 
   return (
@@ -103,7 +137,7 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
           <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary" />
           <input
             type="text"
-            placeholder="Search messages..."
+            placeholder={mode() === "dm" ? "Search DMs..." : "Search messages..."}
             value={inputValue()}
             onInput={handleInput}
             autofocus
@@ -111,12 +145,84 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
           />
         </div>
         <button
+          onClick={() => setShowFilters(!showFilters())}
+          class="ml-2 p-1.5 rounded transition-colors"
+          classList={{
+            "text-accent-primary bg-accent-primary/10": showFilters(),
+            "text-text-secondary hover:text-text-primary": !showFilters(),
+          }}
+          title="Toggle filters"
+        >
+          <Filter class="w-4 h-4" />
+        </button>
+        <button
           onClick={props.onClose}
-          class="ml-3 p-1.5 text-text-secondary hover:text-text-primary rounded transition-colors"
+          class="ml-1 p-1.5 text-text-secondary hover:text-text-primary rounded transition-colors"
         >
           <X class="w-4 h-4" />
         </button>
       </div>
+
+      {/* Filters Panel */}
+      <Show when={showFilters()}>
+        <div class="px-3 py-2 border-b border-white/10 space-y-2">
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <label class="text-xs text-text-secondary block mb-1">From date</label>
+              <input
+                type="date"
+                value={dateFrom()}
+                onInput={(e) => { setDateFrom(e.currentTarget.value); triggerSearch(); }}
+                class="w-full px-2 py-1 rounded text-xs text-text-primary bg-surface-layer1 border border-white/10 outline-none"
+              />
+            </div>
+            <div class="flex-1">
+              <label class="text-xs text-text-secondary block mb-1">To date</label>
+              <input
+                type="date"
+                value={dateTo()}
+                onInput={(e) => { setDateTo(e.currentTarget.value); triggerSearch(); }}
+                class="w-full px-2 py-1 rounded text-xs text-text-primary bg-surface-layer1 border border-white/10 outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-text-secondary block mb-1">Author ID</label>
+            <input
+              type="text"
+              placeholder="User ID"
+              value={authorFilter()}
+              onInput={(e) => { setAuthorFilter(e.currentTarget.value); triggerSearch(); }}
+              class="w-full px-2 py-1 rounded text-xs text-text-primary placeholder:text-text-secondary/50 bg-surface-layer1 border border-white/10 outline-none"
+            />
+          </div>
+          <div class="flex gap-2">
+            <button
+              onClick={() => { setHasFilter(hasFilter() === "link" ? "" : "link"); triggerSearch(); }}
+              class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+              classList={{
+                "bg-accent-primary/20 text-accent-primary": hasFilter() === "link",
+                "bg-surface-layer1 text-text-secondary hover:text-text-primary": hasFilter() !== "link",
+              }}
+            >
+              <Link class="w-3 h-3" />
+              Has link
+            </button>
+            <button
+              onClick={() => { setHasFilter(hasFilter() === "file" ? "" : "file"); triggerSearch(); }}
+              class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+              classList={{
+                "bg-accent-primary/20 text-accent-primary": hasFilter() === "file",
+                "bg-surface-layer1 text-text-secondary hover:text-text-primary": hasFilter() !== "file",
+              }}
+            >
+              <Paperclip class="w-3 h-3" />
+              Has file
+            </button>
+          </div>
+        </div>
+      </Show>
+
       <Show when={searchState.total > 0}>
         <span class="ml-3 text-xs text-text-secondary">
           {searchState.total} result{searchState.total !== 1 ? "s" : ""}
@@ -187,10 +293,14 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
                   </div>
 
                   {/* Content Preview */}
-                  <p
-                    class="text-sm text-text-secondary line-clamp-2"
-                    innerHTML={highlightMatches(result.content.substring(0, 200))}
-                  />
+                  <p class="text-sm text-text-secondary line-clamp-2">
+                    <For each={highlightParts(result.content.substring(0, 200))}>
+                      {(part) => part.highlight
+                        ? <mark class="bg-accent-primary/30 text-text-primary rounded px-0.5">{part.text}</mark>
+                        : <>{part.text}</>
+                      }
+                    </For>
+                  </p>
                 </button>
               )}
             </For>

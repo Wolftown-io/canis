@@ -259,6 +259,14 @@ export interface SearchResponse {
   offset: number;
 }
 
+export interface SearchFilters {
+  date_from?: string;
+  date_to?: string;
+  channel_id?: string;
+  author_id?: string;
+  has?: "link" | "file";
+}
+
 // Voice Types
 
 export interface VoiceParticipant {

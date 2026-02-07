@@ -27,6 +27,8 @@ pub enum RateLimitCategory {
     FailedAuth,
     /// Voice channel join attempts
     VoiceJoin,
+    /// Search operations
+    Search,
 }
 
 impl RateLimitCategory {
@@ -44,6 +46,7 @@ impl RateLimitCategory {
             Self::WsMessage => "ws_message",
             Self::FailedAuth => "failed_auth",
             Self::VoiceJoin => "voice_join",
+            Self::Search => "search",
         }
     }
 
@@ -60,6 +63,7 @@ impl RateLimitCategory {
             Self::WsConnect,
             Self::WsMessage,
             Self::VoiceJoin,
+            Self::Search,
         ]
     }
 }

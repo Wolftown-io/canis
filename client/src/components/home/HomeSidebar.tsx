@@ -5,10 +5,12 @@ import DMItem from "./DMItem";
 import NewMessageModal from "./NewMessageModal";
 import UserPanel from "@/components/layout/UserPanel";
 import AddFriend from "@/components/social/AddFriend";
+import SearchPanel from "@/components/search/SearchPanel";
 
 const HomeSidebar: Component = () => {
   const [showNewMessage, setShowNewMessage] = createSignal(false);
   const [showAddFriendModal, setShowAddFriendModal] = createSignal(false);
+  const [showDMSearch, setShowDMSearch] = createSignal(false);
   const [showDMs, setShowDMs] = createSignal(true);
 
   onMount(() => {
@@ -26,14 +28,15 @@ const HomeSidebar: Component = () => {
 
   return (
     <aside class="w-[240px] flex flex-col bg-surface-layer2 border-r border-white/10 h-full z-10">
-      {/* Search Bar - Consistent with Guild Sidebar */}
+      {/* Search Bar - Opens DM Search Panel */}
       <div class="px-3 py-2 mt-2">
-        <input
-          type="text"
-          placeholder="Find conversation..."
-          class="w-full px-3 py-2 rounded-xl text-sm text-text-input placeholder:text-text-secondary/50 outline-none focus:ring-2 focus:ring-accent-primary/30 border border-white/5"
+        <button
+          onClick={() => setShowDMSearch(true)}
+          class="w-full px-3 py-2 rounded-xl text-sm text-text-secondary/50 text-left outline-none border border-white/5"
           style="background-color: var(--color-surface-base)"
-        />
+        >
+          Find conversation...
+        </button>
       </div>
 
       {/* Separator */}
@@ -142,6 +145,11 @@ const HomeSidebar: Component = () => {
       {/* Add Friend Modal */}
       <Show when={showAddFriendModal()}>
         <AddFriend onClose={() => setShowAddFriendModal(false)} />
+      </Show>
+
+      {/* DM Search Panel */}
+      <Show when={showDMSearch()}>
+        <SearchPanel mode="dm" onClose={() => setShowDMSearch(false)} />
       </Show>
     </aside>
   );

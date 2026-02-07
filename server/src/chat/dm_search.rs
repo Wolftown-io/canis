@@ -1,8 +1,8 @@
-//! Guild Message Search Handler
+//! DM Message Search Handler
 //!
-//! Full-text search for messages within a guild using `PostgreSQL`.tsvector.
+//! Full-text search for messages within a user's DM channels.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::api::AppState;
 use crate::auth::AuthUser;
+use crate::chat::dm;
 use crate::db;
 
 // ============================================================================
@@ -19,24 +20,14 @@ use crate::db;
 // ============================================================================
 
 #[derive(Debug)]
-pub enum SearchError {
-    GuildNotFound,
-    NotMember,
+pub enum DmSearchError {
     InvalidQuery(String),
     Database(sqlx::Error),
 }
 
-impl IntoResponse for SearchError {
+impl IntoResponse for DmSearchError {
     fn into_response(self) -> Response {
         let (status, body) = match &self {
-            Self::GuildNotFound => (
-                StatusCode::NOT_FOUND,
-                serde_json::json!({"error": "NOT_FOUND", "message": "Guild not found"}),
-            ),
-            Self::NotMember => (
-                StatusCode::FORBIDDEN,
-                serde_json::json!({"error": "FORBIDDEN", "message": "Not a member of this guild"}),
-            ),
             Self::InvalidQuery(msg) => (
                 StatusCode::BAD_REQUEST,
                 serde_json::json!({"error": "INVALID_QUERY", "message": msg}),
@@ -50,9 +41,9 @@ impl IntoResponse for SearchError {
     }
 }
 
-impl From<sqlx::Error> for SearchError {
+impl From<sqlx::Error> for DmSearchError {
     fn from(err: sqlx::Error) -> Self {
-        tracing::error!(error = %err, "Search database error");
+        tracing::error!(error = %err, "DM search database error");
         Self::Database(err)
     }
 }
@@ -62,7 +53,7 @@ impl From<sqlx::Error> for SearchError {
 // ============================================================================
 
 #[derive(Debug, Deserialize)]
-pub struct SearchQuery {
+pub struct DmSearchQuery {
     /// Search query string (supports websearch syntax: AND, OR, quotes)
     pub q: String,
     /// Maximum results to return (default 25, max 100)
@@ -75,7 +66,7 @@ pub struct SearchQuery {
     pub date_from: Option<DateTime<Utc>>,
     /// Filter: only messages before this date (ISO 8601)
     pub date_to: Option<DateTime<Utc>>,
-    /// Filter: only messages in this channel
+    /// Filter: only messages in this DM channel
     pub channel_id: Option<Uuid>,
     /// Filter: only messages by this author
     pub author_id: Option<Uuid>,
@@ -87,30 +78,30 @@ const fn default_limit() -> i64 {
     25
 }
 
-/// Author info for search results
+/// Author info for search results.
 #[derive(Debug, Serialize)]
-pub struct SearchAuthor {
+pub struct DmSearchAuthor {
     pub id: Uuid,
     pub username: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
 }
 
-/// Search result item
+/// DM search result item.
 #[derive(Debug, Serialize)]
-pub struct SearchResult {
+pub struct DmSearchResult {
     pub id: Uuid,
     pub channel_id: Uuid,
     pub channel_name: String,
-    pub author: SearchAuthor,
+    pub author: DmSearchAuthor,
     pub content: String,
     pub created_at: DateTime<Utc>,
 }
 
-/// Search response with results and pagination
+/// DM search response with results and pagination.
 #[derive(Debug, Serialize)]
-pub struct SearchResponse {
-    pub results: Vec<SearchResult>,
+pub struct DmSearchResponse {
+    pub results: Vec<DmSearchResult>,
     pub total: i64,
     pub limit: i64,
     pub offset: i64,
@@ -120,24 +111,23 @@ pub struct SearchResponse {
 // Handler
 // ============================================================================
 
-/// Search messages within a guild.
-/// GET `/api/guilds/:guild_id/search?q=...`
+/// Search messages within a user's DM channels.
+/// GET `/api/dm/search?q=...`
 #[tracing::instrument(skip(state))]
-pub async fn search_messages(
+pub async fn search_dm_messages(
     State(state): State<AppState>,
     auth: AuthUser,
-    Path(guild_id): Path<Uuid>,
-    Query(query): Query<SearchQuery>,
-) -> Result<Json<SearchResponse>, SearchError> {
+    Query(query): Query<DmSearchQuery>,
+) -> Result<Json<DmSearchResponse>, DmSearchError> {
     // Validate query
     let search_term = query.q.trim();
     if search_term.is_empty() {
-        return Err(SearchError::InvalidQuery(
+        return Err(DmSearchError::InvalidQuery(
             "Search query cannot be empty".to_string(),
         ));
     }
     if search_term.len() < 2 {
-        return Err(SearchError::InvalidQuery(
+        return Err(DmSearchError::InvalidQuery(
             "Search query must be at least 2 characters".to_string(),
         ));
     }
@@ -145,7 +135,7 @@ pub async fn search_messages(
     // Validate date range
     if let (Some(from), Some(to)) = (query.date_from, query.date_to) {
         if from > to {
-            return Err(SearchError::InvalidQuery(
+            return Err(DmSearchError::InvalidQuery(
                 "date_from must be before date_to".to_string(),
             ));
         }
@@ -154,53 +144,29 @@ pub async fn search_messages(
     // Validate has filter
     if let Some(ref has) = query.has {
         if has != "link" && has != "file" {
-            return Err(SearchError::InvalidQuery(
+            return Err(DmSearchError::InvalidQuery(
                 "has must be \"link\" or \"file\"".to_string(),
             ));
         }
     }
 
-    // Check guild exists
-    let guild_exists: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM guilds WHERE id = $1)")
-        .bind(guild_id)
-        .fetch_one(&state.db)
-        .await?;
-    if !guild_exists.0 {
-        return Err(SearchError::GuildNotFound);
-    }
+    // Get all DM channels for this user
+    let dm_channels = dm::list_user_dms(&state.db, auth.id).await?;
 
-    // Check user is a member of the guild
-    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
-    if !is_member {
-        return Err(SearchError::NotMember);
-    }
-
-    // Get all channel IDs in this guild and filter by VIEW_CHANNEL permission
-    let guild_channels = db::get_guild_channels(&state.db, guild_id).await?;
-
-    // Filter channels by VIEW_CHANNEL permission
-    let mut accessible_channel_ids: Vec<Uuid> = Vec::new();
-    for channel in &guild_channels {
-        if crate::permissions::require_channel_access(&state.db, auth.id, channel.id)
-            .await
-            .is_ok()
-        {
-            accessible_channel_ids.push(channel.id);
-        }
-    }
+    let mut dm_channel_ids: Vec<Uuid> = dm_channels.iter().map(|c| c.id).collect();
 
     // If channel_id filter is provided, restrict to that channel (or empty if not accessible)
     if let Some(filter_channel_id) = query.channel_id {
-        if accessible_channel_ids.contains(&filter_channel_id) {
-            accessible_channel_ids = vec![filter_channel_id];
+        if dm_channel_ids.contains(&filter_channel_id) {
+            dm_channel_ids = vec![filter_channel_id];
         } else {
-            accessible_channel_ids.clear();
+            dm_channel_ids.clear();
         }
     }
 
-    // If no channels, return empty results
-    if accessible_channel_ids.is_empty() {
-        return Ok(Json(SearchResponse {
+    // If no DM channels, return empty results
+    if dm_channel_ids.is_empty() {
+        return Ok(Json(DmSearchResponse {
             results: vec![],
             total: 0,
             limit: query.limit,
@@ -221,19 +187,15 @@ pub async fn search_messages(
     let limit = query.limit.clamp(1, 100);
     let offset = query.offset.max(0);
 
-    // Get total count (filtered by accessible channels)
-    let total = db::count_search_messages_filtered(
-        &state.db,
-        &accessible_channel_ids,
-        search_term,
-        &filters,
-    )
-    .await?;
+    // Get total count
+    let total =
+        db::count_search_messages_filtered(&state.db, &dm_channel_ids, search_term, &filters)
+            .await?;
 
-    // Search messages (filtered by accessible channels)
+    // Search messages
     let messages = db::search_messages_filtered(
         &state.db,
-        &accessible_channel_ids,
+        &dm_channel_ids,
         search_term,
         &filters,
         limit,
@@ -259,18 +221,18 @@ pub async fn search_messages(
     let channel_map: std::collections::HashMap<Uuid, String> = channels.into_iter().collect();
 
     // Build results
-    let results: Vec<SearchResult> = messages
+    let results: Vec<DmSearchResult> = messages
         .into_iter()
         .map(|msg| {
             let author = user_map
                 .get(&msg.user_id)
-                .map(|u| SearchAuthor {
+                .map(|u| DmSearchAuthor {
                     id: u.id,
                     username: u.username.clone(),
                     display_name: u.display_name.clone(),
                     avatar_url: u.avatar_url.clone(),
                 })
-                .unwrap_or_else(|| SearchAuthor {
+                .unwrap_or_else(|| DmSearchAuthor {
                     id: msg.user_id,
                     username: "deleted".to_string(),
                     display_name: "Deleted User".to_string(),
@@ -282,7 +244,7 @@ pub async fn search_messages(
                 .cloned()
                 .unwrap_or_else(|| "unknown".to_string());
 
-            SearchResult {
+            DmSearchResult {
                 id: msg.id,
                 channel_id: msg.channel_id,
                 channel_name,
@@ -293,7 +255,7 @@ pub async fn search_messages(
         })
         .collect();
 
-    Ok(Json(SearchResponse {
+    Ok(Json(DmSearchResponse {
         results,
         total,
         limit,

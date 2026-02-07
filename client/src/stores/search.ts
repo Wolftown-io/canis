@@ -2,11 +2,12 @@
  * Search Store
  *
  * Manages message search state including results, loading, and pagination.
+ * Supports both guild and DM search contexts.
  */
 
 import { createStore } from "solid-js/store";
-import type { SearchResult } from "@/lib/types";
-import { searchGuildMessages } from "@/lib/tauri";
+import type { SearchResult, SearchFilters } from "@/lib/types";
+import { searchGuildMessages, searchDMMessages } from "@/lib/tauri";
 
 // ============================================================================
 // Types
@@ -27,8 +28,12 @@ interface SearchState {
   isSearching: boolean;
   /** Error message if search failed */
   error: string | null;
-  /** Guild ID being searched */
+  /** Guild ID being searched (for guild context) */
   guildId: string | null;
+  /** Search context: guild or dm */
+  context: "guild" | "dm";
+  /** Active search filters */
+  filters: SearchFilters;
 }
 
 // ============================================================================
@@ -44,6 +49,8 @@ const [searchState, setSearchState] = createStore<SearchState>({
   isSearching: false,
   error: null,
   guildId: null,
+  context: "guild",
+  filters: {},
 });
 
 // ============================================================================
@@ -53,7 +60,11 @@ const [searchState, setSearchState] = createStore<SearchState>({
 /**
  * Search messages in a guild.
  */
-export async function search(guildId: string, query: string): Promise<void> {
+export async function search(
+  guildId: string,
+  query: string,
+  filters: SearchFilters = {}
+): Promise<void> {
   // Skip if query is too short
   if (query.trim().length < 2) {
     setSearchState({
@@ -64,6 +75,8 @@ export async function search(guildId: string, query: string): Promise<void> {
       error: null,
       isSearching: false,
       guildId,
+      context: "guild",
+      filters,
     });
     return;
   }
@@ -73,7 +86,9 @@ export async function search(guildId: string, query: string): Promise<void> {
     isSearching: true,
     error: null,
     guildId,
+    context: "guild",
     offset: 0,
+    filters,
   });
 
   try {
@@ -81,7 +96,8 @@ export async function search(guildId: string, query: string): Promise<void> {
       guildId,
       query.trim(),
       searchState.limit,
-      0
+      0,
+      filters
     );
 
     setSearchState({
@@ -102,10 +118,68 @@ export async function search(guildId: string, query: string): Promise<void> {
 }
 
 /**
+ * Search messages in DM channels.
+ */
+export async function searchDMs(
+  query: string,
+  filters: SearchFilters = {}
+): Promise<void> {
+  // Skip if query is too short
+  if (query.trim().length < 2) {
+    setSearchState({
+      query: query.trim(),
+      results: [],
+      total: 0,
+      offset: 0,
+      error: null,
+      isSearching: false,
+      guildId: null,
+      context: "dm",
+      filters,
+    });
+    return;
+  }
+
+  setSearchState({
+    query: query.trim(),
+    isSearching: true,
+    error: null,
+    guildId: null,
+    context: "dm",
+    offset: 0,
+    filters,
+  });
+
+  try {
+    const response = await searchDMMessages(
+      query.trim(),
+      searchState.limit,
+      0,
+      filters
+    );
+
+    setSearchState({
+      results: response.results,
+      total: response.total,
+      offset: 0,
+      isSearching: false,
+    });
+  } catch (err) {
+    console.error("DM search failed:", err);
+    setSearchState({
+      results: [],
+      total: 0,
+      error: err instanceof Error ? err.message : "Search failed",
+      isSearching: false,
+    });
+  }
+}
+
+/**
  * Load more results (pagination).
  */
 export async function loadMore(): Promise<void> {
-  if (!searchState.guildId || !searchState.query || searchState.isSearching) {
+  if (!searchState.query || searchState.isSearching) {
     return;
   }
 
@@ -119,12 +193,23 @@ export async function loadMore(): Promise<void> {
   setSearchState({ isSearching: true, error: null });
 
   try {
-    const response = await searchGuildMessages(
-      searchState.guildId,
-      searchState.query,
-      searchState.limit,
-      newOffset
-    );
+    let response;
+    if (searchState.context === "guild" && searchState.guildId) {
+      response = await searchGuildMessages(
+        searchState.guildId,
+        searchState.query,
+        searchState.limit,
+        newOffset,
+        searchState.filters
+      );
+    } else {
+      response = await searchDMMessages(
+        searchState.query,
+        searchState.limit,
+        newOffset,
+        searchState.filters
+      );
+    }
 
     setSearchState({
       results: [...searchState.results, ...response.results],
@@ -153,6 +238,8 @@ export function clearSearch(): void {
     error: null,
     isSearching: false,
     guildId: null,
+    context: "guild",
+    filters: {},
   });
 }
 
