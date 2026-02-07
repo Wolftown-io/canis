@@ -90,7 +90,7 @@ async fn insert_encrypted_message(
     let msg_id = Uuid::now_v7();
 
     sqlx::query(
-        "INSERT INTO messages (id, channel_id, user_id, content, encrypted) VALUES ($1, $2, $3, $4, true)",
+        "INSERT INTO messages (id, channel_id, user_id, content, encrypted, nonce) VALUES ($1, $2, $3, $4, true, 'dGVzdF9ub25jZQ==')",
     )
     .bind(msg_id)
     .bind(channel_id)

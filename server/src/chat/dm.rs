@@ -84,7 +84,7 @@ pub async fn get_or_create_dm(
     // Check for existing DM between these two users
     let existing = sqlx::query_as::<_, Channel>(
         r"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
-                  c.topic, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
+                  c.topic, c.icon_url, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
            FROM channels c
            JOIN dm_participants p1 ON c.id = p1.channel_id AND p1.user_id = $1
            JOIN dm_participants p2 ON c.id = p2.channel_id AND p2.user_id = $2
@@ -122,7 +122,7 @@ pub async fn get_or_create_dm(
     let channel = sqlx::query_as::<_, Channel>(
         r"INSERT INTO channels (id, name, channel_type, guild_id, position)
            VALUES ($1, $2, 'dm', NULL, 0)
-           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, max_screen_shares, created_at, updated_at",
+           RETURNING id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at",
     )
     .bind(channel_id)
     .bind(&dm_name)
@@ -185,7 +185,7 @@ pub async fn create_group_dm(
     let channel = sqlx::query_as::<_, Channel>(
         r"INSERT INTO channels (id, name, channel_type, guild_id, position)
            VALUES ($1, $2, 'dm', NULL, 0)
-           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, max_screen_shares, created_at, updated_at",
+           RETURNING id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at",
     )
     .bind(channel_id)
     .bind(&channel_name)
@@ -244,7 +244,7 @@ pub async fn get_dm_participants(
 pub async fn list_user_dms(pool: &sqlx::PgPool, user_id: Uuid) -> sqlx::Result<Vec<Channel>> {
     let channels = sqlx::query_as::<_, Channel>(
         r"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
-                  c.topic, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
+                  c.topic, c.icon_url, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
            FROM channels c
            JOIN dm_participants dp ON c.id = dp.channel_id
            WHERE dp.user_id = $1 AND c.channel_type = 'dm'
