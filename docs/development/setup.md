@@ -214,4 +214,5 @@ See [File Uploads Development Guide](file-uploads.md) for details.
 - [Project Specification](../project/specification.md)
 - [Architecture Documentation](../architecture/overview.md)
 - [Standards & Protocols](standards.md)
+- [CI Pipeline](ci.md)
 - [File Uploads Development Guide](file-uploads.md)

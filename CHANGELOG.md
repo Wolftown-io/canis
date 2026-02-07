@@ -73,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Drops messages far from viewport, re-fetches on scroll back
 
 ### Fixed
+- CI pipeline failures: disk space exhaustion in security test, Docker build for shared crate structure, and Tauri bundling missing icon
 - Voice island visibility and contrast issues (#151)
   - Disconnect button now uses higher contrast background and white icon for better visibility
   - Drag handle opacity increased from 40% to 60%
