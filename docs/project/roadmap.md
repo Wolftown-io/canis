@@ -348,31 +348,33 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Phase 5: Ecosystem & SaaS Readiness
 *Goal: Open the platform to developers and prepare for massive scale.*
 
-- [ ] **[Infra] CI Pipeline Hardening & Green Build** `Priority: High`
-  - **Context:** CI was broken across multiple jobs after cargo-deny, bun, and rustfmt drifted from the pipeline config. Partially fixed in 2026-02-02 session.
-  - **Status as of 2026-02-02:**
-    - ✅ **Rust Lint (fmt):** Passing — ran `cargo fmt --all` across workspace
-    - ✅ **Frontend:** Passing — replaced missing ESLint config with `tsc --noEmit`, fixed test/setup.ts types
-    - ✅ **License Compliance:** Passing — updated deny.toml for cargo-deny v0.18+ (removed deprecated fields, added Unicode-3.0/0BSD/CDLA-Permissive-2.0/OpenSSL licenses, ignored RUSTSEC-2025-0008 and RUSTSEC-2023-0071)
-    - ✅ **Secrets Scan:** Passing
-    - ⏳ **Rust Lint (clippy):** Untested in latest run (still compiling when session ended)
-    - ⏳ **Rust Tests:** Untested in latest run (still compiling when session ended)
-    - ✅ **Config::default_for_test()** now respects DATABASE_URL/REDIS_URL env vars for CI
-    - ✅ **sqlx-cli** + migrations added to CI, `SQLX_OFFLINE=true` for clippy
-    - ✅ **`--workspace --exclude vc-client`** on test/clippy to avoid GTK/glib deps
-  - **Remaining work:**
-    - Verify clippy and test jobs pass (were still compiling)
-    - Set up proper ESLint config for frontend (currently bypassed with tsc --noEmit)
-    - Fix RUSTSEC-2025-0008 by upgrading openh264-sys2 to >=0.8.0
-    - Monitor RUSTSEC-2023-0071 (rsa crate Marvin Attack) for upstream fix
-    - Consider pinning cargo-deny version to avoid future config drift
+- [x] **[Infra] CI Pipeline Hardening & Green Build** ✅
+  - All CI jobs passing: Rust Lint (fmt + clippy), Rust Tests, Frontend, License Compliance, Secrets Scan, Docker Build, Tauri (Ubuntu + macOS).
+  - Moved `@everyone` security test into `rust-test` job (was exhausting disk space in standalone Docker build).
+  - Fixed Dockerfile shared crate paths and bumped Rust image to 1.88 for edition2024 support.
+  - Added `icon.ico` to repo for Tauri deb bundling.
+  - Added CI pipeline documentation at `docs/development/ci.md`.
+  - **Known limitation:** Windows Tauri build fails (`libvpx` not available via choco), marked `continue-on-error: true`.
 - [ ] **[Storage] SaaS Scaling Architecture**
   - Transition from Proxy Method to Signed URLs/Cookies.
   - CDN Integration with CloudFront/Cloudflare.
-- [ ] **[API] Bot Ecosystem**
-  - Add `is_bot` user flag.
-  - Create Gateway WebSocket for bot events.
-  - Implement Slash Commands structure.
+- [ ] **[API] Bot Ecosystem** ⏳ ~85% Complete
+  - ✅ Database schema (bot_applications, slash_commands, guild_bot_installations, users.is_bot)
+  - ✅ Bot application management API (create, list, get, delete, token reset)
+  - ✅ Secure bot token auth (Argon2id, indexed O(1) lookup, TOCTOU protection)
+  - ✅ Slash command registration API (guild-scoped + global, bulk registration)
+  - ✅ Bot Gateway WebSocket (`/api/gateway/bot`) with Redis pub/sub event system
+  - ✅ Command invocation routing with ambiguity detection
+  - ✅ Bot message sending with channel membership authorization
+  - ✅ Command response handling with Redis storage and 5-minute TTL
+  - ✅ Guild bot installation API with permission checks
+  - ✅ Frontend: Bot applications management UI in settings
+  - ✅ Frontend: API client library for all bot operations
+  - ✅ 14 comprehensive integration tests
+  - **Remaining:**
+    - [ ] Frontend: Command management page (`/settings/bots/{app_id}/commands` — link exists, page not built)
+    - [ ] Frontend: Guild bot installation UI in guild settings
+    - [ ] Developer documentation / bot API guide
 - [ ] **[Voice] Multi-Stream Support**
   - Simultaneous Webcam and Screen Sharing.
   - Implement Simulcast (quality tiers) for bandwidth management.
