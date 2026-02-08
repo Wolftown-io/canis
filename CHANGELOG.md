@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Native webcam capture pipeline for Tauri desktop client using `nokhwa` (camera enumeration, RGB→I420 conversion, VP9 encoding, RTP sending)
 - Webcam video support in voice channels with camera toggle button
 - Simultaneous webcam and screen sharing (multi-stream)
 - Dynamic track add/remove with SFU renegotiation mid-session

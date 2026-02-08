@@ -41,6 +41,7 @@ pub struct QualityParams {
 }
 
 impl QualityParams {
+    /// Quality tiers for screen sharing.
     pub fn from_tier(tier: &str) -> Result<Self, String> {
         match tier {
             "low" => Ok(Self {
@@ -68,6 +69,37 @@ impl QualityParams {
                 bitrate_kbps: 5000,
             }),
             _ => Err(format!("Unknown quality tier: {tier}")),
+        }
+    }
+
+    /// Quality tiers for webcam capture (lower bitrates than screen sharing).
+    pub fn from_webcam_tier(tier: &str) -> Result<Self, String> {
+        match tier {
+            "low" => Ok(Self {
+                width: 320,
+                height: 240,
+                fps: 15,
+                bitrate_kbps: 200,
+            }),
+            "medium" => Ok(Self {
+                width: 640,
+                height: 480,
+                fps: 30,
+                bitrate_kbps: 500,
+            }),
+            "high" => Ok(Self {
+                width: 1280,
+                height: 720,
+                fps: 30,
+                bitrate_kbps: 1000,
+            }),
+            "premium" => Ok(Self {
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                bitrate_kbps: 2000,
+            }),
+            _ => Err(format!("Unknown webcam quality tier: {tier}")),
         }
     }
 }
@@ -100,5 +132,32 @@ mod tests {
         assert!(QualityParams::from_tier("ultra").is_err());
         assert!(QualityParams::from_tier("").is_err());
         assert!(QualityParams::from_tier("Medium").is_err());
+    }
+
+    #[test]
+    fn from_webcam_tier_valid_tiers() {
+        let low = QualityParams::from_webcam_tier("low").unwrap();
+        assert_eq!(low.width, 320);
+        assert_eq!(low.height, 240);
+        assert_eq!(low.fps, 15);
+        assert_eq!(low.bitrate_kbps, 200);
+
+        let medium = QualityParams::from_webcam_tier("medium").unwrap();
+        assert_eq!(medium.width, 640);
+        assert_eq!(medium.fps, 30);
+
+        let high = QualityParams::from_webcam_tier("high").unwrap();
+        assert_eq!(high.width, 1280);
+        assert_eq!(high.bitrate_kbps, 1000);
+
+        let premium = QualityParams::from_webcam_tier("premium").unwrap();
+        assert_eq!(premium.width, 1920);
+        assert_eq!(premium.bitrate_kbps, 2000);
+    }
+
+    #[test]
+    fn from_webcam_tier_invalid_returns_error() {
+        assert!(QualityParams::from_webcam_tier("ultra").is_err());
+        assert!(QualityParams::from_webcam_tier("").is_err());
     }
 }

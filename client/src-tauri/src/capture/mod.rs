@@ -1,11 +1,12 @@
-//! Screen Capture Module
+//! Capture Module
 //!
-//! Native screen capture for Tauri desktop using `scap`.
-//! Provides source enumeration, frame capture, and BGRA→I420 conversion.
+//! Native screen capture (`scap`) and webcam capture (`nokhwa`).
+//! Provides source enumeration, frame capture, and color space conversion to I420.
 
 pub mod capturer;
 pub mod convert;
 pub mod source;
+pub mod webcam;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

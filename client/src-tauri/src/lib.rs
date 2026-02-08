@@ -16,6 +16,7 @@ use std::sync::Arc;
 use audio::AudioHandle;
 use commands::clipboard::ClipboardGuard;
 use commands::screen_share::ScreenSharePipeline;
+use commands::webcam::WebcamPipeline;
 use network::WebSocketManager;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
@@ -84,6 +85,10 @@ pub fn run() {
             commands::screen_share::start_screen_share,
             commands::screen_share::stop_screen_share,
             commands::screen_share::get_screen_share_status,
+            // Webcam commands
+            commands::webcam::start_webcam,
+            commands::webcam::stop_webcam,
+            commands::webcam::enumerate_webcam_devices_cmd,
             // Settings commands
             commands::settings::get_settings,
             commands::settings::update_settings,
@@ -239,6 +244,8 @@ pub struct VoiceState {
     pub audio_tx: Option<mpsc::Sender<Vec<u8>>>,
     /// Active screen share pipeline, if any.
     pub screen_share: Option<ScreenSharePipeline>,
+    /// Active webcam pipeline, if any.
+    pub webcam: Option<WebcamPipeline>,
 }
 
 impl VoiceState {
@@ -251,6 +258,7 @@ impl VoiceState {
             channel_id: None,
             audio_tx: None,
             screen_share: None,
+            webcam: None,
         })
     }
 }

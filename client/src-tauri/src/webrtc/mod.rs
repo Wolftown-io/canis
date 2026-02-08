@@ -85,6 +85,10 @@ pub struct WebRtcClient {
     video_sender: Arc<RwLock<Option<Arc<RTCRtpSender>>>>,
     video_track: Arc<RwLock<Option<Arc<TrackLocalStaticRTP>>>>,
 
+    // Video track for webcam (separate from screen share, both can be active simultaneously)
+    webcam_sender: Arc<RwLock<Option<Arc<RTCRtpSender>>>>,
+    webcam_track: Arc<RwLock<Option<Arc<TrackLocalStaticRTP>>>>,
+
     // Callbacks
     on_ice_candidate: Arc<RwLock<Option<Box<dyn Fn(String) + Send + Sync>>>>,
     on_state_change: Arc<RwLock<Option<Box<dyn Fn(ConnectionState) + Send + Sync>>>>,
@@ -218,6 +222,8 @@ impl WebRtcClient {
             channel_id: Arc::new(RwLock::new(None)),
             video_sender: Arc::new(RwLock::new(None)),
             video_track: Arc::new(RwLock::new(None)),
+            webcam_sender: Arc::new(RwLock::new(None)),
+            webcam_track: Arc::new(RwLock::new(None)),
             on_ice_candidate: Arc::new(RwLock::new(None)),
             on_state_change: Arc::new(RwLock::new(None)),
             on_remote_track: Arc::new(RwLock::new(None)),
@@ -343,12 +349,32 @@ impl WebRtcClient {
             .await
             .map_err(|e| WebRtcError::TrackError(e.to_string()))?;
 
+        // Create webcam video track (separate from screen share, both can be active)
+        let webcam_track = Arc::new(TrackLocalStaticRTP::new(
+            RTCRtpCodecCapability {
+                mime_type: "video/VP9".to_string(),
+                clock_rate: 90000,
+                channels: 0,
+                sdp_fmtp_line: "profile-id=0".to_string(),
+                rtcp_feedback: vec![],
+            },
+            "webcam-video".to_string(),
+            "webcam-stream".to_string(),
+        ));
+
+        let webcam_sender = pc
+            .add_track(webcam_track.clone() as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .map_err(|e| WebRtcError::TrackError(e.to_string()))?;
+
         // Store references
         *self.peer_connection.write().await = Some(pc);
         *self.audio_sender.write().await = Some(sender);
         *self.local_track.write().await = Some(local_track);
         *self.video_sender.write().await = Some(video_sender);
         *self.video_track.write().await = Some(video_track);
+        *self.webcam_sender.write().await = Some(webcam_sender);
+        *self.webcam_track.write().await = Some(webcam_track);
 
         info!("WebRTC peer connection created for channel {}", channel_id);
         Ok(())
@@ -493,6 +519,11 @@ impl WebRtcClient {
         (*self.video_track.read().await).clone()
     }
 
+    /// Get the video track for webcam
+    pub async fn get_webcam_track(&self) -> Option<Arc<TrackLocalStaticRTP>> {
+        (*self.webcam_track.read().await).clone()
+    }
+
     /// Disconnect and clean up
     pub async fn disconnect(&self) -> Result<(), WebRtcError> {
         // Close peer connection
@@ -507,6 +538,8 @@ impl WebRtcClient {
         *self.local_track.write().await = None;
         *self.video_sender.write().await = None;
         *self.video_track.write().await = None;
+        *self.webcam_sender.write().await = None;
+        *self.webcam_track.write().await = None;
         *self.state.write().await = ConnectionState::Disconnected;
         *self.channel_id.write().await = None;
 
