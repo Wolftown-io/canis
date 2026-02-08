@@ -374,9 +374,12 @@ This roadmap outlines the development path from the current prototype to a produ
   - ✅ Frontend: Slash command management UI (register, view, delete commands with options)
   - ✅ Developer documentation / bot API guide (`docs/development/bot-system.md`)
   - ✅ Frontend: Guild bot management UI in guild settings (list, remove)
-- [ ] **[Voice] Multi-Stream Support**
-  - Simultaneous Webcam and Screen Sharing.
-  - Implement Simulcast (quality tiers) for bandwidth management.
+- [x] **[Voice] Multi-Stream Support**
+  - ✅ Simultaneous Webcam and Screen Sharing (browser).
+  - ✅ SFU renegotiation for dynamic track add/remove mid-session.
+  - ✅ Track source identification via pending source queue.
+  - [ ] Tauri native webcam capture (Rust-side `start_webcam`/`stop_webcam` commands).
+  - [ ] Implement Simulcast (quality tiers) for bandwidth management.
 - [ ] **[Voice] Evaluate str0m as WebRTC Alternative** `Priority: Low`
   - Current stack: webrtc-rs 0.11 (full-stack, owns I/O). Working, but project is stagnating.
   - Alternative: [str0m](https://github.com/algesten/str0m) — Sans-IO WebRTC library (pure Rust).
