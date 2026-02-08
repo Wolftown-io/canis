@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bot message sending with channel membership authorization
   - Command response handling with Redis storage and 5-minute TTL
   - Input validation for bot messages and command responses (1-4000 characters)
+  - Developer documentation for the bot system (`docs/development/bot-system.md`)
 
 ### Changed
 - Bot token format changed to "bot_user_id.secret" for indexed authentication (breaking change for existing bots)
