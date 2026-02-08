@@ -7,7 +7,7 @@
 import { createStore, produce } from "solid-js/store";
 import { createVoiceAdapter, getVoiceAdapter, type VoiceError, type ConnectionMetrics, type ParticipantMetrics, type QualityLevel } from "@/lib/webrtc";
 import type { ScreenShareInfo, ScreenShareQuality } from "@/lib/webrtc/types";
-import type { VoiceParticipant } from "@/lib/types";
+import type { VoiceParticipant, WebcamServerInfo } from "@/lib/types";
 import { channelsState } from "@/stores/channels";
 import * as tauri from "@/lib/tauri";
 import { showToast, dismissToast } from "@/components/ui/Toast";
@@ -66,6 +66,10 @@ interface VoiceStoreState {
   screenShareInfo: ScreenShareInfo | null;
   screenShares: ScreenShareInfo[]; // All active screen shares in channel
 
+  // Webcam
+  webcamActive: boolean;
+  webcams: WebcamServerInfo[]; // All active webcams in channel
+
   // Session tracking for metrics
   sessionId: string | null;
   connectedAt: number | null;
@@ -87,6 +91,8 @@ const [voiceState, setVoiceState] = createStore<VoiceStoreState>({
   screenSharing: false,
   screenShareInfo: null,
   screenShares: [],
+  webcamActive: false,
+  webcams: [],
   sessionId: null,
   connectedAt: null,
   localMetrics: null,
@@ -401,6 +407,18 @@ export async function joinVoice(channelId: string): Promise<void> {
       // Sync local state when screen share is stopped (e.g., via system UI)
       setVoiceState({ screenSharing: false });
     },
+    onWebcamTrack: (userId, track) => {
+      console.log("[Voice] Webcam track received:", userId);
+      import("@/stores/webcamViewer").then(({ addAvailableTrack }) => {
+        addAvailableTrack(userId, track);
+      });
+    },
+    onWebcamTrackRemoved: (userId) => {
+      console.log("[Voice] Webcam track removed:", userId);
+      import("@/stores/webcamViewer").then(({ removeAvailableTrack }) => {
+        removeAvailableTrack(userId);
+      });
+    },
   });
 
   const result = await adapter.join(channelId);
@@ -437,6 +455,9 @@ export async function leaveVoice(): Promise<void> {
     console.error("Failed to leave voice:", result.error);
   }
 
+  // Clear webcam viewer tracks
+  import("@/stores/webcamViewer").then(({ clearAll }) => clearAll());
+
   setVoiceState({
     state: "disconnected",
     channelId: null,
@@ -445,6 +466,8 @@ export async function leaveVoice(): Promise<void> {
     screenSharing: false,
     screenShareInfo: null,
     screenShares: [],
+    webcamActive: false,
+    webcams: [],
     sessionId: null,
     connectedAt: null,
     localMetrics: null,
@@ -609,6 +632,73 @@ export async function stopScreenShare(): Promise<void> {
     screenSharing: false,
     screenShareInfo: null,
   });
+}
+
+/**
+ * Start webcam.
+ *
+ * @param quality - Quality tier (low/medium/high/premium)
+ * @param deviceId - Camera device ID
+ */
+export async function startWebcam(
+  quality?: ScreenShareQuality,
+  deviceId?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (voiceState.state !== "connected" || !voiceState.channelId) {
+    return { ok: false, error: "Not connected to voice channel" };
+  }
+
+  if (voiceState.webcamActive) {
+    return { ok: false, error: "Webcam already active" };
+  }
+
+  const adapter = await createVoiceAdapter();
+
+  const result = await adapter.startWebcam({ quality, deviceId });
+
+  if (!result.ok) {
+    console.error("Failed to start webcam:", result.error);
+    return { ok: false, error: getErrorMessage(result.error) };
+  }
+
+  // Notify server about webcam start
+  try {
+    await tauri.wsWebcamStart(voiceState.channelId, quality || "medium");
+  } catch (err) {
+    console.error("Failed to notify server of webcam start:", err);
+    await adapter.stopWebcam();
+    return { ok: false, error: "Failed to notify server" };
+  }
+
+  setVoiceState({ webcamActive: true });
+  return { ok: true };
+}
+
+/**
+ * Stop webcam.
+ */
+export async function stopWebcam(): Promise<void> {
+  if (!voiceState.webcamActive) return;
+
+  const channelId = voiceState.channelId;
+
+  const adapter = await createVoiceAdapter();
+  const result = await adapter.stopWebcam();
+
+  if (!result.ok) {
+    console.error("Failed to stop webcam:", result.error);
+  }
+
+  // Notify server about webcam stop
+  if (channelId) {
+    try {
+      await tauri.wsWebcamStop(channelId);
+    } catch (err) {
+      console.error("Failed to notify server of webcam stop:", err);
+    }
+  }
+
+  setVoiceState({ webcamActive: false });
 }
 
 // Participant management

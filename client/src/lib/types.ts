@@ -276,6 +276,13 @@ export interface VoiceParticipant {
   muted: boolean;
   speaking: boolean;
   screen_sharing: boolean;
+  webcam_active?: boolean;
+}
+
+export interface WebcamServerInfo {
+  user_id: string;
+  username: string;
+  quality: "low" | "medium" | "high" | "premium";
 }
 
 export interface ScreenShareServerInfo {
@@ -324,6 +331,9 @@ export type ClientEvent =
   | { type: "voice_ice_candidate"; channel_id: string; candidate: string }
   | { type: "voice_mute"; channel_id: string }
   | { type: "voice_unmute"; channel_id: string }
+  // Webcam events
+  | { type: "voice_webcam_start"; channel_id: string; quality: string }
+  | { type: "voice_webcam_stop"; channel_id: string }
   // Admin events
   | { type: "admin_subscribe" }
   | { type: "admin_unsubscribe" };
@@ -357,6 +367,7 @@ export type ServerEvent =
     channel_id: string;
     participants: VoiceParticipant[];
     screen_shares?: ScreenShareServerInfo[];
+    webcams?: WebcamServerInfo[];
   }
   | { type: "voice_error"; code: string; message: string }
   // Screen share events
@@ -381,6 +392,20 @@ export type ServerEvent =
     channel_id: string;
     user_id: string;
     new_quality: "low" | "medium" | "high" | "premium";
+  }
+  // Webcam events
+  | {
+    type: "webcam_started";
+    channel_id: string;
+    user_id: string;
+    username: string;
+    quality: "low" | "medium" | "high" | "premium";
+  }
+  | {
+    type: "webcam_stopped";
+    channel_id: string;
+    user_id: string;
+    reason: string;
   }
   | { type: "error"; code: string; message: string }
   // Call events

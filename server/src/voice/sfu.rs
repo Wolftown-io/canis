@@ -27,6 +27,7 @@ use super::rate_limit::VoiceStatsLimiter;
 use super::screen_share::ScreenShareInfo;
 use super::track::{spawn_rtp_forwarder, TrackRouter};
 use super::track_types::TrackSource;
+use super::webcam::WebcamInfo;
 use crate::config::Config;
 use crate::ratelimit::{RateLimitCategory, RateLimiter};
 use crate::ws::ServerEvent;
@@ -50,6 +51,9 @@ pub struct ParticipantInfo {
     /// Whether the user is screen sharing.
     #[serde(default)]
     pub screen_sharing: bool,
+    /// Whether the user has their webcam active.
+    #[serde(default)]
+    pub webcam_active: bool,
 }
 
 /// Voice channel room with all participants.
@@ -64,6 +68,8 @@ pub struct Room {
     pub max_participants: usize,
     /// Active screen shares.
     pub screen_shares: RwLock<HashMap<Uuid, ScreenShareInfo>>,
+    /// Active webcams.
+    pub webcams: RwLock<HashMap<Uuid, WebcamInfo>>,
 }
 
 impl Room {
@@ -76,6 +82,7 @@ impl Room {
             track_router: Arc::new(TrackRouter::new()),
             max_participants,
             screen_shares: RwLock::new(HashMap::new()),
+            webcams: RwLock::new(HashMap::new()),
         }
     }
 
@@ -145,10 +152,29 @@ impl Room {
         shares.values().cloned().collect()
     }
 
+    /// Add a webcam session.
+    pub async fn add_webcam(&self, info: WebcamInfo) {
+        let mut webcams = self.webcams.write().await;
+        webcams.insert(info.user_id, info);
+    }
+
+    /// Remove a webcam session.
+    pub async fn remove_webcam(&self, user_id: Uuid) -> Option<WebcamInfo> {
+        let mut webcams = self.webcams.write().await;
+        webcams.remove(&user_id)
+    }
+
+    /// Get all active webcams.
+    pub async fn get_webcams(&self) -> Vec<WebcamInfo> {
+        let webcams = self.webcams.read().await;
+        webcams.values().cloned().collect()
+    }
+
     /// Get participant info for all peers.
     pub async fn get_participant_info(&self) -> Vec<ParticipantInfo> {
         let peers = self.peers.read().await;
         let shares = self.screen_shares.read().await;
+        let webcams = self.webcams.read().await;
         let mut info = Vec::with_capacity(peers.len());
 
         for (user_id, peer) in peers.iter() {
@@ -158,6 +184,7 @@ impl Room {
                 display_name: Some(peer.display_name.clone()),
                 muted: peer.is_muted().await,
                 screen_sharing: shares.contains_key(user_id),
+                webcam_active: webcams.contains_key(user_id),
             });
         }
 
@@ -534,45 +561,64 @@ impl SfuServer {
                         "Received track from peer"
                     );
 
-                    // Determine source type based on track kind
+                    // Upgrade weak references once — use for both source resolution and track setup
+                    let (peer, room) = match (pw.upgrade(), rw.upgrade()) {
+                        (Some(p), Some(r)) => (p, r),
+                        _ => return,
+                    };
+
+                    // Determine source type: check pending queue first, fall back to defaults
                     let source_type = match track.kind() {
-                        RTPCodecType::Audio => TrackSource::Microphone,
-                        RTPCodecType::Video => TrackSource::ScreenVideo,
+                        RTPCodecType::Audio => peer
+                            .pop_pending_audio_source()
+                            .await
+                            .unwrap_or(TrackSource::Microphone),
+                        RTPCodecType::Video => peer
+                            .pop_pending_video_source()
+                            .await
+                            .unwrap_or(TrackSource::ScreenVideo),
                         RTPCodecType::Unspecified => {
                             warn!("Unspecified track kind: {:?}", track.kind());
                             return;
                         }
                     };
 
-                    if let (Some(peer), Some(room)) = (pw.upgrade(), rw.upgrade()) {
-                        // Store incoming track
-                        peer.set_incoming_track(source_type, track.clone()).await;
+                    // Store incoming track
+                    peer.set_incoming_track(source_type, track.clone()).await;
 
-                        // Start RTP forwarder
-                        spawn_rtp_forwarder(
-                            uid,
-                            source_type,
-                            track.clone(),
-                            room.track_router.clone(),
-                        );
+                    // Start RTP forwarder
+                    spawn_rtp_forwarder(
+                        uid,
+                        source_type,
+                        track.clone(),
+                        room.track_router.clone(),
+                    );
 
-                        // Create subscriber tracks for all existing peers
-                        let other_peers = room.get_other_peers(uid).await;
-                        for other_peer in other_peers {
-                            if let Ok(local_track) = room
-                                .track_router
-                                .create_subscriber_track(uid, source_type, &other_peer, &track)
+                    // Create subscriber tracks for all existing peers
+                    let other_peers = room.get_other_peers(uid).await;
+                    for other_peer in other_peers {
+                        if let Ok(local_track) = room
+                            .track_router
+                            .create_subscriber_track(uid, source_type, &other_peer, &track)
+                            .await
+                        {
+                            if let Err(e) = other_peer
+                                .add_outgoing_track(uid, source_type, local_track)
                                 .await
                             {
-                                if let Err(e) = other_peer
-                                    .add_outgoing_track(uid, source_type, local_track)
-                                    .await
-                                {
+                                warn!(
+                                    source = %uid,
+                                    subscriber = %other_peer.user_id,
+                                    error = %e,
+                                    "Failed to add outgoing track"
+                                );
+                            } else {
+                                // Renegotiate so subscriber receives updated SDP
+                                if let Err(e) = Self::renegotiate(&other_peer).await {
                                     warn!(
-                                        source = %uid,
                                         subscriber = %other_peer.user_id,
                                         error = %e,
-                                        "Failed to add outgoing track"
+                                        "Renegotiation failed after track add"
                                     );
                                 }
                             }
@@ -619,6 +665,23 @@ impl SfuServer {
                     }
                 })
             }));
+    }
+
+    /// Trigger renegotiation by creating a new offer and sending it to the peer.
+    /// Used after dynamically adding/removing tracks mid-session.
+    pub async fn renegotiate(peer: &Peer) -> Result<(), VoiceError> {
+        let offer = peer.peer_connection.create_offer(None).await?;
+        peer.peer_connection
+            .set_local_description(offer.clone())
+            .await?;
+        peer.signal_tx
+            .send(ServerEvent::VoiceOffer {
+                channel_id: peer.channel_id,
+                sdp: offer.sdp,
+            })
+            .await
+            .map_err(|e| VoiceError::Signaling(e.to_string()))?;
+        Ok(())
     }
 
     /// Create an offer for a peer.

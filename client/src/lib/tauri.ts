@@ -2141,6 +2141,30 @@ export async function wsScreenShareStop(channelId: string): Promise<void> {
   });
 }
 
+/**
+ * Start webcam in a voice channel (notifies server).
+ */
+export async function wsWebcamStart(
+  channelId: string,
+  quality: "low" | "medium" | "high" | "premium",
+): Promise<void> {
+  await wsSend({
+    type: "voice_webcam_start",
+    channel_id: channelId,
+    quality,
+  });
+}
+
+/**
+ * Stop webcam in a voice channel (notifies server).
+ */
+export async function wsWebcamStop(channelId: string): Promise<void> {
+  await wsSend({
+    type: "voice_webcam_stop",
+    channel_id: channelId,
+  });
+}
+
 // Pages Commands
 
 /**

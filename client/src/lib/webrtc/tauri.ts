@@ -14,6 +14,7 @@ import type {
   VoiceAdapterEvents,
   AudioDeviceList,
   ScreenShareOptions,
+  WebcamOptions,
   ConnectionMetrics,
   CaptureSource,
 } from "./types";
@@ -25,6 +26,7 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   private deafened = false;
   private noiseSuppression = false;
   private screenSharing = false;
+  private webcamActive = false;
 
   // Screen share state (native Rust capture)
   private screenShareSourceName: string | null = null;
@@ -352,10 +354,61 @@ export class TauriVoiceAdapter implements VoiceAdapter {
     }
   }
 
+  // Webcam (delegates to Tauri Rust backend)
+
+  isWebcamActive(): boolean {
+    return this.webcamActive;
+  }
+
+  async startWebcam(options?: WebcamOptions): Promise<VoiceResult<void>> {
+    console.log("[TauriVoiceAdapter] Starting webcam", options);
+
+    if (this.webcamActive) {
+      return { ok: false, error: { type: "unknown", message: "Webcam already active" } };
+    }
+
+    try {
+      await invoke("start_webcam", {
+        quality: options?.quality ?? "medium",
+        deviceId: options?.deviceId ?? null,
+      });
+      this.webcamActive = true;
+      console.log("[TauriVoiceAdapter] Webcam started");
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[TauriVoiceAdapter] Failed to start webcam:", err);
+      return { ok: false, error: this.mapTauriError(err) };
+    }
+  }
+
+  async stopWebcam(): Promise<VoiceResult<void>> {
+    console.log("[TauriVoiceAdapter] Stopping webcam");
+
+    if (!this.webcamActive) {
+      return { ok: false, error: { type: "unknown", message: "Webcam not active" } };
+    }
+
+    try {
+      await invoke("stop_webcam");
+      this.webcamActive = false;
+      console.log("[TauriVoiceAdapter] Webcam stopped");
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[TauriVoiceAdapter] Failed to stop webcam:", err);
+      return { ok: false, error: this.mapTauriError(err) };
+    }
+  }
+
   // Cleanup
 
   dispose(): void {
     console.log("[TauriVoiceAdapter] Disposing");
+
+    // Clean up webcam if active (fire-and-forget)
+    if (this.webcamActive) {
+      invoke("stop_webcam").catch(() => {});
+      this.webcamActive = false;
+    }
 
     // Clean up screen share if active (fire-and-forget)
     if (this.screenSharing) {

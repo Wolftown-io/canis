@@ -64,9 +64,12 @@ impl TrackRouter {
                 sdp_fmtp_line: source_track.codec().capability.sdp_fmtp_line,
                 rtcp_feedback: vec![],
             },
-            // Track ID needs to be unique. Using user_id + source type.
-            format!("{source_user_id}-{source_type:?}"),
-            format!("voice-{source_user_id}-{}", subscriber.user_id),
+            // Track ID: "{source_user_id}:{source_type}" — colon separator because
+            // UUIDs contain dashes, making dash-based splitting unreliable on clients.
+            format!("{source_user_id}:{source_type:?}"),
+            // Stream ID: same format so the browser groups tracks and clients can
+            // parse `stream.id.split(":")` to get `[userId, sourceType]`.
+            format!("{source_user_id}:{source_type:?}"),
         ));
 
         // Store subscription
@@ -152,6 +155,17 @@ impl TrackRouter {
             .retain(|(uid, _), _| *uid != source_user_id);
 
         debug!(source = %source_user_id, "Removed source and all subscriptions");
+    }
+
+    /// Remove all subscriptions for a specific source track (e.g. when a user stops webcam).
+    pub async fn remove_source_track(&self, source_user_id: Uuid, source_type: TrackSource) {
+        self.subscriptions.remove(&(source_user_id, source_type));
+
+        debug!(
+            source = %source_user_id,
+            source_type = ?source_type,
+            "Removed source track and all subscriptions"
+        );
     }
 
     /// Remove a subscriber from all sources (when subscriber leaves).

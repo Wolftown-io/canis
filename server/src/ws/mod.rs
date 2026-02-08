@@ -40,7 +40,7 @@ use crate::api::AppState;
 use crate::auth::jwt;
 use crate::db;
 use crate::social::block_cache;
-use crate::voice::{Quality, ScreenShareInfo};
+use crate::voice::{Quality, ScreenShareInfo, WebcamInfo};
 
 /// Minimum interval between activity updates (10 seconds).
 const ACTIVITY_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
@@ -174,6 +174,19 @@ pub enum ClientEvent {
         channel_id: Uuid,
     },
 
+    /// Start webcam in voice channel
+    VoiceWebcamStart {
+        /// Voice channel.
+        channel_id: Uuid,
+        /// Requested quality tier.
+        quality: Quality,
+    },
+    /// Stop webcam in voice channel
+    VoiceWebcamStop {
+        /// Voice channel.
+        channel_id: Uuid,
+    },
+
     /// Set rich presence activity (game, music, etc).
     SetActivity {
         activity: Option<crate::presence::Activity>,
@@ -201,6 +214,9 @@ pub struct VoiceParticipant {
     /// Whether this participant is currently screen sharing.
     #[serde(default)]
     pub screen_sharing: bool,
+    /// Whether this participant has their webcam active.
+    #[serde(default)]
+    pub webcam_active: bool,
 }
 
 /// Server-to-client events.
@@ -363,6 +379,9 @@ pub enum ServerEvent {
         /// Active screen shares.
         #[serde(default)]
         screen_shares: Vec<ScreenShareInfo>,
+        /// Active webcams.
+        #[serde(default)]
+        webcams: Vec<WebcamInfo>,
     },
     /// Voice error
     VoiceError {
@@ -412,6 +431,28 @@ pub enum ServerEvent {
         /// Reason for stop.
         reason: String,
     },
+    // Webcam events
+    /// Webcam started
+    WebcamStarted {
+        /// Channel ID.
+        channel_id: Uuid,
+        /// User who started their webcam.
+        user_id: Uuid,
+        /// Username of the user.
+        username: String,
+        /// Quality tier.
+        quality: Quality,
+    },
+    /// Webcam stopped
+    WebcamStopped {
+        /// Channel ID.
+        channel_id: Uuid,
+        /// User who stopped their webcam.
+        user_id: Uuid,
+        /// Reason for stop.
+        reason: String,
+    },
+
     /// Screen share quality changed
     ScreenShareQualityChanged {
         /// Channel ID.
@@ -1202,7 +1243,9 @@ pub async fn handle_client_message(
         | ClientEvent::VoiceUnmute { .. }
         | ClientEvent::VoiceStats { .. }
         | ClientEvent::VoiceScreenShareStart { .. }
-        | ClientEvent::VoiceScreenShareStop { .. } => {
+        | ClientEvent::VoiceScreenShareStop { .. }
+        | ClientEvent::VoiceWebcamStart { .. }
+        | ClientEvent::VoiceWebcamStop { .. } => {
             if let Err(e) = crate::voice::ws_handler::handle_voice_event(
                 &state.sfu,
                 &state.db,

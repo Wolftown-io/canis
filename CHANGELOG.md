@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Webcam video support in voice channels with camera toggle button
+- Simultaneous webcam and screen sharing (multi-stream)
+- Dynamic track add/remove with SFU renegotiation mid-session
+- Track source identification via pending source queue (Webcam vs ScreenVideo)
+
 - Advanced message search with filters (date range, channel, author, has:link, has:file)
 - DM message search endpoint (`GET /api/dm/search`) with the same filter support
 - DM search UI accessible from the home sidebar

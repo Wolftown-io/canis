@@ -69,6 +69,10 @@ export interface VoiceAdapterEvents {
   onScreenShareStopped?: (userId: string, reason: string) => void;
   onScreenShareTrack?: (userId: string, track: MediaStreamTrack) => void;
   onScreenShareTrackRemoved?: (userId: string) => void;
+
+  // Webcam events
+  onWebcamTrack?: (userId: string, track: MediaStreamTrack) => void;
+  onWebcamTrackRemoved?: (userId: string) => void;
 }
 
 /**
@@ -141,6 +145,14 @@ export interface ScreenShareCheckResult {
   allowed: boolean;
   granted_quality: ScreenShareQuality;
   error?: "no_permission" | "limit_reached" | "not_in_channel";
+}
+
+/**
+ * Options for starting a webcam
+ */
+export interface WebcamOptions {
+  quality?: ScreenShareQuality;
+  deviceId?: string;
 }
 
 // Re-export QualityLevel from shared types for convenience
@@ -219,6 +231,11 @@ export interface VoiceAdapter {
   getScreenShareInfo(): { hasAudio: boolean; sourceLabel: string } | null;
   /** Enumerate native capture sources (Tauri only). Returns null if not supported. */
   enumerateCaptureSources?(): Promise<CaptureSource[] | null>;
+
+  // Webcam
+  startWebcam(options?: WebcamOptions): Promise<VoiceResult<void>>;
+  stopWebcam(): Promise<VoiceResult<void>>;
+  isWebcamActive(): boolean;
 
   // Cleanup
   dispose(): void;

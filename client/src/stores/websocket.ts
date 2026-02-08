@@ -433,6 +433,25 @@ export async function initWebSocket(): Promise<void> {
       )
     );
 
+    // Webcam events (Tauri → frontend parity with browser mode)
+    unlisteners.push(
+      await listen<{ channel_id: string; user_id: string; username: string; quality: string }>(
+        "ws:webcam_started",
+        async (event) => {
+          await handleWebcamStarted(event.payload);
+        }
+      )
+    );
+
+    unlisteners.push(
+      await listen<{ channel_id: string; user_id: string; reason: string }>(
+        "ws:webcam_stopped",
+        async (event) => {
+          await handleWebcamStopped(event.payload);
+        }
+      )
+    );
+
     // Voice stats events
     unlisteners.push(
       await listen<{ channel_id: string; user_id: string; latency: number; packet_loss: number; jitter: number; quality: number }>(
@@ -679,7 +698,7 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       break;
 
     case "voice_room_state":
-      await handleVoiceRoomState(event.channel_id, event.participants, event.screen_shares);
+      await handleVoiceRoomState(event.channel_id, event.participants, event.screen_shares, event.webcams);
       break;
 
     case "screen_share_started":
@@ -692,6 +711,14 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
     case "screen_share_quality_changed":
       await handleScreenShareQualityChanged(event);
+      break;
+
+    case "webcam_started":
+      await handleWebcamStarted(event);
+      break;
+
+    case "webcam_stopped":
+      await handleWebcamStopped(event);
       break;
 
     case "voice_error":
@@ -1185,7 +1212,7 @@ async function handleVoiceUserUnmuted(channelId: string, userId: string): Promis
   }
 }
 
-async function handleVoiceRoomState(channelId: string, participants: any[], screenShares?: any[]): Promise<void> {
+async function handleVoiceRoomState(channelId: string, participants: any[], screenShares?: any[], webcams?: any[]): Promise<void> {
   const { voiceState, setVoiceState } = await import("@/stores/voice");
   const { produce } = await import("solid-js/store");
 
@@ -1197,6 +1224,7 @@ async function handleVoiceRoomState(channelId: string, participants: any[], scre
           state.participants[p.user_id] = p;
         }
         state.screenShares = screenShares ?? [];
+        state.webcams = webcams ?? [];
       })
     );
   }
@@ -1272,6 +1300,57 @@ export async function handleScreenShareQualityChanged(event: any): Promise<void>
         if (share) {
           share.quality = event.new_quality;
         }
+      })
+    );
+  }
+}
+
+// Webcam event handlers
+
+export async function handleWebcamStarted(event: any): Promise<void> {
+  const { voiceState, setVoiceState } = await import("@/stores/voice");
+  const { produce } = await import("solid-js/store");
+
+  console.log("[WebSocket] Webcam started:", event.user_id);
+
+  if (voiceState.channelId === event.channel_id) {
+    setVoiceState(
+      produce((state) => {
+        // Add to webcams list
+        state.webcams.push({
+          user_id: event.user_id,
+          username: event.username,
+          quality: event.quality,
+        });
+
+        // Update participant's webcam_active flag
+        if (state.participants[event.user_id]) {
+          state.participants[event.user_id].webcam_active = true;
+        }
+      })
+    );
+  }
+}
+
+export async function handleWebcamStopped(event: any): Promise<void> {
+  const { voiceState, setVoiceState } = await import("@/stores/voice");
+  const { produce } = await import("solid-js/store");
+
+  console.log("[WebSocket] Webcam stopped:", event.user_id, event.reason);
+
+  if (voiceState.channelId === event.channel_id) {
+    setVoiceState(
+      produce((state) => {
+        // Remove from webcams list
+        state.webcams = state.webcams.filter(w => w.user_id !== event.user_id);
+
+        // Update participant's webcam_active flag
+        if (state.participants[event.user_id]) {
+          state.participants[event.user_id].webcam_active = false;
+        }
+
+        // If it was us, clear local state
+        // (authState comparison not available here, so the voice store handles it via WS event)
       })
     );
   }

@@ -5,6 +5,7 @@ import MicrophoneTest from "./MicrophoneTest";
 import ScreenShareButton from "./ScreenShareButton";
 import ScreenShareQualityPicker from "./ScreenShareQualityPicker";
 import ScreenShareSourcePicker from "./ScreenShareSourcePicker";
+import WebcamButton from "./WebcamButton";
 
 // Detect if running in Tauri (native source picker available)
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -68,6 +69,9 @@ const VoiceControls: Component = () => {
           onShowSourcePicker={isTauri ? () => setShowSourcePicker(true) : undefined}
           onShowQualityPicker={() => setShowQualityPicker(true)}
         />
+
+        {/* Webcam button */}
+        <WebcamButton />
 
         {/* Settings button */}
         <button
