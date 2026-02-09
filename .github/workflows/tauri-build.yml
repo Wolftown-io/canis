@@ -79,7 +79,19 @@ jobs:
 
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
-        run: choco install -y pkgconfiglite
+        run: |
+          vcpkg install libvpx:x64-windows-static-md
+          choco install -y pkgconfiglite
+
+      - name: Set VPX environment for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static-md"
+          echo "VPX_LIB_DIR=$root\lib" >> $env:GITHUB_ENV
+          echo "VPX_INCLUDE_DIR=$root\include" >> $env:GITHUB_ENV
+          echo "VPX_VERSION=1.14.1" >> $env:GITHUB_ENV
+          echo "VPX_STATIC=1" >> $env:GITHUB_ENV
 
       - name: Set CMake policy floor for macOS
         if: runner.os == 'macOS'
