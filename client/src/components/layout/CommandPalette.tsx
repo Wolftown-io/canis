@@ -18,8 +18,9 @@
  */
 
 import { Component, createSignal, createEffect, createMemo, For, Show, onCleanup } from "solid-js";
-import { Hash, Volume2, Command } from "lucide-solid";
+import { Hash, Volume2, Command, Search } from "lucide-solid";
 import { channelsState, selectChannel } from "@/stores/channels";
+import { setShowGlobalSearch } from "@/stores/search";
 import type { Channel } from "@/lib/types";
 
 interface CommandItem {
@@ -52,6 +53,18 @@ const CommandPalette: Component = () => {
           setIsOpen(false);
         },
       });
+    });
+
+    // Search Everywhere command (always available)
+    items.push({
+      id: "cmd-search-everywhere",
+      type: "command",
+      label: "Search Everywhere",
+      icon: Search,
+      action: () => {
+        setIsOpen(false);
+        setShowGlobalSearch(true);
+      },
     });
 
     // Add commands (if query starts with >)

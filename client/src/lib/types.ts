@@ -252,6 +252,8 @@ export interface SearchResult {
   author: SearchAuthor;
   content: string;
   created_at: string;
+  headline: string;
+  rank: number;
 }
 
 export interface SearchResponse {
@@ -267,6 +269,26 @@ export interface SearchFilters {
   channel_id?: string;
   author_id?: string;
   has?: "link" | "file";
+  sort?: "relevance" | "date";
+}
+
+// Global Search Types
+
+export interface GlobalSearchSource {
+  type: "guild" | "dm";
+  guild_id: string | null;
+  guild_name: string | null;
+}
+
+export interface GlobalSearchResult extends SearchResult {
+  source: GlobalSearchSource;
+}
+
+export interface GlobalSearchResponse {
+  results: GlobalSearchResult[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // Voice Types

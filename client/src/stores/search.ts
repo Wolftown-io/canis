@@ -2,12 +2,13 @@
  * Search Store
  *
  * Manages message search state including results, loading, and pagination.
- * Supports both guild and DM search contexts.
+ * Supports guild, DM, and global search contexts.
  */
 
+import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import type { SearchResult, SearchFilters } from "@/lib/types";
-import { searchGuildMessages, searchDMMessages } from "@/lib/tauri";
+import type { SearchResult, SearchFilters, GlobalSearchResult } from "@/lib/types";
+import { searchGuildMessages, searchDMMessages, searchGlobalMessages } from "@/lib/tauri";
 
 // ============================================================================
 // Types
@@ -17,7 +18,7 @@ interface SearchState {
   /** Current search query */
   query: string;
   /** Search results */
-  results: SearchResult[];
+  results: (SearchResult | GlobalSearchResult)[];
   /** Total number of results (for pagination) */
   total: number;
   /** Current offset */
@@ -30,8 +31,8 @@ interface SearchState {
   error: string | null;
   /** Guild ID being searched (for guild context) */
   guildId: string | null;
-  /** Search context: guild or dm */
-  context: "guild" | "dm";
+  /** Search context: guild, dm, or global */
+  context: "guild" | "dm" | "global";
   /** Active search filters */
   filters: SearchFilters;
 }
@@ -52,6 +53,9 @@ const [searchState, setSearchState] = createStore<SearchState>({
   context: "guild",
   filters: {},
 });
+
+// Global search visibility signal
+const [showGlobalSearch, setShowGlobalSearch] = createSignal(false);
 
 // ============================================================================
 // Actions
@@ -176,6 +180,64 @@ export async function searchDMs(
 }
 
 /**
+ * Search messages across all guilds and DMs.
+ */
+export async function searchGlobal(
+  query: string,
+  filters: SearchFilters = {}
+): Promise<void> {
+  // Skip if query is too short
+  if (query.trim().length < 2) {
+    setSearchState({
+      query: query.trim(),
+      results: [],
+      total: 0,
+      offset: 0,
+      error: null,
+      isSearching: false,
+      guildId: null,
+      context: "global",
+      filters,
+    });
+    return;
+  }
+
+  setSearchState({
+    query: query.trim(),
+    isSearching: true,
+    error: null,
+    guildId: null,
+    context: "global",
+    offset: 0,
+    filters,
+  });
+
+  try {
+    const response = await searchGlobalMessages(
+      query.trim(),
+      searchState.limit,
+      0,
+      filters
+    );
+
+    setSearchState({
+      results: response.results,
+      total: response.total,
+      offset: 0,
+      isSearching: false,
+    });
+  } catch (err) {
+    console.error("Global search failed:", err);
+    setSearchState({
+      results: [],
+      total: 0,
+      error: err instanceof Error ? err.message : "Search failed",
+      isSearching: false,
+    });
+  }
+}
+
+/**
  * Load more results (pagination).
  */
 export async function loadMore(): Promise<void> {
@@ -197,6 +259,13 @@ export async function loadMore(): Promise<void> {
     if (searchState.context === "guild" && searchState.guildId) {
       response = await searchGuildMessages(
         searchState.guildId,
+        searchState.query,
+        searchState.limit,
+        newOffset,
+        searchState.filters
+      );
+    } else if (searchState.context === "global") {
+      response = await searchGlobalMessages(
         searchState.query,
         searchState.limit,
         newOffset,
@@ -254,4 +323,4 @@ export function hasMore(): boolean {
 // Export
 // ============================================================================
 
-export { searchState };
+export { searchState, showGlobalSearch, setShowGlobalSearch };

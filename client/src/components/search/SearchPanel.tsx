@@ -2,21 +2,24 @@
  * SearchPanel Component
  *
  * Displays message search results with pagination and advanced filters.
- * Supports both guild and DM search modes.
+ * Supports guild, DM, and global search modes.
+ * Uses server-side ts_headline for highlighting and ts_rank for relevance sorting.
  */
 
 import { Component, Show, For, createSignal, onCleanup } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Search, X, Loader2, Hash, Filter, Link, Paperclip } from "lucide-solid";
-import { searchState, search, searchDMs, loadMore, clearSearch, hasMore } from "@/stores/search";
+import { Search, X, Loader2, Hash, Filter, Link, Paperclip, Globe, MessageSquare } from "lucide-solid";
+import { searchState, search, searchDMs, searchGlobal, loadMore, clearSearch, hasMore } from "@/stores/search";
 import { getActiveGuild } from "@/stores/guilds";
-import type { SearchFilters } from "@/lib/types";
+import type { SearchFilters, GlobalSearchResult } from "@/lib/types";
 import Avatar from "@/components/ui/Avatar";
 import { formatTimestamp } from "@/lib/utils";
+import DOMPurify from "dompurify";
+import SearchSyntaxHelp from "./SearchSyntaxHelp";
 
 interface SearchPanelProps {
   onClose: () => void;
-  mode?: "guild" | "dm";
+  mode?: "guild" | "dm" | "global";
 }
 
 const SearchPanel: Component<SearchPanelProps> = (props) => {
@@ -27,6 +30,7 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
   const [dateTo, setDateTo] = createSignal("");
   const [authorFilter, setAuthorFilter] = createSignal("");
   const [hasFilter, setHasFilter] = createSignal<"link" | "file" | "">("");
+  const [sortOrder, setSortOrder] = createSignal<"relevance" | "date">("relevance");
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const mode = () => props.mode ?? "guild";
@@ -41,6 +45,7 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
     }
     if (authorFilter()) filters.author_id = authorFilter();
     if (hasFilter()) filters.has = hasFilter() as "link" | "file";
+    filters.sort = sortOrder();
     return filters;
   };
 
@@ -52,7 +57,9 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
     }
 
     const filters = buildFilters();
-    if (mode() === "dm") {
+    if (mode() === "global") {
+      searchGlobal(value, filters);
+    } else if (mode() === "dm") {
       searchDMs(value, filters);
     } else {
       const guild = getActiveGuild();
@@ -75,51 +82,32 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
   };
 
   // Navigate to the message's channel when clicked
-  const handleResultClick = (channelId: string, messageId: string) => {
-    if (mode() === "dm") {
-      navigate(`/home/dm/${channelId}?highlight=${messageId}`);
+  const handleResultClick = (result: { channel_id: string; id: string } & Record<string, unknown>) => {
+    if (mode() === "global" && "source" in result) {
+      const globalResult = result as GlobalSearchResult;
+      if (globalResult.source.type === "guild" && globalResult.source.guild_id) {
+        navigate(`/guilds/${globalResult.source.guild_id}/channels/${result.channel_id}?highlight=${result.id}`);
+      } else {
+        navigate(`/home/dm/${result.channel_id}?highlight=${result.id}`);
+      }
+    } else if (mode() === "dm") {
+      navigate(`/home/dm/${result.channel_id}?highlight=${result.id}`);
     } else {
       const guild = getActiveGuild();
       if (guild) {
-        navigate(`/guilds/${guild.id}/channels/${channelId}?highlight=${messageId}`);
+        navigate(`/guilds/${guild.id}/channels/${result.channel_id}?highlight=${result.id}`);
       }
     }
     props.onClose();
   };
 
-  // Escape regex special characters
-  const escapeRegex = (text: string): string => {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  };
-
-  // Split content into segments: plain text and highlighted matches
-  const highlightParts = (content: string): { text: string; highlight: boolean }[] => {
-    const query = searchState.query.toLowerCase();
-    if (!query) return [{ text: content, highlight: false }];
-
-    const words = query.split(/\s+/).filter(w => w.length >= 2);
-    if (words.length === 0) return [{ text: content, highlight: false }];
-
-    const pattern = words.map(escapeRegex).join("|");
-    const regex = new RegExp(`(${pattern})`, "gi");
-
-    const parts: { text: string; highlight: boolean }[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(content)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push({ text: content.slice(lastIndex, match.index), highlight: false });
-      }
-      parts.push({ text: match[0], highlight: true });
-      lastIndex = regex.lastIndex;
-    }
-
-    if (lastIndex < content.length) {
-      parts.push({ text: content.slice(lastIndex), highlight: false });
-    }
-
-    return parts.length > 0 ? parts : [{ text: content, highlight: false }];
+  // Sanitize headline HTML (only allow <mark> tags from ts_headline)
+  const sanitizeHeadline = (html: string): string => {
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ["mark"],
+      ALLOWED_ATTR: [],
+      ALLOW_DATA_ATTR: false,
+    });
   };
 
   // Cleanup on unmount
@@ -129,6 +117,14 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
     }
   });
 
+  const placeholderText = () => {
+    switch (mode()) {
+      case "global": return "Search everywhere...";
+      case "dm": return "Search DMs...";
+      default: return "Search messages...";
+    }
+  };
+
   return (
     <div class="absolute inset-0 z-50 flex flex-col bg-surface-layer2">
       {/* Search Header */}
@@ -137,7 +133,7 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
           <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary" />
           <input
             type="text"
-            placeholder={mode() === "dm" ? "Search DMs..." : "Search messages..."}
+            placeholder={placeholderText()}
             value={inputValue()}
             onInput={handleInput}
             autofocus
@@ -155,6 +151,7 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
         >
           <Filter class="w-4 h-4" />
         </button>
+        <SearchSyntaxHelp />
         <button
           onClick={props.onClose}
           class="ml-1 p-1.5 text-text-secondary hover:text-text-primary rounded transition-colors"
@@ -166,6 +163,29 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
       {/* Filters Panel */}
       <Show when={showFilters()}>
         <div class="px-3 py-2 border-b border-white/10 space-y-2">
+          {/* Sort Toggle */}
+          <div class="flex gap-1">
+            <button
+              onClick={() => { setSortOrder("relevance"); triggerSearch(); }}
+              class="px-2 py-1 rounded text-xs transition-colors"
+              classList={{
+                "bg-accent-primary/20 text-accent-primary": sortOrder() === "relevance",
+                "bg-surface-layer1 text-text-secondary hover:text-text-primary": sortOrder() !== "relevance",
+              }}
+            >
+              Relevance
+            </button>
+            <button
+              onClick={() => { setSortOrder("date"); triggerSearch(); }}
+              class="px-2 py-1 rounded text-xs transition-colors"
+              classList={{
+                "bg-accent-primary/20 text-accent-primary": sortOrder() === "date",
+                "bg-surface-layer1 text-text-secondary hover:text-text-primary": sortOrder() !== "date",
+              }}
+            >
+              Date
+            </button>
+          </div>
           <div class="flex gap-2">
             <div class="flex-1">
               <label class="text-xs text-text-secondary block mb-1">From date</label>
@@ -268,14 +288,36 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
             <For each={searchState.results}>
               {(result) => (
                 <button
-                  onClick={() => handleResultClick(result.channel_id, result.id)}
+                  onClick={() => handleResultClick(result)}
                   class="w-full p-3 text-left hover:bg-white/5 transition-colors"
                 >
-                  {/* Channel Name */}
-                  <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
-                    <Hash class="w-3 h-3" />
-                    <span>{result.channel_name}</span>
-                  </div>
+                  {/* Source Badge (global mode only) */}
+                  <Show when={mode() === "global" && "source" in result}>
+                    {(() => {
+                      const globalResult = result as GlobalSearchResult;
+                      return (
+                        <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
+                          <Show when={globalResult.source.type === "guild"} fallback={
+                            <><MessageSquare class="w-3 h-3" /><span>Direct Messages</span></>
+                          }>
+                            <Globe class="w-3 h-3" />
+                            <span>{globalResult.source.guild_name}</span>
+                          </Show>
+                          <span class="mx-0.5">&gt;</span>
+                          <Hash class="w-3 h-3" />
+                          <span>{result.channel_name}</span>
+                        </div>
+                      );
+                    })()}
+                  </Show>
+
+                  {/* Channel Name (non-global mode) */}
+                  <Show when={mode() !== "global"}>
+                    <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
+                      <Hash class="w-3 h-3" />
+                      <span>{result.channel_name}</span>
+                    </div>
+                  </Show>
 
                   {/* Author and Time */}
                   <div class="flex items-center gap-2 mb-1">
@@ -292,15 +334,11 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
                     </span>
                   </div>
 
-                  {/* Content Preview */}
-                  <p class="text-sm text-text-secondary line-clamp-2">
-                    <For each={highlightParts(result.content.substring(0, 200))}>
-                      {(part) => part.highlight
-                        ? <mark class="bg-accent-primary/30 text-text-primary rounded px-0.5">{part.text}</mark>
-                        : <>{part.text}</>
-                      }
-                    </For>
-                  </p>
+                  {/* Content Preview with server-side highlighting */}
+                  <p
+                    class="text-sm text-text-secondary line-clamp-2 [&_mark]:bg-accent-primary/30 [&_mark]:text-text-primary [&_mark]:rounded [&_mark]:px-0.5"
+                    innerHTML={sanitizeHeadline(result.headline)}
+                  />
                 </button>
               )}
             </For>

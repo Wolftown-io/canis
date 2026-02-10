@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Relevance-ranked search results using PostgreSQL `ts_rank` with sort toggle (Relevance / Date)
+- Server-side search snippet highlighting using PostgreSQL `ts_headline` with `<mark>` tags
+- Global search across all guilds and DMs (`GET /api/search`, Ctrl+Shift+F shortcut)
+- "Search Everywhere" command in Command Palette (Ctrl+K)
+- Search syntax help tooltip showing AND, OR, "exact phrase", and -exclude operators
+
+### Changed
+- Search results now display server-generated highlighted snippets instead of client-side regex matching
 - Thread participant avatars — ThreadIndicator shows small overlapping avatar thumbnails of the most recent thread participants
 - Thread unread indicator — blue dot and bold text on threads with unread replies, clears when thread is opened or marked as read
 - #channel autocomplete — type `#` in guild channels to mention text channels with fuzzy matching

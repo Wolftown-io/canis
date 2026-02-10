@@ -53,6 +53,7 @@ import type {
   ClaimedPrekeyResponse,
   SearchResponse,
   SearchFilters,
+  GlobalSearchResponse,
   PaginatedMessages,
   Pin,
   CreatePinRequest,
@@ -66,7 +67,7 @@ import type {
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider };
+export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, GlobalSearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider };
 
 /**
  * Unread aggregation types
@@ -1177,6 +1178,7 @@ export async function searchGuildMessages(
   if (filters?.channel_id) params.set("channel_id", filters.channel_id);
   if (filters?.author_id) params.set("author_id", filters.author_id);
   if (filters?.has) params.set("has", filters.has);
+  if (filters?.sort) params.set("sort", filters.sort);
   return httpRequest<SearchResponse>("GET", `/api/guilds/${guildId}/search?${params}`);
 }
 
@@ -1199,7 +1201,30 @@ export async function searchDMMessages(
   if (filters?.channel_id) params.set("channel_id", filters.channel_id);
   if (filters?.author_id) params.set("author_id", filters.author_id);
   if (filters?.has) params.set("has", filters.has);
+  if (filters?.sort) params.set("sort", filters.sort);
   return httpRequest<SearchResponse>("GET", `/api/dm/search?${params}`);
+}
+
+/**
+ * Search messages across all guilds and DMs using full-text search.
+ */
+export async function searchGlobalMessages(
+  query: string,
+  limit: number = 25,
+  offset: number = 0,
+  filters?: SearchFilters
+): Promise<GlobalSearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  if (filters?.date_from) params.set("date_from", filters.date_from);
+  if (filters?.date_to) params.set("date_to", filters.date_to);
+  if (filters?.author_id) params.set("author_id", filters.author_id);
+  if (filters?.has) params.set("has", filters.has);
+  if (filters?.sort) params.set("sort", filters.sort);
+  return httpRequest<GlobalSearchResponse>("GET", `/api/search?${params}`);
 }
 
 // Guild Invite Commands

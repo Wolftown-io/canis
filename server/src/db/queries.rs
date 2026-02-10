@@ -1134,6 +1134,16 @@ pub async fn count_search_messages_in_channels(
 // Advanced Search Queries
 // ============================================================================
 
+/// Sort order for search results.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum SearchSort {
+    /// Sort by relevance (`ts_rank`), then date.
+    #[default]
+    Relevance,
+    /// Sort by date only (newest first).
+    Date,
+}
+
 /// Advanced search filters for message search.
 #[derive(Debug, Default)]
 pub struct SearchFilters {
@@ -1147,12 +1157,27 @@ pub struct SearchFilters {
     pub has_link: bool,
     /// Only messages with file attachments.
     pub has_file: bool,
+    /// Sort order (relevance or date).
+    pub sort: SearchSort,
+}
+
+/// Search result row with relevance rank and highlighted snippet.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SearchMessageRow {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub rank: f32,
+    pub headline: String,
 }
 
 /// Search messages with advanced filters using dynamic SQL.
 ///
 /// Builds a query dynamically based on which filters are provided.
 /// Always excludes encrypted and soft-deleted messages.
+/// Returns rows with `ts_rank` relevance score and `ts_headline` snippet.
 pub async fn search_messages_filtered(
     pool: &PgPool,
     channel_ids: &[Uuid],
@@ -1160,12 +1185,18 @@ pub async fn search_messages_filtered(
     filters: &SearchFilters,
     limit: i64,
     offset: i64,
-) -> sqlx::Result<Vec<Message>> {
+) -> sqlx::Result<Vec<SearchMessageRow>> {
     if channel_ids.is_empty() {
         return Ok(Vec::new());
     }
 
-    let mut sql = String::from("SELECT m.* FROM messages m");
+    let mut sql = String::from(
+        "SELECT m.id, m.channel_id, m.user_id, m.content, m.created_at, \
+         ts_rank(m.content_search, websearch_to_tsquery('english', $2)) AS rank, \
+         ts_headline('english', m.content, websearch_to_tsquery('english', $2), \
+         'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20, MaxFragments=2') AS headline \
+         FROM messages m",
+    );
 
     if filters.has_file {
         sql.push_str(" INNER JOIN file_attachments fa ON fa.message_id = m.id");
@@ -1194,10 +1225,13 @@ pub async fn search_messages_filtered(
     }
     // has_file is handled via the JOIN (ensures at least one attachment exists)
 
-    sql.push_str(" ORDER BY m.created_at DESC");
+    match filters.sort {
+        SearchSort::Relevance => sql.push_str(" ORDER BY rank DESC, m.created_at DESC"),
+        SearchSort::Date => sql.push_str(" ORDER BY m.created_at DESC"),
+    }
     write!(sql, " LIMIT ${param_idx} OFFSET ${}", param_idx + 1).unwrap();
 
-    let mut q = sqlx::query_as::<_, Message>(&sql)
+    let mut q = sqlx::query_as::<_, SearchMessageRow>(&sql)
         .bind(channel_ids)
         .bind(query);
 

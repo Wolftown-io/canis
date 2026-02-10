@@ -5,6 +5,7 @@
 pub mod bots;
 pub mod commands;
 pub mod favorites;
+pub mod global_search;
 pub mod pins;
 pub mod preferences;
 pub mod reactions;
@@ -230,6 +231,7 @@ pub fn create_router(state: AppState) -> Router {
             get(guild::search::search_messages),
         )
         .route("/api/dm/search", get(chat::dm_search::search_dm_messages))
+        .route("/api/search", get(global_search::search_all))
         .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
         .layer(from_fn(with_category(RateLimitCategory::Search)));
 

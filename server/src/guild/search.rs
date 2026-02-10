@@ -81,6 +81,8 @@ pub struct SearchQuery {
     pub author_id: Option<Uuid>,
     /// Filter: "link" or "file"
     pub has: Option<String>,
+    /// Sort order: "relevance" (default) or "date"
+    pub sort: Option<String>,
 }
 
 const fn default_limit() -> i64 {
@@ -105,6 +107,8 @@ pub struct SearchResult {
     pub author: SearchAuthor,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    pub headline: String,
+    pub rank: f32,
 }
 
 /// Search response with results and pagination
@@ -159,6 +163,17 @@ pub async fn search_messages(
             ));
         }
     }
+
+    // Validate sort param
+    let sort = match query.sort.as_deref() {
+        None | Some("relevance") => db::SearchSort::Relevance,
+        Some("date") => db::SearchSort::Date,
+        Some(_) => {
+            return Err(SearchError::InvalidQuery(
+                "sort must be \"relevance\" or \"date\"".to_string(),
+            ));
+        }
+    };
 
     // Check guild exists
     let guild_exists: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM guilds WHERE id = $1)")
@@ -215,6 +230,7 @@ pub async fn search_messages(
         author_id: query.author_id,
         has_link: query.has.as_deref() == Some("link"),
         has_file: query.has.as_deref() == Some("file"),
+        sort,
     };
 
     // Clamp limit
@@ -289,6 +305,8 @@ pub async fn search_messages(
                 author,
                 content: msg.content,
                 created_at: msg.created_at,
+                headline: msg.headline,
+                rank: msg.rank,
             }
         })
         .collect();

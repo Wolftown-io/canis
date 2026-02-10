@@ -72,6 +72,8 @@ pub struct DmSearchQuery {
     pub author_id: Option<Uuid>,
     /// Filter: "link" or "file"
     pub has: Option<String>,
+    /// Sort order: "relevance" (default) or "date"
+    pub sort: Option<String>,
 }
 
 const fn default_limit() -> i64 {
@@ -96,6 +98,8 @@ pub struct DmSearchResult {
     pub author: DmSearchAuthor,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    pub headline: String,
+    pub rank: f32,
 }
 
 /// DM search response with results and pagination.
@@ -150,6 +154,17 @@ pub async fn search_dm_messages(
         }
     }
 
+    // Validate sort param
+    let sort = match query.sort.as_deref() {
+        None | Some("relevance") => db::SearchSort::Relevance,
+        Some("date") => db::SearchSort::Date,
+        Some(_) => {
+            return Err(DmSearchError::InvalidQuery(
+                "sort must be \"relevance\" or \"date\"".to_string(),
+            ));
+        }
+    };
+
     // Get all DM channels for this user
     let dm_channels = dm::list_user_dms(&state.db, auth.id).await?;
 
@@ -181,6 +196,7 @@ pub async fn search_dm_messages(
         author_id: query.author_id,
         has_link: query.has.as_deref() == Some("link"),
         has_file: query.has.as_deref() == Some("file"),
+        sort,
     };
 
     // Clamp limit
@@ -251,6 +267,8 @@ pub async fn search_dm_messages(
                 author,
                 content: msg.content,
                 created_at: msg.created_at,
+                headline: msg.headline,
+                rank: msg.rank,
             }
         })
         .collect();
