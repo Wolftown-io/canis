@@ -546,7 +546,7 @@ async fn test_dm_search_only_own_dms() {
 
     // Cleanup
     sqlx::query("DELETE FROM channels WHERE id = ANY($1)")
-        .bind(&vec![dm_ab, dm_bc])
+        .bind(vec![dm_ab, dm_bc])
         .execute(&app.pool)
         .await
         .ok();
@@ -586,7 +586,7 @@ async fn test_dm_search_channel_filter() {
 
     // Cleanup
     sqlx::query("DELETE FROM channels WHERE id = ANY($1)")
-        .bind(&vec![dm_ab, dm_ac])
+        .bind(vec![dm_ab, dm_ac])
         .execute(&app.pool)
         .await
         .ok();
@@ -629,4 +629,204 @@ async fn test_dm_search_excludes_encrypted() {
         .ok();
     delete_user(&app.pool, user_a).await;
     delete_user(&app.pool, user_b).await;
+}
+
+// ============================================================================
+// Guild Search — Headline contains <mark>
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_guild_search_headline_contains_mark() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let guild_id = create_guild(&app.pool, user_id).await;
+    let channel_id = create_channel(&app.pool, guild_id, "general").await;
+    let token = generate_access_token(&app.config, user_id);
+
+    insert_message(
+        &app.pool,
+        channel_id,
+        user_id,
+        "The cranberry harvest was excellent this year",
+    )
+    .await;
+
+    let req = guild_search_request(guild_id, "q=cranberry", &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["total"], 1);
+
+    let headline = json["results"][0]["headline"].as_str().unwrap();
+    assert!(
+        headline.contains("<mark>"),
+        "headline should contain <mark> tags, got: {headline}"
+    );
+    assert!(
+        headline.contains("</mark>"),
+        "headline should contain </mark> tags, got: {headline}"
+    );
+
+    delete_guild(&app.pool, guild_id).await;
+    delete_user(&app.pool, user_id).await;
+}
+
+// ============================================================================
+// Guild Search — Rank present
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_guild_search_rank_present() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let guild_id = create_guild(&app.pool, user_id).await;
+    let channel_id = create_channel(&app.pool, guild_id, "general").await;
+    let token = generate_access_token(&app.config, user_id);
+
+    insert_message(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Pomegranate juice is refreshing",
+    )
+    .await;
+
+    let req = guild_search_request(guild_id, "q=pomegranate", &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["total"], 1);
+
+    let rank = json["results"][0]["rank"].as_f64();
+    assert!(rank.is_some(), "rank field should be present");
+    assert!(
+        rank.unwrap() > 0.0,
+        "rank should be a positive float, got: {rank:?}"
+    );
+
+    delete_guild(&app.pool, guild_id).await;
+    delete_user(&app.pool, user_id).await;
+}
+
+// ============================================================================
+// Guild Search — Sort by relevance
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_guild_search_sort_relevance() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let guild_id = create_guild(&app.pool, user_id).await;
+    let channel_id = create_channel(&app.pool, guild_id, "general").await;
+    let token = generate_access_token(&app.config, user_id);
+
+    insert_message(&app.pool, channel_id, user_id, "Guava fruit salad recipe").await;
+    insert_message(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Guava guava guava is my favorite fruit",
+    )
+    .await;
+
+    let req = guild_search_request(guild_id, "q=guava&sort=relevance", &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["total"], 2);
+
+    // Both results should have rank field
+    let results = json["results"].as_array().unwrap();
+    for result in results {
+        assert!(
+            result["rank"].is_f64(),
+            "rank should be present with sort=relevance"
+        );
+    }
+
+    // First result should have higher or equal rank (sorted by relevance descending)
+    let rank_0 = results[0]["rank"].as_f64().unwrap();
+    let rank_1 = results[1]["rank"].as_f64().unwrap();
+    assert!(
+        rank_0 >= rank_1,
+        "Results should be sorted by rank descending: {rank_0} >= {rank_1}"
+    );
+
+    delete_guild(&app.pool, guild_id).await;
+    delete_user(&app.pool, user_id).await;
+}
+
+// ============================================================================
+// Guild Search — Sort by date
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_guild_search_sort_date() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let guild_id = create_guild(&app.pool, user_id).await;
+    let channel_id = create_channel(&app.pool, guild_id, "general").await;
+    let token = generate_access_token(&app.config, user_id);
+
+    // Insert an old message
+    let old_id = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO messages (id, channel_id, user_id, content, created_at) VALUES ($1, $2, $3, $4, '2024-06-01T12:00:00Z')",
+    )
+    .bind(old_id)
+    .bind(channel_id)
+    .bind(user_id)
+    .bind("Papaya older message")
+    .execute(&app.pool)
+    .await
+    .expect("insert old message");
+
+    // Insert a recent message (uses NOW())
+    insert_message(&app.pool, channel_id, user_id, "Papaya newer message").await;
+
+    let req = guild_search_request(guild_id, "q=papaya&sort=date", &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["total"], 2);
+
+    let results = json["results"].as_array().unwrap();
+    let date_0 = results[0]["created_at"].as_str().unwrap();
+    let date_1 = results[1]["created_at"].as_str().unwrap();
+    assert!(
+        date_0 > date_1,
+        "sort=date should return newest first: {date_0} > {date_1}"
+    );
+
+    delete_guild(&app.pool, guild_id).await;
+    delete_user(&app.pool, user_id).await;
+}
+
+// ============================================================================
+// Guild Search — Invalid sort value
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_guild_search_sort_invalid() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let guild_id = create_guild(&app.pool, user_id).await;
+    create_channel(&app.pool, guild_id, "general").await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let req = guild_search_request(guild_id, "q=test&sort=invalid", &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 400);
+
+    delete_guild(&app.pool, guild_id).await;
+    delete_user(&app.pool, user_id).await;
 }

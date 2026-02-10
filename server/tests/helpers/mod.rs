@@ -311,10 +311,10 @@ pub async fn spawn_test_server(router: Router) -> TestServer {
 
 /// Create a test user and return `(user_id, username)`.
 pub async fn create_test_user(pool: &PgPool) -> (Uuid, String) {
+    const MAX_ATTEMPTS: usize = 6;
     let test_id = Uuid::new_v4().to_string()[..8].to_string();
     let username = format!("httptest_{test_id}");
 
-    const MAX_ATTEMPTS: usize = 6;
     for attempt in 1..=MAX_ATTEMPTS {
         match db::create_user(pool, &username, "HTTP Test User", None, "hash").await {
             Ok(user) => return (user.id, username),
