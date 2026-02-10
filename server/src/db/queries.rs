@@ -4,6 +4,7 @@
 //!
 //! All query functions include error context logging to aid debugging.
 
+use std::collections::HashMap;
 use std::fmt::Write;
 
 use chrono::{DateTime, Utc};
@@ -928,6 +929,117 @@ pub async fn get_thread_participants(
     .bind(limit)
     .fetch_all(pool)
     .await
+}
+
+/// Batch-fetch distinct participant user IDs for multiple threads.
+///
+/// Returns a map of `parent_id -> Vec<user_id>` with up to `limit_per_thread` participants each.
+/// Uses a window function to avoid N+1 queries.
+pub async fn get_batch_thread_participants(
+    pool: &PgPool,
+    parent_ids: &[Uuid],
+    limit_per_thread: i64,
+) -> sqlx::Result<HashMap<Uuid, Vec<Uuid>>> {
+    if parent_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query(
+        r"
+        SELECT parent_id, user_id
+        FROM (
+            SELECT
+                parent_id,
+                user_id,
+                ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY MIN(created_at) DESC) as rn
+            FROM messages
+            WHERE parent_id = ANY($1) AND deleted_at IS NULL
+            GROUP BY parent_id, user_id
+        ) ranked
+        WHERE rn <= $2
+        ORDER BY parent_id, rn
+        ",
+    )
+    .bind(parent_ids)
+    .bind(limit_per_thread)
+    .fetch_all(pool)
+    .await?;
+
+    let mut result: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for row in rows {
+        let parent_id: Uuid = row.get("parent_id");
+        let user_id: Uuid = row.get("user_id");
+        result.entry(parent_id).or_default().push(user_id);
+    }
+
+    Ok(result)
+}
+
+/// Batch-fetch thread read states for a user across multiple threads.
+///
+/// Returns `{ thread_parent_id: last_read_message_id }`.
+pub async fn get_batch_thread_read_states(
+    pool: &PgPool,
+    user_id: Uuid,
+    thread_parent_ids: &[Uuid],
+) -> sqlx::Result<HashMap<Uuid, Option<Uuid>>> {
+    if thread_parent_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query(
+        r"
+        SELECT thread_parent_id, last_read_message_id
+        FROM thread_read_state
+        WHERE user_id = $1 AND thread_parent_id = ANY($2)
+        ",
+    )
+    .bind(user_id)
+    .bind(thread_parent_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut result: HashMap<Uuid, Option<Uuid>> = HashMap::new();
+    for row in rows {
+        let thread_parent_id: Uuid = row.get("thread_parent_id");
+        let last_read_message_id: Option<Uuid> = row.get("last_read_message_id");
+        result.insert(thread_parent_id, last_read_message_id);
+    }
+
+    Ok(result)
+}
+
+/// Batch-fetch the latest reply message ID for each thread.
+///
+/// Returns `{ parent_id: latest_reply_id }`.
+pub async fn get_batch_thread_latest_reply_ids(
+    pool: &PgPool,
+    parent_ids: &[Uuid],
+) -> sqlx::Result<HashMap<Uuid, Uuid>> {
+    if parent_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query(
+        r"
+        SELECT DISTINCT ON (parent_id) parent_id, id as latest_reply_id
+        FROM messages
+        WHERE parent_id = ANY($1) AND deleted_at IS NULL
+        ORDER BY parent_id, created_at DESC, id DESC
+        ",
+    )
+    .bind(parent_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut result: HashMap<Uuid, Uuid> = HashMap::new();
+    for row in rows {
+        let parent_id: Uuid = row.get("parent_id");
+        let latest_reply_id: Uuid = row.get("latest_reply_id");
+        result.insert(parent_id, latest_reply_id);
+    }
+
+    Ok(result)
 }
 
 /// Upsert thread read position for a user.

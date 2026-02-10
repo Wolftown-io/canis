@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Thread participant avatars — ThreadIndicator shows small overlapping avatar thumbnails of the most recent thread participants
+- Thread unread indicator — blue dot and bold text on threads with unread replies, clears when thread is opened or marked as read
 - #channel autocomplete — type `#` in guild channels to mention text channels with fuzzy matching
 - /command autocomplete — type `/` at the start of a message to browse available slash commands from installed bots
 - Reaction keyboard shortcuts — press Alt+1 through Alt+4 while hovering a message to quick-react (👍, ❤️, 😂, 😮)

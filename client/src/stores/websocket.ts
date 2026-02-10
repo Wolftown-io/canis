@@ -15,6 +15,9 @@ import {
   setThreadReadState,
   updateThreadInfo,
   updateParentThreadIndicator,
+  markThreadUnread,
+  clearThreadUnread,
+  threadsState,
 } from "./threads";
 import { handlePreferencesUpdated } from "./preferences";
 import {
@@ -1414,6 +1417,12 @@ function handleThreadReplyNew(
   // Update thread info cache
   updateThreadInfo(parentId, threadInfo);
 
+  // Mark thread as unread if not currently open and reply is from another user
+  const user = currentUser();
+  if (threadsState.activeThreadId !== parentId && (!user || message.author.id !== user.id)) {
+    markThreadUnread(parentId);
+  }
+
   // Update parent message's thread indicator in main messages store
   updateParentThreadIndicator(channelId, parentId, threadInfo);
 
@@ -1430,15 +1439,20 @@ function handleThreadReplyDelete(
   // Remove reply from thread store
   removeThreadReply(parentId, messageId);
 
-  // Update thread info cache
+  // Update thread info cache (updateThreadInfo preserves existing has_unread)
   updateThreadInfo(parentId, threadInfo);
 
   // Update parent message's thread indicator in main messages store
   updateParentThreadIndicator(channelId, parentId, threadInfo);
+
+  // If the deleted message was the one that made the thread "read",
+  // and there are still newer unread replies, the unread state is preserved
+  // by updateThreadInfo's has_unread preservation logic.
 }
 
 function handleThreadRead(parentId: string, lastReadMessageId: string | null): void {
   setThreadReadState(parentId, lastReadMessageId);
+  clearThreadUnread(parentId);
 }
 
 function handleThreadNotification(message: Message): void {

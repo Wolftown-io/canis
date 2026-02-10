@@ -503,23 +503,17 @@ This roadmap outlines the development path from the current prototype to a produ
     - **Rate Limiting:**
       - Add per-guild rate limiting to prevent resource exhaustion
       - Protect export endpoints from abuse
-- [ ] **[Chat] Slack-style Message Threads**
+- [x] **[Chat] Slack-style Message Threads** ✅
   - **Context:** Keep channel conversations organized by allowing side-discussions without cluttering the main feed.
-  - **Implementation:**
-    - **Database:**
-      - Migration to add `parent_id` (foreign key to `messages.id`) to `messages` table
-      - Add `thread_count` field to parent messages for quick display
-      - Add index on `parent_id` for efficient thread queries
-    - **Backend:**
-      - Update `Message` model with thread fields
-      - Implement recursive thread retrieval logic
-      - Add thread-specific WebSocket events
-      - Add guild-level toggle to enable/disable threads
-    - **Frontend:**
-      - Create `ThreadSidebar.tsx` for side conversation UI
-      - Add "Reply in Thread" action to message context menu
-      - Show thread participant count and last reply timestamp
-      - Implement thread notifications (separate from channel notifications)
+  - **Completed:**
+    - ✅ Database migration: `parent_id` FK, `thread_reply_count`, `thread_last_reply_at`, `thread_read_state` table
+    - ✅ Backend: Thread reply CRUD, WebSocket events (`thread_reply_new`, `thread_reply_delete`, `thread_read`)
+    - ✅ Frontend: `ThreadSidebar`, `ThreadIndicator` with participant avatars and unread dot
+    - ✅ Batch thread info in message list response (participants, avatars, unread state) — no N+1
+    - ✅ Thread unread tracking: server-side read state + client-side WebSocket tracking
+    - ✅ 11+ server integration tests
+  - **Remaining:**
+    - [ ] Guild-level toggle to enable/disable threads
 - [ ] **[Media] Advanced Media Processing**
   - **Context:** Improve perceived performance and bandwidth efficiency.
   - **Implementation:**

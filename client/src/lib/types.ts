@@ -217,6 +217,7 @@ export interface Message {
   created_at: string;
   mention_type: "direct" | "everyone" | "here" | null;
   reactions?: Reaction[];
+  thread_info?: ThreadInfo;
 }
 
 export interface ThreadInfo {
@@ -224,6 +225,7 @@ export interface ThreadInfo {
   last_reply_at: string | null;
   participant_ids: string[];
   participant_avatars: Array<string | null>;
+  has_unread?: boolean;
 }
 
 // Paginated Response Types
