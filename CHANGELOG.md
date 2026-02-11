@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing Tauri backend event forwarding for `GuildEmojiUpdated`, `AdminUserDeleted`, `AdminGuildDeleted`, `WebcamStarted`, `WebcamStopped`
 - Dead "Learn more" link (`href="#"`) in clipboard tamper warning modal replaced with informational text
 - Non-interactive guild header in sidebar had misleading cursor-pointer styling
+- Admin shield button in UserPanel now opens the AdminQuickModal instead of navigating directly (modal was unreachable dead code)
 
 ### Added
 - Relevance-ranked search results using PostgreSQL `ts_rank` with sort toggle (Relevance / Date)
