@@ -457,6 +457,8 @@ export type ServerEvent =
   // Reaction events
   | { type: "reaction_add"; channel_id: string; message_id: string; user_id: string; emoji: string }
   | { type: "reaction_remove"; channel_id: string; message_id: string; user_id: string; emoji: string }
+  // Guild emoji events
+  | { type: "guild_emoji_updated"; guild_id: string; emojis: GuildEmoji[] }
   // Friend events
   | { type: "friend_request_received"; friendship_id: string; from_user_id: string; from_username: string; from_display_name: string; from_avatar_url: string | null }
   | { type: "friend_request_accepted"; friendship_id: string; user_id: string; username: string; display_name: string; avatar_url: string | null }

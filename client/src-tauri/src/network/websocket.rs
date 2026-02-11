@@ -215,6 +215,32 @@ pub enum ServerEvent {
         jitter: f64,
         quality: f64,
     },
+    // Guild emoji events
+    GuildEmojiUpdated {
+        guild_id: String,
+        emojis: Vec<serde_json::Value>,
+    },
+    // Admin delete events
+    AdminUserDeleted {
+        user_id: String,
+        username: String,
+    },
+    AdminGuildDeleted {
+        guild_id: String,
+        guild_name: String,
+    },
+    // Webcam events
+    WebcamStarted {
+        channel_id: String,
+        user_id: String,
+        username: String,
+        quality: String,
+    },
+    WebcamStopped {
+        channel_id: String,
+        user_id: String,
+        reason: String,
+    },
     // Admin events
     AdminUserBanned {
         user_id: String,
@@ -540,6 +566,14 @@ fn handle_server_message(app: &AppHandle, text: &str) {
                 ServerEvent::ReactionRemove { .. } => "ws:reaction_remove",
                 // Voice stats
                 ServerEvent::VoiceUserStats { .. } => "ws:voice_user_stats",
+                // Guild emoji events
+                ServerEvent::GuildEmojiUpdated { .. } => "ws:guild_emoji_updated",
+                // Admin delete events
+                ServerEvent::AdminUserDeleted { .. } => "ws:admin_user_deleted",
+                ServerEvent::AdminGuildDeleted { .. } => "ws:admin_guild_deleted",
+                // Webcam events
+                ServerEvent::WebcamStarted { .. } => "ws:webcam_started",
+                ServerEvent::WebcamStopped { .. } => "ws:webcam_stopped",
                 // Admin events
                 ServerEvent::AdminUserBanned { .. } => "ws:admin_user_banned",
                 ServerEvent::AdminUserUnbanned { .. } => "ws:admin_user_unbanned",

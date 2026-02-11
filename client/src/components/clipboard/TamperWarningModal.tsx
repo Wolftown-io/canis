@@ -7,7 +7,7 @@
 
 import { Component } from "solid-js";
 import { Portal } from "solid-js/web";
-import { AlertTriangle, X, ExternalLink } from "lucide-solid";
+import { AlertTriangle, X, ShieldAlert } from "lucide-solid";
 import type { CopyContext } from "@/lib/clipboard";
 
 interface TamperWarningModalProps {
@@ -106,16 +106,12 @@ const TamperWarningModal: Component<TamperWarningModalProps> = (props) => {
             </button>
           </div>
 
-          {/* Learn More Link */}
+          {/* Security Info */}
           <div class="px-6 pb-4">
-            <a
-              href="#"
-              class="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors"
-              onClick={(e) => e.preventDefault()}
-            >
-              <ExternalLink class="w-3 h-3" />
-              Learn more about clipboard security
-            </a>
+            <span class="flex items-center gap-1 text-xs text-text-secondary">
+              <ShieldAlert class="w-3 h-3" />
+              Clipboard content was modified after copying
+            </span>
           </div>
         </div>
       </div>

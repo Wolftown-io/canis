@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "View Profile" and "Send Message" user context menu actions now navigate to or create a DM conversation
 - "Add Friend" user context menu action now sends a friend request
 - SearchPanel TypeScript compilation errors (type mismatch in `handleResultClick` signature)
+- Message edit WebSocket events now update message content in real-time instead of only logging
+- Presence update WebSocket events now update user online/offline status instead of only logging
+- Missing Tauri listeners for `admin_user_deleted` and `admin_guild_deleted` events
+- Missing `GuildEmojiUpdated` WebSocket handler in both browser and Tauri mode
+- Missing Tauri backend event forwarding for `GuildEmojiUpdated`, `AdminUserDeleted`, `AdminGuildDeleted`, `WebcamStarted`, `WebcamStopped`
+- Dead "Learn more" link (`href="#"`) in clipboard tamper warning modal replaced with informational text
+- Non-interactive guild header in sidebar had misleading cursor-pointer styling
 
 ### Added
 - Relevance-ranked search results using PostgreSQL `ts_rank` with sort toggle (Relevance / Date)
