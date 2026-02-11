@@ -4,7 +4,7 @@
  * Manages channel category state including collapse states for the UI.
  */
 
-import { createStore } from "solid-js/store";
+import { createStore, reconcile } from "solid-js/store";
 import type { ChannelCategory } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 
@@ -152,7 +152,7 @@ export function clearGuildCategories(guildId: string): void {
  * Clear all collapse state (useful on logout).
  */
 export function clearCollapseState(): void {
-  setCategoriesState("collapseState", {});
+  setCategoriesState("collapseState", reconcile({}));
 }
 
 /**

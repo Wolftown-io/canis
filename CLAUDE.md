@@ -80,7 +80,7 @@ const channel = await invoke<Channel>('get_channel', { id });
 **Worktrees:** Main worktree stays on `main`, one worktree per feature, clean up after merge.
 
 ### Pre-Push Quality Gates
-1. `cargo test` (server), `bun test` (client)
+1. `cargo test` (server), `bun run test:run` (client, uses vitest)
 2. `cargo fmt --check && cargo clippy -- -D warnings`
 3. Self-review: no secrets, correct scope, proper error handling
 4. Code review for significant changes (new modules, auth/crypto, API changes)
