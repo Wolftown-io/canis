@@ -27,15 +27,13 @@ type PageResult<T> = Result<T, (StatusCode, String)>;
 pub async fn list_platform_pages(
     State(state): State<AppState>,
 ) -> PageResult<Json<Vec<PageListItem>>> {
-    let pages = queries::list_pages(&state.db, None)
-        .await
-        .map_err(|e| {
-            error!("Failed to list platform pages: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            )
-        })?;
+    let pages = queries::list_pages(&state.db, None).await.map_err(|e| {
+        error!("Failed to list platform pages: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
     Ok(Json(pages))
 }
 

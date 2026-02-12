@@ -210,12 +210,23 @@ pub async fn register(
         return Err(AuthError::AuthMethodDisabled);
     }
 
-    // Check registration policy
-    let reg_policy = db::get_config_value(&state.db, "registration_policy")
+    // Check registration policy (fail-closed: deny registration if DB is unreachable)
+    let reg_policy_value = db::get_config_value(&state.db, "registration_policy")
         .await
-        .ok()
-        .and_then(|v| v.as_str().map(String::from))
-        .unwrap_or_else(|| "open".to_string());
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                "Failed to read registration_policy config - denying registration (fail-closed)"
+            );
+            AuthError::Database(e)
+        })?;
+    let reg_policy = reg_policy_value.as_str().ok_or_else(|| {
+        tracing::error!(
+            actual_value = ?reg_policy_value,
+            "registration_policy config value is not a string"
+        );
+        AuthError::Internal("Server configuration error".to_string())
+    })?;
     if reg_policy != "open" {
         // Both "closed" and "invite_only" reject direct registration
         return Err(AuthError::RegistrationDisabled);
@@ -1242,12 +1253,25 @@ pub async fn oidc_callback(
         // Existing user — login
         existing
     } else {
-        // New user — check registration policy
-        let reg_policy = db::get_config_value(&state.db, "registration_policy")
+        // New user — check registration policy (fail-closed: deny if DB unreachable)
+        let reg_policy_value = db::get_config_value(&state.db, "registration_policy")
             .await
-            .ok()
-            .and_then(|v| v.as_str().map(String::from))
-            .unwrap_or_else(|| "open".to_string());
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    provider = %flow_state.slug,
+                    "Failed to read registration_policy config - denying OIDC registration (fail-closed)"
+                );
+                AuthError::Database(e)
+            })?;
+        let reg_policy = reg_policy_value.as_str().ok_or_else(|| {
+            tracing::error!(
+                actual_value = ?reg_policy_value,
+                provider = %flow_state.slug,
+                "registration_policy config value is not a string"
+            );
+            AuthError::Internal("Server configuration error".to_string())
+        })?;
         if reg_policy != "open" {
             // Both "closed" and "invite_only" reject OIDC registration
             // (no mechanism to carry invite tokens through OIDC flow)

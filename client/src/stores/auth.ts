@@ -236,7 +236,8 @@ export async function loginWithOidc(
   serverUrl: string,
   accessToken: string,
   refreshToken: string,
-  expiresIn: number
+  expiresIn: number,
+  setupRequired: boolean = false
 ): Promise<void> {
   setAuthState({ isLoading: true, error: null });
 
@@ -255,7 +256,7 @@ export async function loginWithOidc(
       serverUrl,
       isLoading: false,
       error: null,
-      setupRequired: false,
+      setupRequired,
     });
 
     // Initialize WebSocket and presence after OIDC login

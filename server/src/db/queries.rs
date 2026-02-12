@@ -1887,7 +1887,17 @@ pub async fn delete_oidc_provider(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
 /// Get auth methods configuration.
 pub async fn get_auth_methods_allowed(pool: &PgPool) -> sqlx::Result<AuthMethodsConfig> {
     match get_config_value(pool, "auth_methods_allowed").await {
-        Ok(value) => Ok(serde_json::from_value(value).unwrap_or_default()),
+        Ok(value) => match serde_json::from_value::<AuthMethodsConfig>(value.clone()) {
+            Ok(config) => Ok(config),
+            Err(e) => {
+                error!(
+                    error = %e,
+                    raw_value = ?value,
+                    "auth_methods_allowed config has invalid format, falling back to defaults"
+                );
+                Ok(AuthMethodsConfig::default())
+            }
+        },
         Err(sqlx::Error::RowNotFound) => Ok(AuthMethodsConfig::default()),
         Err(e) => Err(e),
     }

@@ -583,13 +583,12 @@ pub async fn create(
     // Check threads_enabled for guild channels when creating a thread reply
     if body.parent_id.is_some() {
         if let Some(guild_id) = channel.guild_id {
-            let threads_enabled: (bool,) = sqlx::query_as(
-                "SELECT threads_enabled FROM guilds WHERE id = $1",
-            )
-            .bind(guild_id)
-            .fetch_one(&state.db)
-            .await
-            .map_err(MessageError::Database)?;
+            let threads_enabled: (bool,) =
+                sqlx::query_as("SELECT threads_enabled FROM guilds WHERE id = $1")
+                    .bind(guild_id)
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(MessageError::Database)?;
 
             if !threads_enabled.0 {
                 return Err(MessageError::Forbidden);

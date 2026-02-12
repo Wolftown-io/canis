@@ -9,8 +9,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use super::types::{
-    CreateGuildRequest, Guild, GuildCommandInfo, GuildMember, GuildSettings,
-    GuildWithMemberCount, JoinGuildRequest, UpdateGuildRequest, UpdateGuildSettingsRequest,
+    CreateGuildRequest, Guild, GuildCommandInfo, GuildMember, GuildSettings, GuildWithMemberCount,
+    JoinGuildRequest, UpdateGuildRequest, UpdateGuildSettingsRequest,
 };
 use crate::api::AppState;
 use crate::auth::AuthUser;
@@ -191,7 +191,16 @@ pub async fn list_guilds(
     let guilds = rows
         .into_iter()
         .map(
-            |(id, name, owner_id, icon_url, description, threads_enabled, created_at, member_count)| {
+            |(
+                id,
+                name,
+                owner_id,
+                icon_url,
+                description,
+                threads_enabled,
+                created_at,
+                member_count,
+            )| {
                 GuildWithMemberCount {
                     guild: Guild {
                         id,
@@ -892,13 +901,12 @@ pub async fn get_guild_settings(
         return Err(GuildError::Forbidden);
     }
 
-    let threads_enabled: (bool,) = sqlx::query_as(
-        "SELECT threads_enabled FROM guilds WHERE id = $1",
-    )
-    .bind(guild_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(GuildError::NotFound)?;
+    let threads_enabled: (bool,) =
+        sqlx::query_as("SELECT threads_enabled FROM guilds WHERE id = $1")
+            .bind(guild_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(GuildError::NotFound)?;
 
     Ok(Json(GuildSettings {
         threads_enabled: threads_enabled.0,

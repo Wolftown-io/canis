@@ -80,9 +80,19 @@ async fn test_global_search_basic() {
 
     let result = &results[0];
     // Verify response shape — all expected string fields present and non-empty
-    for field in ["id", "channel_id", "channel_name", "content", "created_at", "headline"] {
+    for field in [
+        "id",
+        "channel_id",
+        "channel_name",
+        "content",
+        "created_at",
+        "headline",
+    ] {
         assert!(result[field].is_string(), "{field} should be a string");
-        assert!(!result[field].as_str().unwrap().is_empty(), "{field} should not be empty");
+        assert!(
+            !result[field].as_str().unwrap().is_empty(),
+            "{field} should not be empty"
+        );
     }
     assert!(result["author"].is_object(), "author should be an object");
     assert!(result["rank"].is_f64(), "rank should be a float");
@@ -353,7 +363,13 @@ async fn test_global_search_excludes_encrypted() {
     let token = generate_access_token(&app.config, user_id);
 
     insert_message(&app.pool, channel_id, user_id, "Visible persimmon message").await;
-    insert_encrypted_message(&app.pool, channel_id, user_id, "Encrypted persimmon message").await;
+    insert_encrypted_message(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Encrypted persimmon message",
+    )
+    .await;
 
     let req = global_search_request("q=persimmon", &token);
     let resp = app.oneshot(req).await;
@@ -382,7 +398,14 @@ async fn test_global_search_date_filter() {
     let channel_id = create_channel(&app.pool, guild_id, "general").await;
     let token = generate_access_token(&app.config, user_id);
 
-    insert_message_at(&app.pool, channel_id, user_id, "Old tamarind message", "2024-01-15T12:00:00Z").await;
+    insert_message_at(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Old tamarind message",
+        "2024-01-15T12:00:00Z",
+    )
+    .await;
     insert_message(&app.pool, channel_id, user_id, "Recent tamarind message").await;
 
     let req = global_search_request("q=tamarind&date_from=2025-01-01T00:00:00Z", &token);
@@ -483,7 +506,13 @@ async fn test_global_search_has_file() {
     let msg_with_file =
         insert_message(&app.pool, channel_id, user_id, "Breadfruit with attachment").await;
     insert_attachment(&app.pool, msg_with_file).await;
-    insert_message(&app.pool, channel_id, user_id, "Breadfruit without attachment").await;
+    insert_message(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Breadfruit without attachment",
+    )
+    .await;
 
     let req = global_search_request("q=breadfruit&has=file", &token);
     let resp = app.oneshot(req).await;
@@ -553,7 +582,14 @@ async fn test_global_search_sort_date() {
     let channel_id = create_channel(&app.pool, guild_id, "general").await;
     let token = generate_access_token(&app.config, user_id);
 
-    insert_message_at(&app.pool, channel_id, user_id, "Plantain older message", "2024-06-01T12:00:00Z").await;
+    insert_message_at(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Plantain older message",
+        "2024-06-01T12:00:00Z",
+    )
+    .await;
     insert_message(&app.pool, channel_id, user_id, "Plantain newer message").await;
 
     let req = global_search_request("q=plantain&sort=date", &token);
@@ -635,7 +671,10 @@ async fn test_global_search_pagination() {
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
-    assert_eq!(json["total"], 5, "total should reflect all matching results");
+    assert_eq!(
+        json["total"], 5,
+        "total should reflect all matching results"
+    );
     assert_eq!(json["limit"], 2);
     assert_eq!(json["offset"], 0);
     let page1_results = json["results"].as_array().unwrap();
@@ -654,7 +693,11 @@ async fn test_global_search_pagination() {
     assert_eq!(json["total"], 5);
     assert_eq!(json["offset"], 2);
     let page2_results = json["results"].as_array().unwrap();
-    assert_eq!(page2_results.len(), 2, "Should return 2 results at offset 2");
+    assert_eq!(
+        page2_results.len(),
+        2,
+        "Should return 2 results at offset 2"
+    );
     let page2_ids: Vec<&str> = page2_results
         .iter()
         .filter_map(|r| r["id"].as_str())

@@ -312,6 +312,7 @@ pub struct OidcLoginResult {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_in: u64,
+    pub setup_required: bool,
 }
 
 /// Start OIDC login flow for Tauri desktop.
@@ -491,6 +492,10 @@ pub async fn oidc_authorize(
         .get("expires_in")
         .and_then(|s| s.parse().ok())
         .unwrap_or(900);
+    let setup_required: bool = params
+        .get("setup_required")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(false);
 
     // Fetch user info with the new token
     let user_response = state
@@ -531,6 +536,7 @@ pub async fn oidc_authorize(
         access_token,
         refresh_token,
         expires_in,
+        setup_required,
     })
 }
 

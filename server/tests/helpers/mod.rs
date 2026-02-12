@@ -496,12 +496,7 @@ pub async fn create_channel(pool: &PgPool, guild_id: Uuid, name: &str) -> Uuid {
 }
 
 /// Insert a message and return its ID.
-pub async fn insert_message(
-    pool: &PgPool,
-    channel_id: Uuid,
-    user_id: Uuid,
-    content: &str,
-) -> Uuid {
+pub async fn insert_message(pool: &PgPool, channel_id: Uuid, user_id: Uuid, content: &str) -> Uuid {
     let msg_id = Uuid::now_v7();
 
     sqlx::query("INSERT INTO messages (id, channel_id, user_id, content) VALUES ($1, $2, $3, $4)")

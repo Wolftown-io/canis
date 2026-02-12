@@ -139,8 +139,9 @@ async function completeSetup(config: SetupConfig): Promise<void> {
 
         // Handle specific error codes
         if (response.status === 403 && errorBody.error === "SETUP_ALREADY_COMPLETE") {
-          // Setup was completed by another admin - just return, don't error
+          // Setup was completed by another admin - close the wizard
           console.warn("[SetupWizard] Setup already completed by another admin");
+          clearSetupRequired();
           return;
         }
 

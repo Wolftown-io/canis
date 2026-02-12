@@ -959,6 +959,7 @@ export interface OidcLoginResult {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  setup_required: boolean;
 }
 
 /** Which auth methods are enabled on the server. */

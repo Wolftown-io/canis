@@ -262,12 +262,19 @@ pub async fn complete(
     body.validate()
         .map_err(|e| SetupError::Validation(e.to_string()))?;
 
-    // Verify user is a system admin (before transaction)
+    // Use transaction for atomic setup completion
+    let mut tx = state.db.begin().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to start setup completion transaction");
+        SetupError::Database(e)
+    })?;
+
+    // Verify user is a system admin (inside transaction to prevent TOCTOU race
+    // where admin status could be revoked between check and setup completion)
     let is_admin = sqlx::query_scalar!(
         r#"SELECT EXISTS(SELECT 1 FROM system_admins WHERE user_id = $1) as "exists!""#,
         auth.id
     )
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(
@@ -281,12 +288,6 @@ pub async fn complete(
     if !is_admin {
         return Err(SetupError::Unauthorized);
     }
-
-    // Use transaction for atomic setup completion
-    let mut tx = state.db.begin().await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to start setup completion transaction");
-        SetupError::Database(e)
-    })?;
 
     // Atomically check and mark setup as complete using compare-and-swap pattern.
     // This prevents TOCTOU (Time-Of-Check-Time-Of-Use) race where two concurrent

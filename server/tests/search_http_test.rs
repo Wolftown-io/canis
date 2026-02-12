@@ -183,7 +183,14 @@ async fn test_guild_search_date_filter() {
     let channel_id = create_channel(&app.pool, guild_id, "general").await;
     let token = generate_access_token(&app.config, user_id);
 
-    insert_message_at(&app.pool, channel_id, user_id, "Old test message", "2024-01-15T12:00:00Z").await;
+    insert_message_at(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Old test message",
+        "2024-01-15T12:00:00Z",
+    )
+    .await;
     insert_message(&app.pool, channel_id, user_id, "Recent test message").await;
 
     // Search with date_from after old message
@@ -659,7 +666,14 @@ async fn test_guild_search_sort_date() {
     let channel_id = create_channel(&app.pool, guild_id, "general").await;
     let token = generate_access_token(&app.config, user_id);
 
-    insert_message_at(&app.pool, channel_id, user_id, "Papaya older message", "2024-06-01T12:00:00Z").await;
+    insert_message_at(
+        &app.pool,
+        channel_id,
+        user_id,
+        "Papaya older message",
+        "2024-06-01T12:00:00Z",
+    )
+    .await;
     insert_message(&app.pool, channel_id, user_id, "Papaya newer message").await;
 
     let req = guild_search_request(guild_id, "q=papaya&sort=date", &token);
@@ -680,4 +694,3 @@ async fn test_guild_search_sort_date() {
     delete_guild(&app.pool, guild_id).await;
     delete_user(&app.pool, user_id).await;
 }
-
