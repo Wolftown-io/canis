@@ -68,6 +68,27 @@ export async function goHome(page: Page) {
   await page.click('button[title="Home"]');
 }
 
+/** Open the global search panel (button or keyboard shortcut). */
+export async function openSearch(page: Page) {
+  const searchBtn = page.locator('button:has-text("Search")');
+  if (await searchBtn.isVisible({ timeout: 2000 })) {
+    await searchBtn.click();
+  } else {
+    await page.keyboard.press("Control+Shift+f");
+  }
+  await expect(
+    page.locator('input[placeholder*="search" i], input[type="search"]')
+  ).toBeVisible({ timeout: 5000 });
+}
+
+/** Navigate to the admin dashboard and wait for it to load. */
+export async function navigateToAdmin(page: Page) {
+  await page.goto("/admin");
+  await expect(
+    page.locator('text=Admin Dashboard').or(page.locator('text=Admin'))
+  ).toBeVisible({ timeout: 10000 });
+}
+
 /** Generate a unique string for test data to avoid collisions. */
 export function uniqueId(prefix: string = "e2e"): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

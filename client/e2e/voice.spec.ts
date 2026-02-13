@@ -4,8 +4,8 @@
  * Tests voice channel join/leave and controls.
  * Prerequisites: Backend running with WebRTC support, test users + seed data
  *
- * Note: Voice tests are limited in headless mode since WebRTC requires
- * media device access. These tests verify the UI controls render correctly.
+ * All tests are marked fixme: WebRTC requires media device access
+ * unavailable in headless Chromium. Run with --headed to execute.
  */
 
 import { test, expect } from "@playwright/test";
@@ -17,82 +17,56 @@ test.describe("Voice", () => {
     await selectFirstGuild(page);
   });
 
-  test("should join voice channel", async ({ page }) => {
-    // Find a voice channel
+  test.fixme("should join voice channel", async ({ page }) => {
     const voiceChannel = page.locator(
       'aside [role="button"]:has-text("Voice"), aside [role="button"]:has-text("voice")'
     ).first();
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    await voiceChannel.click();
 
-    if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await voiceChannel.click();
-      // Voice island or controls should appear
-      await page.waitForTimeout(2000);
-      // Check for disconnect button (indicates connected)
-      const disconnectBtn = page.locator('button[title="Disconnect"]');
-      if (await disconnectBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await expect(disconnectBtn).toBeVisible();
-      }
-    }
+    const disconnectBtn = page.locator('button[title="Disconnect"]');
+    await expect(disconnectBtn).toBeVisible({ timeout: 10000 });
   });
 
-  test("should show voice controls", async ({ page }) => {
+  test.fixme("should show voice controls", async ({ page }) => {
     const voiceChannel = page.locator(
       'aside [role="button"]:has-text("Voice"), aside [role="button"]:has-text("voice")'
     ).first();
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    await voiceChannel.click();
 
-    if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await voiceChannel.click();
-      await page.waitForTimeout(2000);
-
-      // Check for mute/deafen buttons
-      const muteBtn = page.locator('button[title*="Mute" i]');
-      const deafenBtn = page.locator('button[title*="Deafen" i]');
-      if (await muteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await expect(muteBtn).toBeVisible();
-      }
-      if (await deafenBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await expect(deafenBtn).toBeVisible();
-      }
-    }
+    const muteBtn = page.locator('button[title*="Mute" i]');
+    const deafenBtn = page.locator('button[title*="Deafen" i]');
+    await expect(muteBtn).toBeVisible({ timeout: 10000 });
+    await expect(deafenBtn).toBeVisible();
   });
 
-  test("should toggle mute", async ({ page }) => {
+  test.fixme("should toggle mute", async ({ page }) => {
     const voiceChannel = page.locator(
       'aside [role="button"]:has-text("Voice"), aside [role="button"]:has-text("voice")'
     ).first();
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    await voiceChannel.click();
 
-    if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await voiceChannel.click();
-      await page.waitForTimeout(2000);
-
-      const muteBtn = page.locator('button[title*="Mute" i]');
-      if (await muteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        // Click to toggle mute
-        await muteBtn.click();
-        await page.waitForTimeout(500);
-        // Click again to unmute
-        await muteBtn.click();
-      }
-    }
+    const muteBtn = page.locator('button[title*="Mute" i]');
+    await expect(muteBtn).toBeVisible({ timeout: 10000 });
+    await muteBtn.click();
+    // After toggling, button should still be visible (muted state)
+    await expect(muteBtn).toBeVisible();
+    await muteBtn.click();
+    await expect(muteBtn).toBeVisible();
   });
 
-  test("should disconnect from voice", async ({ page }) => {
+  test.fixme("should disconnect from voice", async ({ page }) => {
     const voiceChannel = page.locator(
       'aside [role="button"]:has-text("Voice"), aside [role="button"]:has-text("voice")'
     ).first();
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    await voiceChannel.click();
 
-    if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await voiceChannel.click();
-      await page.waitForTimeout(2000);
-
-      const disconnectBtn = page.locator('button[title="Disconnect"]');
-      if (
-        await disconnectBtn.isVisible({ timeout: 5000 }).catch(() => false)
-      ) {
-        await disconnectBtn.click();
-        // Voice controls should disappear
-        await expect(disconnectBtn).toBeHidden({ timeout: 5000 });
-      }
-    }
+    const disconnectBtn = page.locator('button[title="Disconnect"]');
+    await expect(disconnectBtn).toBeVisible({ timeout: 10000 });
+    await disconnectBtn.click();
+    await expect(disconnectBtn).toBeHidden({ timeout: 5000 });
   });
 });

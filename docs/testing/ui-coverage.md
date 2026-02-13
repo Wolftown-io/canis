@@ -11,6 +11,7 @@ Tracks E2E test coverage for all frontend UI items. Each item maps to a Playwrig
 |--------|---------|
 | :white_check_mark: | Covered — test passes without backend |
 | :construction: | Test written — requires running backend to pass |
+| :wrench: `test.fixme` | Test written — skipped (needs headed browser / WebRTC) |
 | :x: | No test coverage |
 
 ---
@@ -73,7 +74,7 @@ Tracks E2E test coverage for all frontend UI items. Each item maps to a Playwrig
 | Channel list renders | :construction: | `should display channel list` |
 | Create channel button | :construction: | `should create a text channel` |
 | Channel context menu | :construction: | `should show channel context menu` |
-| Voice channel shows participants | :construction: | `should show voice participants` |
+| Voice channel shows participants | :wrench: `test.fixme` | `should show voice participants` |
 
 ## Friends & DMs (`e2e/friends.spec.ts`)
 
@@ -102,10 +103,10 @@ Tracks E2E test coverage for all frontend UI items. Each item maps to a Playwrig
 
 | UI Item | Status | Test |
 |---------|--------|------|
-| Voice channel join | :construction: | `should join voice channel` |
-| Voice controls render | :construction: | `should show voice controls` |
-| Mute toggle | :construction: | `should toggle mute` |
-| Disconnect button | :construction: | `should disconnect from voice` |
+| Voice channel join | :wrench: `test.fixme` | `should join voice channel` |
+| Voice controls render | :wrench: `test.fixme` | `should show voice controls` |
+| Mute toggle | :wrench: `test.fixme` | `should toggle mute` |
+| Disconnect button | :wrench: `test.fixme` | `should disconnect from voice` |
 | Screen share button | :x: | Requires WebRTC mock |
 | Webcam button | :x: | Requires media device mock |
 
@@ -151,7 +152,7 @@ Tracks E2E test coverage for all frontend UI items. Each item maps to a Playwrig
 | Channels | 4 | 0 | 4 | 0 |
 | Friends/DMs | 5 | 0 | 5 | 0 |
 | Settings | 8 | 0 | 8 | 0 |
-| Voice | 6 | 0 | 4 | 2 |
+| Voice | 6 | 0 | 0 (4 fixme) | 2 |
 | Admin | 6 | 0 | 6 | 0 |
 | Search | 3 | 0 | 3 | 0 |
 | Permissions | 5 | 0 | 5 | 0 |

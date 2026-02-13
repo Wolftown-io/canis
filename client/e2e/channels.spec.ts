@@ -25,32 +25,25 @@ test.describe("Channel Management", () => {
   });
 
   test("should create a text channel", async ({ page }) => {
-    // Look for create channel button (+ icon near channels)
     const createBtn = page.locator(
       'button[title*="channel" i], button[title*="Create" i]'
     ).first();
+    await expect(createBtn).toBeVisible({ timeout: 5000 });
+    await createBtn.click();
 
-    if (await createBtn.isVisible()) {
-      await createBtn.click();
+    await expect(
+      page.locator('[role="dialog"], .fixed.inset-0').first()
+    ).toBeVisible({ timeout: 5000 });
 
-      // Modal should appear
-      await expect(
-        page.locator('[role="dialog"], .fixed.inset-0').first()
-      ).toBeVisible({ timeout: 5000 });
+    const channelName = uniqueId("test-ch");
+    const nameInput = page.locator('input[placeholder*="name" i]').first();
+    await expect(nameInput).toBeVisible({ timeout: 3000 });
+    await nameInput.fill(channelName);
+    await page.click('button:has-text("Create")');
 
-      // Fill channel name
-      const channelName = uniqueId("test-ch");
-      const nameInput = page.locator('input[placeholder*="name" i]').first();
-      if (await nameInput.isVisible()) {
-        await nameInput.fill(channelName);
-        await page.click('button:has-text("Create")');
-
-        // New channel should appear in sidebar
-        await expect(page.locator(`text=${channelName}`)).toBeVisible({
-          timeout: 10000,
-        });
-      }
-    }
+    await expect(page.locator(`text=${channelName}`)).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("should show channel context menu", async ({ page }) => {
@@ -67,17 +60,17 @@ test.describe("Channel Management", () => {
     ).toBeVisible({ timeout: 3000 });
   });
 
-  test("should show voice participants", async ({ page }) => {
-    // Find a voice channel (Volume2 icon or "Voice" in name)
+  test.fixme("should show voice participants", async ({ page }) => {
+    // Needs actual voice participants connected to validate participant list
     const voiceChannel = page.locator(
       'aside [role="button"]:has-text("Voice"), aside [role="button"]:has-text("voice")'
     ).first();
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    await voiceChannel.click();
 
-    if (await voiceChannel.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Voice channel exists, verify it's clickable
-      await expect(voiceChannel).toBeVisible();
-    }
-    // Note: This test may be marked as construction since it needs
-    // actual voice participants to fully validate
+    // Should show participant list when users are connected
+    await expect(
+      page.locator('[role="list"]').or(page.locator('text=participant'))
+    ).toBeVisible({ timeout: 5000 });
   });
 });

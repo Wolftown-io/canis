@@ -48,13 +48,11 @@ test.describe("Messaging", () => {
 
     // Try to send empty message
     await input.press("Enter");
-    await page.waitForTimeout(500);
 
     // Message count should not increase
-    const messagesAfter = await page
-      .locator('[role="listitem"]')
-      .count();
-    expect(messagesAfter).toBe(messagesBefore);
+    await expect(page.locator('[role="listitem"]')).toHaveCount(messagesBefore, {
+      timeout: 2000,
+    });
   });
 
   test("should render markdown in messages", async ({ page }) => {
