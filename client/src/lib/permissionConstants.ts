@@ -346,7 +346,6 @@ export function togglePermission(permissions: number, bit: number): number {
 
 // Default permission presets (matching server)
 export const EVERYONE_DEFAULT =
-  PermissionBits.VIEW_CHANNEL |
   PermissionBits.SEND_MESSAGES |
   PermissionBits.EMBED_LINKS |
   PermissionBits.ATTACH_FILES |

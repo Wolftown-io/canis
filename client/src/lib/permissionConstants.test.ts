@@ -13,7 +13,7 @@ describe("channel override permission constants", () => {
   it("excludes guild-level permissions from channel override keys", () => {
     expect(CHANNEL_OVERRIDE_PERMISSION_KEYS).not.toContain("MANAGE_GUILD");
     expect(CHANNEL_OVERRIDE_PERMISSION_KEYS).not.toContain("MANAGE_ROLES");
-    expect(CHANNEL_OVERRIDE_PERMISSION_KEYS).not.toContain("CREATE_PAGES");
+    expect(CHANNEL_OVERRIDE_PERMISSION_KEYS).not.toContain("MANAGE_PAGES");
   });
 
   it("maps all override keys to known permission bits", () => {
