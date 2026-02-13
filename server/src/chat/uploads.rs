@@ -200,6 +200,63 @@ const DEFAULT_ALLOWED_TYPES: &[&str] = &[
     "video/webm",
 ];
 
+/// Validate file content against its claimed MIME type using magic byte detection.
+///
+/// Returns the verified MIME type (detected from content, or the claimed type for
+/// formats where magic byte detection isn't possible like plain text).
+fn validate_file_content(data: &[u8], claimed_mime: &str) -> Result<String, UploadError> {
+    // For text/plain: infer can't detect plain text via magic bytes.
+    // Accept if the content is valid UTF-8 and contains no null bytes (binary indicator).
+    if claimed_mime == "text/plain" {
+        if std::str::from_utf8(data).is_ok() && !data.contains(&0) {
+            return Ok(claimed_mime.to_string());
+        }
+        return Err(UploadError::InvalidMimeType {
+            mime_type: "binary data claimed as text/plain".to_string(),
+        });
+    }
+
+    // Use magic byte detection for all other types
+    let detected = match infer::get(data) {
+        Some(kind) => kind.mime_type().to_string(),
+        None => {
+            // No magic bytes recognized — reject the file
+            tracing::warn!(
+                claimed_mime = %claimed_mime,
+                size = data.len(),
+                "File content does not match any known magic byte signature"
+            );
+            return Err(UploadError::InvalidMimeType {
+                mime_type: format!("{claimed_mime} (content unrecognizable)"),
+            });
+        }
+    };
+
+    // Allow if detected type matches claimed type
+    if detected == claimed_mime {
+        return Ok(detected);
+    }
+
+    // Allow known equivalent pairs (e.g. audio/ogg detected as video/ogg)
+    let compatible = matches!(
+        (claimed_mime, detected.as_str()),
+        ("audio/ogg", "video/ogg") | ("audio/wav", "audio/x-wav")
+    );
+
+    if compatible {
+        return Ok(claimed_mime.to_string());
+    }
+
+    tracing::warn!(
+        claimed_mime = %claimed_mime,
+        detected_mime = %detected,
+        "File content type mismatch"
+    );
+    Err(UploadError::InvalidMimeType {
+        mime_type: format!("{claimed_mime} (detected: {detected})"),
+    })
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -297,6 +354,9 @@ pub async fn upload_file(
             mime_type: content_type,
         });
     }
+
+    // Validate actual file content matches claimed MIME type (magic byte check)
+    let content_type = validate_file_content(&file_data, &content_type)?;
 
     // Verify message exists and user has access
     let message = db::find_message_by_id(&state.db, message_id)
@@ -455,6 +515,9 @@ pub async fn upload_message_with_file(
             mime_type: file_content_type,
         });
     }
+
+    // Validate actual file content matches claimed MIME type (magic byte check)
+    let file_content_type = validate_file_content(&file_data, &file_content_type)?;
 
     // Create the message first
     // Note: Empty content is allowed when attaching files (file-only messages)

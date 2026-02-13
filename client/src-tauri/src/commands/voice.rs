@@ -232,6 +232,12 @@ pub async fn leave_voice(state: State<'_, AppState>) -> Result<(), String> {
         pipeline.shutdown().await;
     }
 
+    // Stop webcam if active
+    if let Some(pipeline) = voice_state.webcam.take() {
+        info!("Auto-stopping webcam on voice leave");
+        pipeline.shutdown().await;
+    }
+
     // Stop audio
     voice_state.audio.stop_all().await;
     voice_state.audio_tx = None;

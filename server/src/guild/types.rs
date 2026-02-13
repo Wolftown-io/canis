@@ -16,6 +16,7 @@ pub struct Guild {
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
     pub description: Option<String>,
+    pub threads_enabled: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -162,4 +163,32 @@ pub struct CreateEmojiRequest {
 pub struct UpdateEmojiRequest {
     #[validate(length(min = 2, max = 32, message = "Name must be 2-32 characters"))]
     pub name: String,
+}
+
+// ============================================================================
+// Guild Settings Types
+// ============================================================================
+
+/// Guild settings response (subset of guild-level configuration).
+#[derive(Debug, Serialize)]
+pub struct GuildSettings {
+    pub threads_enabled: bool,
+}
+
+/// Request to update guild settings.
+#[derive(Debug, Deserialize)]
+pub struct UpdateGuildSettingsRequest {
+    pub threads_enabled: Option<bool>,
+}
+
+// ============================================================================
+// Command Types
+// ============================================================================
+
+/// Available slash command in a guild (from installed bots).
+#[derive(Debug, Serialize)]
+pub struct GuildCommandInfo {
+    pub name: String,
+    pub description: String,
+    pub bot_name: String,
 }

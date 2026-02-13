@@ -24,6 +24,7 @@ mod signaling;
 mod stats;
 mod track;
 mod track_types;
+pub mod webcam;
 pub mod ws_handler;
 
 use axum::routing::get;
@@ -37,6 +38,7 @@ pub use screen_share::{
 pub use sfu::{ParticipantInfo, Room, SfuServer};
 pub use stats::{UserStats, VoiceStats};
 pub use track_types::{TrackInfo, TrackKind, TrackSource};
+pub use webcam::WebcamInfo;
 
 use crate::api::AppState;
 

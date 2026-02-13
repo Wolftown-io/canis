@@ -5,6 +5,7 @@
 pub mod bots;
 pub mod commands;
 pub mod favorites;
+pub mod global_search;
 pub mod pins;
 pub mod preferences;
 pub mod reactions;
@@ -184,6 +185,7 @@ pub fn create_router(state: AppState) -> Router {
             post(favorites::add_favorite).delete(favorites::remove_favorite),
         )
         .route("/api/me/unread", get(unread::get_unread_aggregate))
+        .route("/api/me/read-all", post(unread::mark_all_read))
         .nest("/api/keys", crypto::router())
         .nest("/api/users/{user_id}/keys", crypto::user_keys_router())
         // Bot management routes
@@ -223,6 +225,17 @@ pub fn create_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
         .layer(from_fn(with_category(RateLimitCategory::Write)));
 
+    // Search routes with dedicated Search rate limit category (15 req/60s)
+    let search_routes = Router::new()
+        .route(
+            "/api/guilds/{id}/search",
+            get(guild::search::search_messages),
+        )
+        .route("/api/dm/search", get(chat::dm_search::search_dm_messages))
+        .route("/api/search", get(global_search::search_all))
+        .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
+        .layer(from_fn(with_category(RateLimitCategory::Search)));
+
     // Admin routes (requires auth + system admin)
     // Auth middleware first, then admin router applies require_system_admin internally
     let admin_routes = admin::router(state.clone());
@@ -230,6 +243,7 @@ pub fn create_router(state: AppState) -> Router {
     // Protected routes that require authentication
     let protected_routes = Router::new()
         .merge(api_routes)
+        .merge(search_routes)
         .nest("/api", social_routes)
         .route("/api/reports", post(moderation::handlers::create_report))
         .nest("/api/admin", admin_routes)

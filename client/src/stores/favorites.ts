@@ -6,6 +6,7 @@
 
 import { createSignal, createMemo } from "solid-js";
 import type { FavoriteChannel, Favorite } from "@/lib/types";
+import { showToast } from "@/components/ui/Toast";
 
 // ============================================================================
 // State
@@ -167,6 +168,7 @@ export async function addFavorite(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to add favorite";
     console.error("Failed to add favorite:", message);
+    showToast({ type: "error", title: "Favorite Failed", message: "Could not add favorite. Please try again." });
     throw new Error(message);
   }
 }
@@ -179,6 +181,7 @@ export async function removeFavorite(channelId: string): Promise<boolean> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to remove favorite";
     console.error("Failed to remove favorite:", message);
+    showToast({ type: "error", title: "Unfavorite Failed", message: "Could not remove favorite. Please try again." });
     throw new Error(message);
   }
 }

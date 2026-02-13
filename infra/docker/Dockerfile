@@ -3,7 +3,7 @@
 # ============================================================================
 # Build Stage - Rust compilation
 # ============================================================================
-FROM rust:1.83-bookworm AS builder
+FROM rust:1.88-bookworm AS builder
 
 WORKDIR /build
 
@@ -15,13 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy workspace manifests first for layer caching
 COPY Cargo.toml Cargo.lock ./
-COPY shared/Cargo.toml shared/Cargo.toml
+COPY shared/vc-common/Cargo.toml shared/vc-common/Cargo.toml
+COPY shared/vc-crypto/Cargo.toml shared/vc-crypto/Cargo.toml
 COPY server/Cargo.toml server/Cargo.toml
 COPY client/src-tauri/Cargo.toml client/src-tauri/Cargo.toml
 
 # Create dummy source files for dependency caching
-RUN mkdir -p shared/src server/src client/src-tauri/src && \
-    echo "fn main() {}" > shared/src/lib.rs && \
+RUN mkdir -p shared/vc-common/src shared/vc-crypto/src server/src client/src-tauri/src && \
+    echo "fn main() {}" > shared/vc-common/src/lib.rs && \
+    echo "fn main() {}" > shared/vc-crypto/src/lib.rs && \
     echo "fn main() {}" > server/src/lib.rs && \
     echo "fn main() {}" > server/src/main.rs && \
     echo "fn main() {}" > client/src-tauri/src/lib.rs && \

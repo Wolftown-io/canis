@@ -84,7 +84,7 @@ pub async fn get_or_create_dm(
     // Check for existing DM between these two users
     let existing = sqlx::query_as::<_, Channel>(
         r"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
-                  c.topic, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
+                  c.topic, c.icon_url, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
            FROM channels c
            JOIN dm_participants p1 ON c.id = p1.channel_id AND p1.user_id = $1
            JOIN dm_participants p2 ON c.id = p2.channel_id AND p2.user_id = $2
@@ -122,7 +122,7 @@ pub async fn get_or_create_dm(
     let channel = sqlx::query_as::<_, Channel>(
         r"INSERT INTO channels (id, name, channel_type, guild_id, position)
            VALUES ($1, $2, 'dm', NULL, 0)
-           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, max_screen_shares, created_at, updated_at",
+           RETURNING id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at",
     )
     .bind(channel_id)
     .bind(&dm_name)
@@ -185,7 +185,7 @@ pub async fn create_group_dm(
     let channel = sqlx::query_as::<_, Channel>(
         r"INSERT INTO channels (id, name, channel_type, guild_id, position)
            VALUES ($1, $2, 'dm', NULL, 0)
-           RETURNING id, name, channel_type, category_id, guild_id, topic, user_limit, position, max_screen_shares, created_at, updated_at",
+           RETURNING id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at",
     )
     .bind(channel_id)
     .bind(&channel_name)
@@ -244,7 +244,7 @@ pub async fn get_dm_participants(
 pub async fn list_user_dms(pool: &sqlx::PgPool, user_id: Uuid) -> sqlx::Result<Vec<Channel>> {
     let channels = sqlx::query_as::<_, Channel>(
         r"SELECT c.id, c.name, c.channel_type, c.category_id, c.guild_id,
-                  c.topic, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
+                  c.topic, c.icon_url, c.user_limit, c.position, c.max_screen_shares, c.created_at, c.updated_at
            FROM channels c
            JOIN dm_participants dp ON c.id = dp.channel_id
            WHERE dp.user_id = $1 AND c.channel_type = 'dm'
@@ -827,4 +827,57 @@ pub async fn mark_as_read(
         last_read_message_id: body.last_read_message_id,
         unread_count: 0,
     }))
+}
+
+/// Mark all DM channels as read.
+/// POST /api/dm/read-all
+#[tracing::instrument(skip(state))]
+pub async fn mark_all_dms_read(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<StatusCode, ChannelError> {
+    let now = chrono::Utc::now();
+
+    // Batch UPSERT dm_read_state for all DM channels where user is participant
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        r"INSERT INTO dm_read_state (user_id, channel_id, last_read_at, last_read_message_id)
+          SELECT $1, dp.channel_id, $2, (
+              SELECT m.id FROM messages m
+              WHERE m.channel_id = dp.channel_id AND m.deleted_at IS NULL
+              ORDER BY m.created_at DESC LIMIT 1
+          )
+          FROM dm_participants dp
+          INNER JOIN channels c ON c.id = dp.channel_id
+          WHERE dp.user_id = $1 AND c.channel_type = 'dm'
+          ON CONFLICT (user_id, channel_id)
+          DO UPDATE SET last_read_at = EXCLUDED.last_read_at, last_read_message_id = EXCLUDED.last_read_message_id
+          RETURNING channel_id",
+    )
+    .bind(auth.id)
+    .bind(now)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Broadcast DmRead events for each updated DM channel
+    for (channel_id,) in &rows {
+        if let Err(e) = broadcast_to_user(
+            &state.redis,
+            auth.id,
+            &ServerEvent::DmRead {
+                channel_id: *channel_id,
+                last_read_message_id: None,
+            },
+        )
+        .await
+        {
+            tracing::warn!(
+                user_id = %auth.id,
+                channel_id = %channel_id,
+                error = %e,
+                "Failed to broadcast DmRead event"
+            );
+        }
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }

@@ -86,7 +86,8 @@ const Login: Component = () => {
           serverUrl(),
           result.tokens.access_token,
           result.tokens.refresh_token,
-          result.tokens.expires_in || 900
+          result.tokens.expires_in || 900,
+          result.tokens.setup_required ?? false
         );
         navigate("/", { replace: true });
         setOidcLoading(null);
@@ -104,7 +105,8 @@ const Login: Component = () => {
             serverUrl(),
             event.data.access_token,
             event.data.refresh_token,
-            event.data.expires_in || 900
+            event.data.expires_in || 900,
+            event.data.setup_required ?? false
           ).then(() => {
             navigate("/", { replace: true });
           }).catch(() => {

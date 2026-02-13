@@ -87,3 +87,31 @@ textarea.bg-transparent {
 .spoiler.revealed:hover {
   background-color: transparent;
 }
+
+/* Mention highlighting */
+.mention-everyone {
+  background-color: color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
+  color: var(--color-accent-primary);
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.mention-user {
+  background-color: color-mix(in srgb, var(--color-accent-primary) 15%, transparent);
+  color: var(--color-accent-primary);
+  padding: 0 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.mention-user:hover {
+  background-color: color-mix(in srgb, var(--color-accent-primary) 30%, transparent);
+}
+
+/* Suppress mention styling inside unrevealed spoilers */
+.spoiler:not(.revealed) .mention-everyone,
+.spoiler:not(.revealed) .mention-user {
+  background-color: inherit;
+  color: inherit;
+}

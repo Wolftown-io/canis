@@ -79,20 +79,21 @@ jobs:
 
       - name: Setup MSYS2 (Windows libvpx)
         if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          install: >-
-            mingw-w64-x86_64-libvpx
-            mingw-w64-x86_64-pkgconf
-
-      - name: Configure pkg-config (Windows)
-        if: runner.os == 'Windows'
         run: |
-          "PKG_CONFIG=C:/msys64/mingw64/bin/pkg-config.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "PKG_CONFIG_PATH=C:/msys64/mingw64/lib/pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "C:/msys64/mingw64/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "C:/msys64/usr/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          vcpkg install libvpx:x64-windows-static-md
+          choco install -y pkgconfiglite
+
+      - name: Set VPX environment for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static-md"
+          # env-libvpx-sys links "libvpx" but vcpkg names it "vpx.lib"
+          Copy-Item "$root\lib\vpx.lib" "$root\lib\libvpx.lib" -ErrorAction SilentlyContinue
+          echo "VPX_LIB_DIR=$root\lib" >> $env:GITHUB_ENV
+          echo "VPX_INCLUDE_DIR=$root\include" >> $env:GITHUB_ENV
+          echo "VPX_VERSION=1.15.2" >> $env:GITHUB_ENV
+          echo "VPX_STATIC=1" >> $env:GITHUB_ENV
 
       - name: Set CMake policy floor for macOS
         if: runner.os == 'macOS'

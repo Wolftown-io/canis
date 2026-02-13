@@ -149,6 +149,29 @@ export async function markDMAsRead(channelId: string): Promise<void> {
 }
 
 /**
+ * Mark all DMs as read (optimistic update + API call).
+ */
+export async function markAllDMsAsRead(): Promise<void> {
+  // Optimistic update: zero out all DM unread counts
+  dmsState.dms.forEach((dm, idx) => {
+    if (dm.unread_count > 0) {
+      setDmsState("dms", idx, "unread_count", 0);
+    }
+  });
+
+  try {
+    await tauri.markAllDMsRead();
+  } catch (err) {
+    console.error("[DMs] Failed to mark all DMs as read:", err);
+    showToast({
+      type: "error",
+      title: "Mark All Read Failed",
+      message: "Could not mark all DMs as read. Please try again.",
+    });
+  }
+}
+
+/**
  * Handle dm_read event from WebSocket (cross-device sync)
  */
 export function handleDMReadEvent(channelId: string): void {

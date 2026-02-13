@@ -4,9 +4,10 @@
  * Manages channel category state including collapse states for the UI.
  */
 
-import { createStore } from "solid-js/store";
+import { createStore, reconcile } from "solid-js/store";
 import type { ChannelCategory } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
+import { showToast } from "@/components/ui/Toast";
 
 // ============================================================================
 // State Interface
@@ -51,6 +52,7 @@ export async function loadGuildCategories(guildId: string): Promise<void> {
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to load guild categories:", error);
+    showToast({ type: "error", title: "Categories Failed", message: "Could not load channel categories." });
     setCategoriesState({ isLoading: false, error });
   }
 }
@@ -152,7 +154,7 @@ export function clearGuildCategories(guildId: string): void {
  * Clear all collapse state (useful on logout).
  */
 export function clearCollapseState(): void {
-  setCategoriesState("collapseState", {});
+  setCategoriesState("collapseState", reconcile({}));
 }
 
 /**

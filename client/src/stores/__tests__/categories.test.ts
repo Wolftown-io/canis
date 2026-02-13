@@ -347,11 +347,7 @@ describe("categories store", () => {
       expect(() => clearCollapseState()).not.toThrow();
     });
 
-    // Note: The clearCollapseState function uses SolidJS store's path-based setter
-    // which performs a merge operation. To truly clear nested state in SolidJS stores,
-    // a different approach may be needed (e.g., reconcile or produce).
-    // This is a known limitation - categories set before clearing may persist.
-    it.skip("should clear all collapse states (skipped - SolidJS store merge behavior)", () => {
+    it("should clear all collapse states", () => {
       const uniqueId1 = `clear-${Date.now()}-1`;
       const uniqueId2 = `clear-${Date.now()}-2`;
 

@@ -5,17 +5,19 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use sqlx::QueryBuilder;
 use uuid::Uuid;
 use validator::Validate;
 
 use super::types::{
-    CreateGuildRequest, Guild, GuildMember, GuildWithMemberCount, JoinGuildRequest,
-    UpdateGuildRequest,
+    CreateGuildRequest, Guild, GuildCommandInfo, GuildMember, GuildSettings, GuildWithMemberCount,
+    JoinGuildRequest, UpdateGuildRequest, UpdateGuildSettingsRequest,
 };
 use crate::api::AppState;
 use crate::auth::AuthUser;
 use crate::db::{self, ChannelType};
 use crate::permissions::{require_guild_permission, GuildPermissions, PermissionError};
+use crate::ws::{broadcast_to_user, ServerEvent};
 
 // ============================================================================
 // Response Types
@@ -28,6 +30,17 @@ pub struct ChannelWithUnread {
     pub channel: db::Channel,
     /// Number of unread messages (only for text channels).
     pub unread_count: i64,
+}
+
+/// A bot installed in a guild.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct InstalledBot {
+    pub application_id: Uuid,
+    pub bot_user_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub installed_by: Uuid,
+    pub installed_at: chrono::DateTime<chrono::Utc>,
 }
 
 // ============================================================================
@@ -117,7 +130,7 @@ pub async fn create_guild(
     let guild = sqlx::query_as::<_, Guild>(
         r"INSERT INTO guilds (id, name, owner_id, description)
            VALUES ($1, $2, $3, $4)
-           RETURNING id, name, owner_id, icon_url, description, created_at",
+           RETURNING id, name, owner_id, icon_url, description, threads_enabled, created_at",
     )
     .bind(guild_id)
     .bind(&body.name)
@@ -158,17 +171,18 @@ pub async fn list_guilds(
         Uuid,
         Option<String>,
         Option<String>,
+        bool,
         chrono::DateTime<chrono::Utc>,
         i64,
     )> = sqlx::query_as(
         r"SELECT
-            g.id, g.name, g.owner_id, g.icon_url, g.description, g.created_at,
+            g.id, g.name, g.owner_id, g.icon_url, g.description, g.threads_enabled, g.created_at,
             COUNT(gm2.user_id) as member_count
            FROM guilds g
            INNER JOIN guild_members gm ON g.id = gm.guild_id
            LEFT JOIN guild_members gm2 ON g.id = gm2.guild_id
            WHERE gm.user_id = $1
-           GROUP BY g.id, g.name, g.owner_id, g.icon_url, g.description, g.created_at
+           GROUP BY g.id, g.name, g.owner_id, g.icon_url, g.description, g.threads_enabled, g.created_at
            ORDER BY g.created_at",
     )
     .bind(auth.id)
@@ -178,7 +192,16 @@ pub async fn list_guilds(
     let guilds = rows
         .into_iter()
         .map(
-            |(id, name, owner_id, icon_url, description, created_at, member_count)| {
+            |(
+                id,
+                name,
+                owner_id,
+                icon_url,
+                description,
+                threads_enabled,
+                created_at,
+                member_count,
+            )| {
                 GuildWithMemberCount {
                     guild: Guild {
                         id,
@@ -186,6 +209,7 @@ pub async fn list_guilds(
                         owner_id,
                         icon_url,
                         description,
+                        threads_enabled,
                         created_at,
                     },
                     member_count,
@@ -211,7 +235,7 @@ pub async fn get_guild(
     }
 
     let guild = sqlx::query_as::<_, Guild>(
-        "SELECT id, name, owner_id, icon_url, description, created_at FROM guilds WHERE id = $1",
+        "SELECT id, name, owner_id, icon_url, description, threads_enabled, created_at FROM guilds WHERE id = $1",
     )
     .bind(guild_id)
     .fetch_optional(&state.db)
@@ -246,45 +270,37 @@ pub async fn update_guild(
     }
 
     // Build dynamic update query
-    let mut query_parts = vec![];
-    let mut bindings: Vec<String> = vec![];
+    let mut has_changes = false;
+    let mut builder = QueryBuilder::new("UPDATE guilds SET ");
+    {
+        let mut sep = builder.separated(", ");
+        if let Some(name) = body.name {
+            sep.push("name = ").push_bind_unseparated(name);
+            has_changes = true;
+        }
+        if let Some(desc) = body.description {
+            sep.push("description = ").push_bind_unseparated(desc);
+            has_changes = true;
+        }
+        if let Some(icon) = body.icon_url {
+            sep.push("icon_url = ").push_bind_unseparated(icon);
+            has_changes = true;
+        }
+    }
 
-    if let Some(name) = &body.name {
-        query_parts.push(format!("name = ${}", bindings.len() + 2));
-        bindings.push(name.clone());
-    }
-    if body.description.is_some() {
-        query_parts.push(format!("description = ${}", bindings.len() + 2));
-        bindings.push(body.description.clone().unwrap_or_default());
-    }
-    if body.icon_url.is_some() {
-        query_parts.push(format!("icon_url = ${}", bindings.len() + 2));
-        bindings.push(body.icon_url.clone().unwrap_or_default());
-    }
-
-    if query_parts.is_empty() {
-        // No changes, return current guild
+    if !has_changes {
         return get_guild(State(state), auth, Path(guild_id)).await;
     }
 
-    let query_str = format!(
-        "UPDATE guilds SET {} WHERE id = $1 RETURNING id, name, owner_id, icon_url, description, created_at",
-        query_parts.join(", ")
-    );
+    builder.push(" WHERE id = ");
+    builder.push_bind(guild_id);
+    builder
+        .push(" RETURNING id, name, owner_id, icon_url, description, threads_enabled, created_at");
 
-    // Execute update with proper bindings
-    let mut query = sqlx::query_as::<_, Guild>(&query_str).bind(guild_id);
-    if let Some(name) = body.name {
-        query = query.bind(name);
-    }
-    if let Some(desc) = body.description {
-        query = query.bind(desc);
-    }
-    if let Some(icon) = body.icon_url {
-        query = query.bind(icon);
-    }
-
-    let updated_guild = query.fetch_one(&state.db).await?;
+    let updated_guild = builder
+        .build_query_as::<Guild>()
+        .fetch_one(&state.db)
+        .await?;
 
     Ok(Json(updated_guild))
 }
@@ -491,24 +507,27 @@ pub async fn list_channels(
     auth: AuthUser,
     Path(guild_id): Path<Uuid>,
 ) -> Result<Json<Vec<ChannelWithUnread>>, GuildError> {
-    // Verify membership
-    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
-    if !is_member {
-        return Err(GuildError::Forbidden);
-    }
-
     let all_channels = db::get_guild_channels(&state.db, guild_id).await?;
+    let all_channel_ids: Vec<Uuid> = all_channels.iter().map(|c| c.id).collect();
 
-    // Filter channels by VIEW_CHANNEL permission
-    let mut channels = Vec::new();
-    for channel in all_channels {
-        if crate::permissions::require_channel_access(&state.db, auth.id, channel.id)
-            .await
-            .is_ok()
-        {
-            channels.push(channel);
-        }
-    }
+    // Batch permission check: fetch membership + roles once, batch-fetch overrides
+    let accessible_ids = crate::permissions::filter_accessible_channels(
+        &state.db,
+        guild_id,
+        auth.id,
+        &all_channel_ids,
+    )
+    .await
+    .map_err(|e| match e {
+        crate::permissions::PermissionError::NotGuildMember => GuildError::Forbidden,
+        other => GuildError::Permission(other),
+    })?;
+
+    let accessible_set: std::collections::HashSet<Uuid> = accessible_ids.into_iter().collect();
+    let channels: Vec<db::Channel> = all_channels
+        .into_iter()
+        .filter(|c| accessible_set.contains(&c.id))
+        .collect();
 
     // Collect text channel IDs for batched unread count query
     let text_channel_ids: Vec<Uuid> = channels
@@ -676,4 +695,258 @@ pub async fn add_bot_to_guild(
     .await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// List bots installed in a guild.
+///
+/// `GET /api/guilds/:guild_id/bots`
+#[tracing::instrument(skip(state))]
+pub async fn list_guild_bots(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<Vec<InstalledBot>>, GuildError> {
+    // Verify membership
+    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
+    if !is_member {
+        return Err(GuildError::Forbidden);
+    }
+
+    let bots = sqlx::query_as::<_, InstalledBot>(
+        r"SELECT
+            gbi.application_id,
+            ba.bot_user_id,
+            ba.name,
+            ba.description,
+            gbi.installed_by,
+            gbi.installed_at
+           FROM guild_bot_installations gbi
+           INNER JOIN bot_applications ba ON gbi.application_id = ba.id
+           WHERE gbi.guild_id = $1
+           ORDER BY gbi.installed_at",
+    )
+    .bind(guild_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(bots))
+}
+
+/// Remove a bot from a guild.
+///
+/// `DELETE /api/guilds/:guild_id/bots/:bot_id`
+#[tracing::instrument(skip(state))]
+pub async fn remove_bot_from_guild(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((guild_id, bot_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, GuildError> {
+    let _ctx =
+        require_guild_permission(&state.db, guild_id, auth.id, GuildPermissions::MANAGE_GUILD)
+            .await
+            .map_err(|e| match e {
+                PermissionError::NotGuildMember => GuildError::Forbidden,
+                other => GuildError::Permission(other),
+            })?;
+
+    // Look up application_id from bot_user_id
+    let app = sqlx::query!(
+        "SELECT id FROM bot_applications WHERE bot_user_id = $1",
+        bot_id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    let application_id = match app {
+        Some(app) => app.id,
+        None => return Err(GuildError::NotFound),
+    };
+
+    let result = sqlx::query!(
+        "DELETE FROM guild_bot_installations WHERE guild_id = $1 AND application_id = $2",
+        guild_id,
+        application_id
+    )
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(GuildError::NotFound);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// List available slash commands in a guild (from installed bots).
+///
+/// Returns both guild-scoped and global commands from all installed bots.
+/// Guild-scoped commands take precedence over global commands with the same name.
+///
+/// `GET /api/guilds/:guild_id/commands`
+#[tracing::instrument(skip(state))]
+pub async fn list_guild_commands(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<Vec<GuildCommandInfo>>, GuildError> {
+    // Verify membership
+    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
+    if !is_member {
+        return Err(GuildError::Forbidden);
+    }
+
+    // Single query: guild-scoped + global commands from installed bots.
+    // DISTINCT ON deduplicates by name; ORDER BY (sc.guild_id IS NULL) ensures
+    // guild-scoped commands (IS NULL = false = 0) win over global ones (= 1).
+    let commands: Vec<(String, String, String)> = sqlx::query_as(
+        r"SELECT DISTINCT ON (sc.name) sc.name, sc.description, ba.name as bot_name
+           FROM slash_commands sc
+           INNER JOIN bot_applications ba ON sc.application_id = ba.id
+           INNER JOIN guild_bot_installations gbi ON ba.id = gbi.application_id
+           WHERE gbi.guild_id = $1 AND (sc.guild_id = $1 OR sc.guild_id IS NULL)
+           ORDER BY sc.name, (sc.guild_id IS NULL)",
+    )
+    .bind(guild_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let result: Vec<GuildCommandInfo> = commands
+        .into_iter()
+        .map(|(name, description, bot_name)| GuildCommandInfo {
+            name,
+            description,
+            bot_name,
+        })
+        .collect();
+
+    Ok(Json(result))
+}
+
+/// Mark all text channels in a guild as read.
+/// POST /api/guilds/{id}/read-all
+#[tracing::instrument(skip(state))]
+pub async fn mark_all_channels_read(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+) -> Result<StatusCode, GuildError> {
+    // Verify guild membership
+    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
+    if !is_member {
+        return Err(GuildError::Forbidden);
+    }
+
+    let now = chrono::Utc::now();
+
+    // Batch UPSERT channel_read_state for all text channels in this guild
+    // Uses a subquery to get the latest message ID per channel
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        r"INSERT INTO channel_read_state (user_id, channel_id, last_read_at, last_read_message_id)
+          SELECT $1, c.id, $3, (
+              SELECT m.id FROM messages m
+              WHERE m.channel_id = c.id AND m.deleted_at IS NULL
+              ORDER BY m.created_at DESC LIMIT 1
+          )
+          FROM channels c
+          WHERE c.guild_id = $2 AND c.channel_type = 'text'
+          ON CONFLICT (user_id, channel_id)
+          DO UPDATE SET last_read_at = EXCLUDED.last_read_at, last_read_message_id = EXCLUDED.last_read_message_id
+          RETURNING channel_id",
+    )
+    .bind(auth.id)
+    .bind(guild_id)
+    .bind(now)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Broadcast ChannelRead events for each updated channel
+    for (channel_id,) in &rows {
+        if let Err(e) = broadcast_to_user(
+            &state.redis,
+            auth.id,
+            &ServerEvent::ChannelRead {
+                channel_id: *channel_id,
+                last_read_message_id: None,
+            },
+        )
+        .await
+        {
+            tracing::warn!(
+                user_id = %auth.id,
+                channel_id = %channel_id,
+                error = %e,
+                "Failed to broadcast ChannelRead event"
+            );
+        }
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Get guild settings.
+/// GET /api/guilds/{id}/settings
+#[tracing::instrument(skip(state))]
+pub async fn get_guild_settings(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<GuildSettings>, GuildError> {
+    // Verify guild membership
+    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
+    if !is_member {
+        return Err(GuildError::Forbidden);
+    }
+
+    let threads_enabled: (bool,) =
+        sqlx::query_as("SELECT threads_enabled FROM guilds WHERE id = $1")
+            .bind(guild_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(GuildError::NotFound)?;
+
+    Ok(Json(GuildSettings {
+        threads_enabled: threads_enabled.0,
+    }))
+}
+
+/// Update guild settings (requires MANAGE_GUILD).
+/// PATCH /api/guilds/{id}/settings
+#[tracing::instrument(skip(state))]
+pub async fn update_guild_settings(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+    Json(body): Json<UpdateGuildSettingsRequest>,
+) -> Result<Json<GuildSettings>, GuildError> {
+    // Check MANAGE_GUILD permission
+    require_guild_permission(&state.db, guild_id, auth.id, GuildPermissions::MANAGE_GUILD)
+        .await
+        .map_err(GuildError::Permission)?;
+
+    let mut has_changes = false;
+    let mut builder = QueryBuilder::new("UPDATE guilds SET ");
+    {
+        let mut sep = builder.separated(", ");
+        if let Some(threads_enabled) = body.threads_enabled {
+            sep.push("threads_enabled = ")
+                .push_bind_unseparated(threads_enabled);
+            has_changes = true;
+        }
+    }
+
+    if !has_changes {
+        return get_guild_settings(State(state), auth, Path(guild_id)).await;
+    }
+
+    builder
+        .push(" WHERE id = ")
+        .push_bind(guild_id)
+        .push(" RETURNING threads_enabled");
+
+    let (threads_enabled,) = builder
+        .build_query_as::<(bool,)>()
+        .fetch_one(&state.db)
+        .await?;
+
+    Ok(Json(GuildSettings { threads_enabled }))
 }

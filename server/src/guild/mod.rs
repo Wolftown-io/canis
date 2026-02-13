@@ -30,9 +30,21 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/leave", post(handlers::leave_guild))
         .route("/{id}/members", get(handlers::list_members))
         .route("/{id}/members/{user_id}", delete(handlers::kick_member))
+        .route("/{id}/bots", get(handlers::list_guild_bots))
         .route("/{id}/bots/{bot_id}/add", post(handlers::add_bot_to_guild))
+        .route(
+            "/{id}/bots/{bot_id}",
+            delete(handlers::remove_bot_from_guild),
+        )
         .route("/{id}/channels", get(handlers::list_channels))
         .route("/{id}/channels/reorder", post(handlers::reorder_channels))
+        .route("/{id}/read-all", post(handlers::mark_all_channels_read))
+        .route("/{id}/commands", get(handlers::list_guild_commands))
+        // Guild settings
+        .route(
+            "/{id}/settings",
+            get(handlers::get_guild_settings).patch(handlers::update_guild_settings),
+        )
         // Role routes
         .route(
             "/{id}/roles",
@@ -65,8 +77,6 @@ pub fn router() -> Router<AppState> {
             "/{id}/categories/reorder",
             post(categories::reorder_categories),
         )
-        // Search route
-        .route("/{id}/search", get(search::search_messages))
         // Pages routes (nested)
         .nest("/{id}/pages", pages::guild_pages_router())
         // Emoji routes

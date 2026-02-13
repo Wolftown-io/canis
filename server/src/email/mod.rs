@@ -62,6 +62,19 @@ impl EmailService {
         })
     }
 
+    /// Test the SMTP connection by sending a NOOP command.
+    pub async fn test_connection(&self) -> Result<()> {
+        let ok = self
+            .mailer
+            .test_connection()
+            .await
+            .context("SMTP connection test failed")?;
+        if !ok {
+            anyhow::bail!("SMTP server did not respond positively to connection test");
+        }
+        Ok(())
+    }
+
     /// Send a password reset email with the given reset code.
     pub async fn send_password_reset(
         &self,

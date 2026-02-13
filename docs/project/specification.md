@@ -54,7 +54,7 @@ A self-hosted voice and text chat platform for gaming communities, optimized for
 | Message History | 🔴 High | ✅ | Searchable |
 | Edit Message | 🟡 Medium | ✅ | With edit indicator |
 | Delete Message | 🟡 Medium | ✅ | Soft-delete |
-| Threads | 🟢 Low | ❌ | Later |
+| Threads | 🟢 Low | ✅ | Slack-style side threads with participant avatars, unread indicators |
 | Reactions | 🟢 Low | ❌ | Later |
 
 ### User Management

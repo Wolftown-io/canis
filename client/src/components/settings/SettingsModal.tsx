@@ -76,7 +76,7 @@ const SettingsModal: Component<SettingsModalProps> = (props) => {
       const backupData = JSON.stringify({
         version: 1,
         created_at: new Date().toISOString(),
-        // TODO: Add actual E2EE keys from key store when implemented
+        // TODO: Include real identity keys and prekeys once E2EE key store exists
         // identity_key: keyStore.getIdentityKey(),
         // prekeys: keyStore.getPrekeys(),
       });

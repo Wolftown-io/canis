@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 4 (Advanced Features) - In Progress
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-13
 
 ## Quick Status Overview
 
@@ -16,6 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Phase 4** | 🔄 In Progress | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Phase 5** | 📋 Planned | 0% | - |
+| **Phase 10** | 📋 Planned | 0% | SaaS Scaling Architecture |
 
 **Production Ready Features:**
 - ✅ Modern UI with "Focused Hybrid" design system
@@ -348,34 +349,41 @@ This roadmap outlines the development path from the current prototype to a produ
 ## Phase 5: Ecosystem & SaaS Readiness
 *Goal: Open the platform to developers and prepare for massive scale.*
 
-- [ ] **[Infra] CI Pipeline Hardening & Green Build** `Priority: High`
-  - **Context:** CI was broken across multiple jobs after cargo-deny, bun, and rustfmt drifted from the pipeline config. Partially fixed in 2026-02-02 session.
-  - **Status as of 2026-02-02:**
-    - ✅ **Rust Lint (fmt):** Passing — ran `cargo fmt --all` across workspace
-    - ✅ **Frontend:** Passing — replaced missing ESLint config with `tsc --noEmit`, fixed test/setup.ts types
-    - ✅ **License Compliance:** Passing — updated deny.toml for cargo-deny v0.18+ (removed deprecated fields, added Unicode-3.0/0BSD/CDLA-Permissive-2.0/OpenSSL licenses, ignored RUSTSEC-2025-0008 and RUSTSEC-2023-0071)
-    - ✅ **Secrets Scan:** Passing
-    - ⏳ **Rust Lint (clippy):** Untested in latest run (still compiling when session ended)
-    - ⏳ **Rust Tests:** Untested in latest run (still compiling when session ended)
-    - ✅ **Config::default_for_test()** now respects DATABASE_URL/REDIS_URL env vars for CI
-    - ✅ **sqlx-cli** + migrations added to CI, `SQLX_OFFLINE=true` for clippy
-    - ✅ **`--workspace --exclude vc-client`** on test/clippy to avoid GTK/glib deps
-  - **Remaining work:**
-    - Verify clippy and test jobs pass (were still compiling)
-    - Set up proper ESLint config for frontend (currently bypassed with tsc --noEmit)
-    - Fix RUSTSEC-2025-0008 by upgrading openh264-sys2 to >=0.8.0
-    - Monitor RUSTSEC-2023-0071 (rsa crate Marvin Attack) for upstream fix
-    - Consider pinning cargo-deny version to avoid future config drift
-- [ ] **[Storage] SaaS Scaling Architecture**
-  - Transition from Proxy Method to Signed URLs/Cookies.
-  - CDN Integration with CloudFront/Cloudflare.
-- [ ] **[API] Bot Ecosystem**
-  - Add `is_bot` user flag.
-  - Create Gateway WebSocket for bot events.
-  - Implement Slash Commands structure.
-- [ ] **[Voice] Multi-Stream Support**
-  - Simultaneous Webcam and Screen Sharing.
-  - Implement Simulcast (quality tiers) for bandwidth management.
+- [x] **[Test] E2E UI Test Coverage Suite** ✅
+  - Comprehensive Playwright E2E test suite covering 68 UI items across 12 spec files.
+  - Shared test helpers (`e2e/helpers.ts`) with login, navigation, and utility functions.
+  - Coverage tracking document (`docs/testing/ui-coverage.md`) mapping every UI item to its test.
+  - First run: 8/68 passing without backend (auth form rendering); remaining 58 need running backend + seed data.
+  - Areas covered: Auth, Navigation, Messaging, Guild, Channels, Friends/DMs, Settings, Voice, Admin, Search, Permissions.
+- [x] **[Infra] CI Pipeline Hardening & Green Build** ✅
+  - All CI jobs passing: Rust Lint (fmt + clippy), Rust Tests, Frontend, License Compliance, Secrets Scan, Docker Build, Tauri (Ubuntu + macOS).
+  - Moved `@everyone` security test into `rust-test` job (was exhausting disk space in standalone Docker build).
+  - Fixed Dockerfile shared crate paths and bumped Rust image to 1.88 for edition2024 support.
+  - Added `icon.ico` to repo for Tauri deb bundling.
+  - Added CI pipeline documentation at `docs/development/ci.md`.
+  - **Known limitation:** Windows Tauri build fails (`libvpx` not available via choco), marked `continue-on-error: true`.
+- [x] **[API] Bot Ecosystem** ✅
+  - ✅ Database schema (bot_applications, slash_commands, guild_bot_installations, users.is_bot)
+  - ✅ Bot application management API (create, list, get, delete, token reset)
+  - ✅ Secure bot token auth (Argon2id, indexed O(1) lookup, TOCTOU protection)
+  - ✅ Slash command registration API (guild-scoped + global, bulk registration)
+  - ✅ Bot Gateway WebSocket (`/api/gateway/bot`) with Redis pub/sub event system
+  - ✅ Command invocation routing with ambiguity detection
+  - ✅ Bot message sending with channel membership authorization
+  - ✅ Command response handling with Redis storage and 5-minute TTL
+  - ✅ Guild bot installation API with permission checks
+  - ✅ Frontend: Bot applications management UI in settings
+  - ✅ Frontend: API client library for all bot operations
+  - ✅ 14 comprehensive integration tests
+  - ✅ Frontend: Slash command management UI (register, view, delete commands with options)
+  - ✅ Developer documentation / bot API guide (`docs/development/bot-system.md`)
+  - ✅ Frontend: Guild bot management UI in guild settings (list, remove)
+- [x] **[Voice] Multi-Stream Support**
+  - ✅ Simultaneous Webcam and Screen Sharing (browser).
+  - ✅ SFU renegotiation for dynamic track add/remove mid-session.
+  - ✅ Track source identification via pending source queue.
+  - [ ] Tauri native webcam capture (Rust-side `start_webcam`/`stop_webcam` commands).
+  - [ ] Implement Simulcast (quality tiers) for bandwidth management.
 - [ ] **[Voice] Evaluate str0m as WebRTC Alternative** `Priority: Low`
   - Current stack: webrtc-rs 0.11 (full-stack, owns I/O). Working, but project is stagnating.
   - Alternative: [str0m](https://github.com/algesten/str0m) — Sans-IO WebRTC library (pure Rust).
@@ -426,29 +434,17 @@ This roadmap outlines the development path from the current prototype to a produ
       - Queue management with automatic dismissal
       - Position control (top-right, bottom-right, etc.)
       - Action buttons for interactive notifications
-- [ ] **[UX] Friction-Reduction & Productivity**
+- [x] **[UX] Friction-Reduction & Productivity** ✅
   - **Context:** Streamline daily interactions to make the platform feel snappy and reliable.
-  - **Implementation:**
-    - **Persistent Drafts:**
-      - Add `drafts: Record<string, string>` to `MessagesState` in `client/src/stores/messages.ts`
-      - Update `setContent` to sync with store drafts automatically
-      - Restore draft when navigating back to channel
-      - Clear draft only on successful send
-    - **Quick Message Actions & Reactions:**
-      - Create `MessageActions.tsx` component with common emojis (👍, ❤️, 😂) and action buttons
-      - Mount toolbar in `MessageItem.tsx` on hover
-      - Position dynamically based on available space
-      - Support keyboard shortcuts for quick reactions
-    - **Smart Input Auto-complete:**
-      - Create `SuggestionPopup.tsx` component with fuzzy matching
-      - Trigger popup based on cursor position and prefixes: `@` (users), `#` (channels), `:` (emojis), `/` (commands)
-      - Support keyboard navigation (↑↓ + Enter)
-      - Cache recent mentions for faster access
-    - **Multi-line Input Upgrade:**
-      - Refactor: Replace `<input>` with `<textarea>` in `MessageInput.tsx`
-      - Implement auto-resize based on content height (max 8 lines)
-      - Support Shift+Enter for new lines, Enter for send
-      - Maintain cursor position on resize
+  - **Completed:**
+    - ✅ Persistent message drafts per channel with auto-restore on navigation
+    - ✅ Quick reaction toolbar on message hover (👍, ❤️, 😂, 😮) with full emoji picker
+    - ✅ Multi-line textarea input with auto-resize (max 8 lines), Shift+Enter for newlines
+    - ✅ @user and :emoji: autocomplete with keyboard navigation (↑↓ + Enter/Tab)
+    - ✅ #channel autocomplete for mentioning text channels in guild messages
+    - ✅ /command autocomplete for browsing slash commands from installed bots
+    - ✅ Alt+1..4 keyboard shortcuts for quick reactions on hovered messages
+    - ✅ Backend `GET /api/guilds/{id}/commands` endpoint for guild command listing
 - [ ] **[Growth] Discovery & Onboarding**
   - **Guild Discovery:**
     - **Backend:** Create public guild listing API with search and filters
@@ -470,21 +466,23 @@ This roadmap outlines the development path from the current prototype to a produ
     - ✅ **Frontend:** Search panel overlay (`SearchPanel.tsx`) with debounced input and pagination
     - ✅ **Frontend:** XSS-safe result highlighting and click-to-navigate with message highlight
     - ✅ **Performance:** Pagination implemented (limit/offset with clamping to max 100)
-    - [ ] **Backend:** Extend to DM message search
-    - [ ] **Backend:** Support advanced filters: date range, channel, author, has:link, has:file
-    - [ ] **Backend:** Add relevance ranking with `ts_rank` (currently sorted by date only)
-    - [ ] **Backend:** Use `ts_headline` for server-side context snippets (currently client-side highlighting)
-    - [ ] **Frontend:** Create global search UI with multi-guild/DM scope
-    - [ ] **Frontend:** Add search syntax help tooltip (AND, OR, quotes, negation)
+    - ✅ **Backend:** DM message search endpoint (`GET /api/dm/search`) with same filter support
+    - ✅ **Backend:** Advanced filters: date range, channel, author, has:link, has:file
+    - ✅ **Backend:** Relevance ranking with `ts_rank` and sort toggle (Relevance / Date)
+    - ✅ **Backend:** Server-side context snippets using `ts_headline` with `<mark>` tags
+    - ✅ **Backend:** Global search across all guilds and DMs (`GET /api/search`)
+    - ✅ **Frontend:** Global search UI with Ctrl+Shift+F shortcut and "Search Everywhere" in Command Palette
+    - ✅ **Frontend:** Search syntax help tooltip (AND, OR, "exact phrase", -exclude)
+    - ✅ **Backend:** Dedicated Search rate limit category (15 req/min)
+    - ✅ **Tests:** 38 integration tests (18 global search, 20 guild/DM search) covering auth, access control (non-member 403, nonexistent guild 404), soft-deleted/encrypted exclusion, date/author/has:link/has:file filters, relevance ranking, headlines, sort (relevance/date), pagination, limit clamping, validation (data-driven). 11 shared test helpers.
     - **Tech Debt:**
       - [ ] Implement channel-level permission filtering (currently all guild members see all channels)
-      - [ ] Add rate limiting to search endpoint (expensive queries need protection)
       - [ ] Add integration tests for search edge cases:
-        - Empty queries, special characters (`@#$%^&*()`), very long queries (>1000 chars)
+        - Special characters (`@#$%^&*()`), very long queries (>1000 chars)
         - Large result sets (10k+ messages), complex queries with multiple AND/OR operators
         - Deleted messages in results, concurrent searches from same user
       - [ ] Add security tests:
-        - Non-member search attempts, SQL injection via search query
+        - SQL injection via search query
         - XSS via malicious search result content
         - Channel permission bypass attempts (when private channels are implemented)
       - [ ] Add search query analytics logging for UX insights
@@ -511,23 +509,17 @@ This roadmap outlines the development path from the current prototype to a produ
     - **Rate Limiting:**
       - Add per-guild rate limiting to prevent resource exhaustion
       - Protect export endpoints from abuse
-- [ ] **[Chat] Slack-style Message Threads**
+- [x] **[Chat] Slack-style Message Threads** ✅
   - **Context:** Keep channel conversations organized by allowing side-discussions without cluttering the main feed.
-  - **Implementation:**
-    - **Database:**
-      - Migration to add `parent_id` (foreign key to `messages.id`) to `messages` table
-      - Add `thread_count` field to parent messages for quick display
-      - Add index on `parent_id` for efficient thread queries
-    - **Backend:**
-      - Update `Message` model with thread fields
-      - Implement recursive thread retrieval logic
-      - Add thread-specific WebSocket events
-      - Add guild-level toggle to enable/disable threads
-    - **Frontend:**
-      - Create `ThreadSidebar.tsx` for side conversation UI
-      - Add "Reply in Thread" action to message context menu
-      - Show thread participant count and last reply timestamp
-      - Implement thread notifications (separate from channel notifications)
+  - **Completed:**
+    - ✅ Database migration: `parent_id` FK, `thread_reply_count`, `thread_last_reply_at`, `thread_read_state` table
+    - ✅ Backend: Thread reply CRUD, WebSocket events (`thread_reply_new`, `thread_reply_delete`, `thread_read`)
+    - ✅ Frontend: `ThreadSidebar`, `ThreadIndicator` with participant avatars and unread dot
+    - ✅ Batch thread info in message list response (participants, avatars, unread state) — no N+1
+    - ✅ Thread unread tracking: server-side read state + client-side WebSocket tracking
+    - ✅ 11+ server integration tests
+  - **Remaining:**
+    - [ ] Guild-level toggle to enable/disable threads
 - [ ] **[Media] Advanced Media Processing**
   - **Context:** Improve perceived performance and bandwidth efficiency.
   - **Implementation:**
@@ -593,7 +585,22 @@ This roadmap outlines the development path from the current prototype to a produ
 
 ---
 
+## Phase 10: SaaS Infrastructure at Scale
+*Goal: Full SaaS-grade media delivery and CDN infrastructure.*
+
+- [ ] **[Storage] SaaS Scaling Architecture**
+  - Transition from Proxy Method to Signed URLs/Cookies.
+  - CDN Integration with CloudFront/Cloudflare.
+
+---
+
 ## Recent Changes
+
+### 2026-02-13
+- **E2E UI Test Coverage Suite** - Created comprehensive Playwright test suite with 68 UI items across 12 spec files (10 new + 2 pre-existing). Shared helpers (`e2e/helpers.ts`) for login, navigation, and utilities. Coverage tracker at `docs/testing/ui-coverage.md`. First run: 8 passing (auth form rendering), 58 need backend, 3 not coverable. Test areas: Auth (12 items), Navigation (9), Messaging (5), Guild (5), Channels (4), Friends/DMs (5), Settings (8), Voice (6), Admin (6), Search (3), Permissions (5).
+
+### 2026-02-10
+- **Search Integration Tests** - 38 integration tests across 2 test files (18 global search, 20 guild/DM search) with 11 shared helpers in `helpers/mod.rs`. Coverage includes: auth (401), access control (non-member 403, nonexistent guild 404), soft-deleted and encrypted message exclusion, date/author/has:link/has:file filters, `ts_rank` relevance ranking, `ts_headline` snippets with `<mark>` tags, sort (relevance/date), pagination with offset verification, limit clamping (1-100), and data-driven validation tests. Extracted all inline SQL into reusable helpers (`create_guild`, `create_channel`, `insert_message`, `insert_message_at`, `insert_encrypted_message`, `insert_deleted_message`, `insert_attachment`, `add_guild_member`, `delete_guild`, `delete_dm_channel`). Updated roadmap search checklist.
 
 ### 2026-01-31
 - **Toast Component Tests** - Created comprehensive test suite for toast notification system (16 passing tests, 5 skipped timing tests). Tests verify API behavior including deduplication, max visible limit (5), dismissal, and toast types. Added duration: 0 workaround for vitest window.setTimeout issues.

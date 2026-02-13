@@ -3,7 +3,10 @@ import { A } from "@solidjs/router";
 
 const ForgotPassword: Component = () => {
   const defaultServerUrl = import.meta.env.VITE_SERVER_URL || "";
-  const [serverUrl, setServerUrl] = createSignal(defaultServerUrl);
+  const storedUrl = typeof localStorage !== "undefined"
+    ? localStorage.getItem("serverUrl") || ""
+    : "";
+  const [serverUrl, setServerUrl] = createSignal(storedUrl || defaultServerUrl);
   const [email, setEmail] = createSignal("");
   const [error, setError] = createSignal("");
   const [success, setSuccess] = createSignal(false);
@@ -37,8 +40,9 @@ const ForgotPassword: Component = () => {
       }
 
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -57,10 +61,11 @@ const ForgotPassword: Component = () => {
         <Show when={!success()}>
           <form onSubmit={handleSubmit} class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-text-secondary mb-1">
+              <label for="fp-server-url" class="block text-sm font-medium text-text-secondary mb-1">
                 Server URL
               </label>
               <input
+                id="fp-server-url"
                 type="url"
                 class="input-field"
                 placeholder="https://chat.example.com"
@@ -72,10 +77,11 @@ const ForgotPassword: Component = () => {
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-text-secondary mb-1">
+              <label for="fp-email" class="block text-sm font-medium text-text-secondary mb-1">
                 Email
               </label>
               <input
+                id="fp-email"
                 type="email"
                 class="input-field"
                 placeholder="you@example.com"
@@ -87,7 +93,7 @@ const ForgotPassword: Component = () => {
             </div>
 
             <Show when={error()}>
-              <div class="p-3 rounded-md text-sm" style="background-color: var(--color-error-bg); border: 1px solid var(--color-error-border); color: var(--color-error-text)">
+              <div role="alert" class="p-3 rounded-md text-sm" style="background-color: var(--color-error-bg); border: 1px solid var(--color-error-border); color: var(--color-error-text)">
                 {error()}
               </div>
             </Show>
@@ -124,7 +130,7 @@ const ForgotPassword: Component = () => {
           </div>
           <div class="space-y-3">
             <A
-              href="/reset-password"
+              href={`/reset-password?serverUrl=${encodeURIComponent(serverUrl())}`}
               class="btn-primary w-full flex items-center justify-center"
             >
               Enter Reset Code

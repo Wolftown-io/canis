@@ -82,6 +82,7 @@ validator.workspace = true
 
 # MIME detection
 mime_guess.workspace = true
+infer.workspace = true
 
 # Image format detection
 image.workspace = true

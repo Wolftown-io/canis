@@ -220,7 +220,9 @@ Almost every Phase 5 UX feature builds on the message input. Upgrade it first.
 
 ---
 
-## 3. Message Threads
+## 3. Message Threads ✅ COMPLETED
+
+**Status:** Fully implemented. See `feature/thread-avatars-unread` PR #184. Includes DB migration (`parent_id`, `thread_reply_count`, `thread_last_reply_at`, `thread_read_state`), thread reply CRUD, WebSocket events, `ThreadSidebar`/`ThreadIndicator` components, batch thread info with participant avatars and unread indicators, 11+ integration tests. Remaining: guild-level toggle.
 
 **Goal:** Slack-style side threads for organized discussions. Uses existing `reply_to` column.
 
@@ -1520,7 +1522,7 @@ Almost every Phase 5 UX feature builds on the message input. Upgrade it first.
 |---|---------|--------|--------|-----------|------------|------------|
 | 1 | User Blocking | Medium | Medium | No | No | Medium |
 | 2 | Multi-line + Drafts | None | Medium | No | No | Low |
-| 3 | Message Threads | Large | Large | Yes | No | High |
+| 3 | ~~Message Threads~~ ✅ | Large | Large | Yes | No | High |
 | 4 | Moderation Filters | Large | Medium | Yes | No | High |
 | 5 | User Reporting | Medium | Medium | Yes | No | Medium |
 | 6 | GDPR Compliance | Large | Small | No | No | High |

@@ -3,7 +3,8 @@
 //! Handles channels, messages, and file uploads.
 
 mod channels;
-mod dm;
+pub mod dm;
+pub mod dm_search;
 mod messages;
 pub mod overrides;
 pub mod s3;
@@ -68,6 +69,7 @@ pub fn messages_public_router() -> Router<AppState> {
 pub fn dm_router() -> Router<AppState> {
     Router::new()
         .route("/", get(dm::list_dms).post(dm::create_dm))
+        .route("/read-all", post(dm::mark_all_dms_read))
         .route("/{id}", get(dm::get_dm))
         .route("/{id}/leave", post(dm::leave_dm))
         .route("/{id}/name", patch(dm::update_dm_name))

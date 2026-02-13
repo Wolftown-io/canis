@@ -443,13 +443,13 @@ async fn handle_bot_event(
                 "bot_user_id": bot_user_id,
             });
 
-            state
+            let was_set: bool = state
                 .redis
-                .set::<(), _, _>(
+                .set(
                     &response_key,
                     response_data.to_string(),
                     Some(fred::types::Expiration::EX(300)),
-                    None,
+                    Some(fred::types::SetOptions::NX),
                     false,
                 )
                 .await
@@ -457,6 +457,10 @@ async fn handle_bot_event(
                     error!("Failed to store command response: {e}");
                     format!("Failed to store response: {e}")
                 })?;
+
+            if !was_set {
+                return Err("Response already provided for this interaction".to_string());
+            }
 
             // Publish event to notify waiting clients
             state

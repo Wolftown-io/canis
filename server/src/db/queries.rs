@@ -4,10 +4,10 @@
 //!
 //! All query functions include error context logging to aid debugging.
 
-use std::fmt::Write;
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, QueryBuilder, Row};
 use tracing::error;
 use uuid::Uuid;
 
@@ -152,33 +152,21 @@ pub async fn update_user_profile(
     display_name: Option<&str>,
     email: Option<Option<&str>>, // Some(Some(email)) = set, Some(None) = clear, None = no change
 ) -> sqlx::Result<User> {
-    // Build dynamic update query based on what's provided
-    let mut query = String::from("UPDATE users SET updated_at = NOW()");
-    let mut param_idx = 1;
-
-    if display_name.is_some() {
-        write!(query, ", display_name = ${param_idx}").unwrap();
-        param_idx += 1;
-    }
-    if email.is_some() {
-        write!(query, ", email = ${param_idx}").unwrap();
-        param_idx += 1;
-    }
-
-    write!(query, " WHERE id = ${param_idx} RETURNING *").unwrap();
-
-    // Build the query with dynamic bindings
-    let mut q = sqlx::query_as::<_, User>(&query);
+    let mut builder = QueryBuilder::new("UPDATE users SET updated_at = NOW()");
 
     if let Some(name) = display_name {
-        q = q.bind(name);
+        builder.push(", display_name = ").push_bind(name);
     }
     if let Some(mail) = email {
-        q = q.bind(mail);
+        builder.push(", email = ").push_bind(mail);
     }
-    q = q.bind(user_id);
 
-    q.fetch_one(pool).await
+    builder
+        .push(" WHERE id = ")
+        .push_bind(user_id)
+        .push(" RETURNING *");
+
+    builder.build_query_as::<User>().fetch_one(pool).await
 }
 
 /// Get list of guild IDs the user is a member of.
@@ -395,7 +383,11 @@ pub async fn cleanup_expired_reset_tokens(pool: &PgPool) -> sqlx::Result<u64> {
         "DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '24 hours'",
     )
     .execute(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        error!(query = "cleanup_expired_reset_tokens", error = %e, "Database query failed");
+        e
+    })?;
     Ok(result.rows_affected())
 }
 
@@ -544,6 +536,27 @@ pub async fn get_channel_overrides(
         ",
     )
     .bind(channel_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Get all permission overrides for multiple channels in a single query.
+pub async fn get_channel_overrides_batch(
+    pool: &PgPool,
+    channel_ids: &[Uuid],
+) -> sqlx::Result<Vec<crate::permissions::models::ChannelOverride>> {
+    if channel_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    sqlx::query_as::<_, crate::permissions::models::ChannelOverride>(
+        r"
+        SELECT id, channel_id, role_id, allow_permissions, deny_permissions
+        FROM channel_overrides
+        WHERE channel_id = ANY($1)
+        ",
+    )
+    .bind(channel_ids)
     .fetch_all(pool)
     .await
 }
@@ -930,6 +943,117 @@ pub async fn get_thread_participants(
     .await
 }
 
+/// Batch-fetch distinct participant user IDs for multiple threads.
+///
+/// Returns a map of `parent_id -> Vec<user_id>` with up to `limit_per_thread` participants each.
+/// Uses a window function to avoid N+1 queries.
+pub async fn get_batch_thread_participants(
+    pool: &PgPool,
+    parent_ids: &[Uuid],
+    limit_per_thread: i64,
+) -> sqlx::Result<HashMap<Uuid, Vec<Uuid>>> {
+    if parent_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query(
+        r"
+        SELECT parent_id, user_id
+        FROM (
+            SELECT
+                parent_id,
+                user_id,
+                ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY MIN(created_at) DESC) as rn
+            FROM messages
+            WHERE parent_id = ANY($1) AND deleted_at IS NULL
+            GROUP BY parent_id, user_id
+        ) ranked
+        WHERE rn <= $2
+        ORDER BY parent_id, rn
+        ",
+    )
+    .bind(parent_ids)
+    .bind(limit_per_thread)
+    .fetch_all(pool)
+    .await?;
+
+    let mut result: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for row in rows {
+        let parent_id: Uuid = row.get("parent_id");
+        let user_id: Uuid = row.get("user_id");
+        result.entry(parent_id).or_default().push(user_id);
+    }
+
+    Ok(result)
+}
+
+/// Batch-fetch thread read states for a user across multiple threads.
+///
+/// Returns `{ thread_parent_id: last_read_message_id }`.
+pub async fn get_batch_thread_read_states(
+    pool: &PgPool,
+    user_id: Uuid,
+    thread_parent_ids: &[Uuid],
+) -> sqlx::Result<HashMap<Uuid, Option<Uuid>>> {
+    if thread_parent_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query(
+        r"
+        SELECT thread_parent_id, last_read_message_id
+        FROM thread_read_state
+        WHERE user_id = $1 AND thread_parent_id = ANY($2)
+        ",
+    )
+    .bind(user_id)
+    .bind(thread_parent_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut result: HashMap<Uuid, Option<Uuid>> = HashMap::new();
+    for row in rows {
+        let thread_parent_id: Uuid = row.get("thread_parent_id");
+        let last_read_message_id: Option<Uuid> = row.get("last_read_message_id");
+        result.insert(thread_parent_id, last_read_message_id);
+    }
+
+    Ok(result)
+}
+
+/// Batch-fetch the latest reply message ID for each thread.
+///
+/// Returns `{ parent_id: latest_reply_id }`.
+pub async fn get_batch_thread_latest_reply_ids(
+    pool: &PgPool,
+    parent_ids: &[Uuid],
+) -> sqlx::Result<HashMap<Uuid, Uuid>> {
+    if parent_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query(
+        r"
+        SELECT DISTINCT ON (parent_id) parent_id, id as latest_reply_id
+        FROM messages
+        WHERE parent_id = ANY($1) AND deleted_at IS NULL
+        ORDER BY parent_id, created_at DESC, id DESC
+        ",
+    )
+    .bind(parent_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut result: HashMap<Uuid, Uuid> = HashMap::new();
+    for row in rows {
+        let parent_id: Uuid = row.get("parent_id");
+        let latest_reply_id: Uuid = row.get("latest_reply_id");
+        result.insert(parent_id, latest_reply_id);
+    }
+
+    Ok(result)
+}
+
 /// Upsert thread read position for a user.
 pub async fn update_thread_read_state(
     pool: &PgPool,
@@ -974,6 +1098,7 @@ pub async fn search_messages_in_channels(
         FROM messages m
         WHERE m.channel_id = ANY($1)
           AND m.deleted_at IS NULL
+          AND m.encrypted = false
           AND m.content_search @@ websearch_to_tsquery('english', $2)
         ORDER BY m.created_at DESC
         LIMIT $3 OFFSET $4
@@ -1006,6 +1131,7 @@ pub async fn count_search_messages_in_channels(
         FROM messages m
         WHERE m.channel_id = ANY($1)
           AND m.deleted_at IS NULL
+          AND m.encrypted = false
           AND m.content_search @@ websearch_to_tsquery('english', $2)
         ",
     )
@@ -1014,6 +1140,170 @@ pub async fn count_search_messages_in_channels(
     .fetch_one(pool)
     .await?;
     Ok(result.0)
+}
+
+// ============================================================================
+// Advanced Search Queries
+// ============================================================================
+
+/// Sort order for search results.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum SearchSort {
+    /// Sort by relevance (`ts_rank`), then date.
+    #[default]
+    Relevance,
+    /// Sort by date only (newest first).
+    Date,
+}
+
+/// Advanced search filters for message search.
+#[derive(Debug, Default)]
+pub struct SearchFilters {
+    /// Only messages created at or after this time.
+    pub date_from: Option<DateTime<Utc>>,
+    /// Only messages created at or before this time.
+    pub date_to: Option<DateTime<Utc>>,
+    /// Only messages by this author.
+    pub author_id: Option<Uuid>,
+    /// Only messages containing a URL.
+    pub has_link: bool,
+    /// Only messages with file attachments.
+    pub has_file: bool,
+    /// Sort order (relevance or date).
+    pub sort: SearchSort,
+}
+
+/// Search result row with relevance rank and highlighted snippet.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SearchMessageRow {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub rank: f32,
+    pub headline: String,
+}
+
+/// Search messages with advanced filters using dynamic SQL.
+///
+/// Builds a query dynamically based on which filters are provided.
+/// Always excludes encrypted and soft-deleted messages.
+/// Returns rows with `ts_rank` relevance score and `ts_headline` snippet.
+pub async fn search_messages_filtered(
+    pool: &PgPool,
+    channel_ids: &[Uuid],
+    query: &str,
+    filters: &SearchFilters,
+    limit: i64,
+    offset: i64,
+) -> sqlx::Result<Vec<SearchMessageRow>> {
+    if channel_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut builder = QueryBuilder::new(
+        "SELECT m.id, m.channel_id, m.user_id, m.content, m.created_at, \
+         ts_rank(m.content_search, websearch_to_tsquery('english', ",
+    );
+    builder.push_bind(query);
+    builder.push(
+        ")) AS rank, \
+         ts_headline('english', m.content, websearch_to_tsquery('english', ",
+    );
+    builder.push_bind(query);
+    builder.push(
+        "), 'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20, MaxFragments=2') AS headline \
+         FROM messages m",
+    );
+
+    if filters.has_file {
+        builder.push(" INNER JOIN file_attachments fa ON fa.message_id = m.id");
+    }
+
+    builder.push(" WHERE m.channel_id = ANY(");
+    builder.push_bind(channel_ids);
+    builder.push(
+        ") AND m.deleted_at IS NULL AND m.encrypted = false \
+         AND m.content_search @@ websearch_to_tsquery('english', ",
+    );
+    builder.push_bind(query);
+    builder.push(")");
+
+    if let Some(date_from) = filters.date_from {
+        builder.push(" AND m.created_at >= ").push_bind(date_from);
+    }
+    if let Some(date_to) = filters.date_to {
+        builder.push(" AND m.created_at <= ").push_bind(date_to);
+    }
+    if let Some(author_id) = filters.author_id {
+        builder.push(" AND m.user_id = ").push_bind(author_id);
+    }
+    if filters.has_link {
+        builder.push(" AND m.content ~* 'https?://'");
+    }
+    // has_file is handled via the JOIN (ensures at least one attachment exists)
+
+    match filters.sort {
+        SearchSort::Relevance => builder.push(" ORDER BY rank DESC, m.created_at DESC"),
+        SearchSort::Date => builder.push(" ORDER BY m.created_at DESC"),
+    };
+
+    builder
+        .push(" LIMIT ")
+        .push_bind(limit)
+        .push(" OFFSET ")
+        .push_bind(offset);
+
+    builder
+        .build_query_as::<SearchMessageRow>()
+        .fetch_all(pool)
+        .await
+}
+
+/// Count search results with advanced filters using dynamic SQL.
+pub async fn count_search_messages_filtered(
+    pool: &PgPool,
+    channel_ids: &[Uuid],
+    query: &str,
+    filters: &SearchFilters,
+) -> sqlx::Result<i64> {
+    if channel_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let mut builder = QueryBuilder::new("SELECT COUNT(*)");
+
+    if filters.has_file {
+        builder.push(" FROM messages m INNER JOIN file_attachments fa ON fa.message_id = m.id");
+    } else {
+        builder.push(" FROM messages m");
+    }
+
+    builder.push(" WHERE m.channel_id = ANY(");
+    builder.push_bind(channel_ids);
+    builder.push(
+        ") AND m.deleted_at IS NULL AND m.encrypted = false \
+         AND m.content_search @@ websearch_to_tsquery('english', ",
+    );
+    builder.push_bind(query);
+    builder.push(")");
+
+    if let Some(date_from) = filters.date_from {
+        builder.push(" AND m.created_at >= ").push_bind(date_from);
+    }
+    if let Some(date_to) = filters.date_to {
+        builder.push(" AND m.created_at <= ").push_bind(date_to);
+    }
+    if let Some(author_id) = filters.author_id {
+        builder.push(" AND m.user_id = ").push_bind(author_id);
+    }
+    if filters.has_link {
+        builder.push(" AND m.content ~* 'https?://'");
+    }
+
+    let (count,) = builder.build_query_as::<(i64,)>().fetch_one(pool).await?;
+    Ok(count)
 }
 
 // ============================================================================
@@ -1590,7 +1880,17 @@ pub async fn delete_oidc_provider(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
 /// Get auth methods configuration.
 pub async fn get_auth_methods_allowed(pool: &PgPool) -> sqlx::Result<AuthMethodsConfig> {
     match get_config_value(pool, "auth_methods_allowed").await {
-        Ok(value) => Ok(serde_json::from_value(value).unwrap_or_default()),
+        Ok(value) => match serde_json::from_value::<AuthMethodsConfig>(value.clone()) {
+            Ok(config) => Ok(config),
+            Err(e) => {
+                error!(
+                    error = %e,
+                    raw_value = ?value,
+                    "auth_methods_allowed config has invalid format, falling back to defaults"
+                );
+                Ok(AuthMethodsConfig::default())
+            }
+        },
         Err(sqlx::Error::RowNotFound) => Ok(AuthMethodsConfig::default()),
         Err(e) => Err(e),
     }

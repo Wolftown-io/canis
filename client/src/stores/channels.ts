@@ -252,6 +252,33 @@ export async function markChannelAsRead(channelId: string): Promise<void> {
 }
 
 /**
+ * Mark all guild channels as read (optimistic update + API call).
+ */
+export async function markAllGuildChannelsAsRead(guildId: string): Promise<void> {
+  // Optimistic update: zero out all unread counts for this guild's text channels
+  const indices: number[] = [];
+  channelsState.channels.forEach((c, idx) => {
+    if (c.guild_id === guildId && c.channel_type === "text" && c.unread_count > 0) {
+      indices.push(idx);
+    }
+  });
+  for (const idx of indices) {
+    setChannelsState("channels", idx, "unread_count", 0);
+  }
+
+  try {
+    await tauri.markAllGuildChannelsRead(guildId);
+  } catch (err) {
+    console.error("[Channels] Failed to mark all guild channels as read:", err);
+    showToast({
+      type: "error",
+      title: "Mark All Read Failed",
+      message: "Could not mark all channels as read. Please try again.",
+    });
+  }
+}
+
+/**
  * Handle channel_read event from WebSocket (cross-device sync).
  */
 export function handleChannelReadEvent(channelId: string): void {

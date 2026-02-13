@@ -52,6 +52,8 @@ import type {
   UserKeysResponse,
   ClaimedPrekeyResponse,
   SearchResponse,
+  SearchFilters,
+  GlobalSearchResponse,
   PaginatedMessages,
   Pin,
   CreatePinRequest,
@@ -65,7 +67,7 @@ import type {
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider };
+export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, GlobalSearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider };
 
 /**
  * Unread aggregation types
@@ -1137,6 +1139,26 @@ export async function getGuildChannels(guildId: string): Promise<ChannelWithUnre
 }
 
 /**
+ * Get guild settings.
+ */
+export async function getGuildSettings(guildId: string): Promise<{ threads_enabled: boolean }> {
+  return fetchApi<{ threads_enabled: boolean }>(`/api/guilds/${guildId}/settings`);
+}
+
+/**
+ * Update guild settings (requires MANAGE_GUILD).
+ */
+export async function updateGuildSettings(
+  guildId: string,
+  settings: { threads_enabled?: boolean },
+): Promise<{ threads_enabled: boolean }> {
+  return fetchApi<{ threads_enabled: boolean }>(`/api/guilds/${guildId}/settings`, {
+    method: "PATCH",
+    body: settings,
+  });
+}
+
+/**
  * Mark a guild channel as read.
  * @param channelId - Channel ID to mark as read
  * @param lastReadMessageId - Optional ID of the last read message
@@ -1162,7 +1184,8 @@ export async function searchGuildMessages(
   guildId: string,
   query: string,
   limit: number = 25,
-  offset: number = 0
+  offset: number = 0,
+  filters?: SearchFilters
 ): Promise<SearchResponse> {
   // Always use HTTP for search - no Tauri command needed since search is server-side
   const params = new URLSearchParams({
@@ -1170,7 +1193,58 @@ export async function searchGuildMessages(
     limit: limit.toString(),
     offset: offset.toString(),
   });
+  if (filters?.date_from) params.set("date_from", filters.date_from);
+  if (filters?.date_to) params.set("date_to", filters.date_to);
+  if (filters?.channel_id) params.set("channel_id", filters.channel_id);
+  if (filters?.author_id) params.set("author_id", filters.author_id);
+  if (filters?.has) params.set("has", filters.has);
+  if (filters?.sort) params.set("sort", filters.sort);
   return httpRequest<SearchResponse>("GET", `/api/guilds/${guildId}/search?${params}`);
+}
+
+/**
+ * Search messages in DM channels using full-text search.
+ */
+export async function searchDMMessages(
+  query: string,
+  limit: number = 25,
+  offset: number = 0,
+  filters?: SearchFilters
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  if (filters?.date_from) params.set("date_from", filters.date_from);
+  if (filters?.date_to) params.set("date_to", filters.date_to);
+  if (filters?.channel_id) params.set("channel_id", filters.channel_id);
+  if (filters?.author_id) params.set("author_id", filters.author_id);
+  if (filters?.has) params.set("has", filters.has);
+  if (filters?.sort) params.set("sort", filters.sort);
+  return httpRequest<SearchResponse>("GET", `/api/dm/search?${params}`);
+}
+
+/**
+ * Search messages across all guilds and DMs using full-text search.
+ */
+export async function searchGlobalMessages(
+  query: string,
+  limit: number = 25,
+  offset: number = 0,
+  filters?: SearchFilters
+): Promise<GlobalSearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  if (filters?.date_from) params.set("date_from", filters.date_from);
+  if (filters?.date_to) params.set("date_to", filters.date_to);
+  if (filters?.author_id) params.set("author_id", filters.author_id);
+  if (filters?.has) params.set("has", filters.has);
+  if (filters?.sort) params.set("sort", filters.sort);
+  return httpRequest<GlobalSearchResponse>("GET", `/api/search?${params}`);
 }
 
 // Guild Invite Commands
@@ -2108,6 +2182,30 @@ export async function wsScreenShareStart(
 export async function wsScreenShareStop(channelId: string): Promise<void> {
   await wsSend({
     type: "voice_screen_share_stop",
+    channel_id: channelId,
+  });
+}
+
+/**
+ * Start webcam in a voice channel (notifies server).
+ */
+export async function wsWebcamStart(
+  channelId: string,
+  quality: "low" | "medium" | "high" | "premium",
+): Promise<void> {
+  await wsSend({
+    type: "voice_webcam_start",
+    channel_id: channelId,
+    quality,
+  });
+}
+
+/**
+ * Stop webcam in a voice channel (notifies server).
+ */
+export async function wsWebcamStop(channelId: string): Promise<void> {
+  await wsSend({
+    type: "voice_webcam_stop",
     channel_id: channelId,
   });
 }
@@ -3209,11 +3307,46 @@ export async function removeReaction(
 }
 
 /**
+ * Delete a message (soft delete, own messages only).
+ */
+export async function deleteMessage(
+  messageId: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("delete_message", { messageId });
+  }
+
+  await httpRequest<void>("DELETE", `/api/messages/${messageId}`);
+}
+
+/**
  * Get aggregate unread counts across all guilds and DMs.
  * Returns unread counts grouped by guild, plus DM unreads.
  */
 export async function getUnreadAggregate(): Promise<UnreadAggregate> {
   return fetchApi<UnreadAggregate>("/api/me/unread");
+}
+
+/**
+ * Mark all text channels in a guild as read.
+ */
+export async function markAllGuildChannelsRead(guildId: string): Promise<void> {
+  await fetchApi<void>(`/api/guilds/${guildId}/read-all`, { method: "POST" });
+}
+
+/**
+ * Mark all DM channels as read.
+ */
+export async function markAllDMsRead(): Promise<void> {
+  await fetchApi<void>("/api/dm/read-all", { method: "POST" });
+}
+
+/**
+ * Mark everything (guilds + DMs) as read.
+ */
+export async function markAllRead(): Promise<void> {
+  await fetchApi<void>("/api/me/read-all", { method: "POST" });
 }
 
 // ============================================================================

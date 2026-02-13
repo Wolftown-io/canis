@@ -145,6 +145,10 @@ pub struct ThreadInfoResponse {
     pub last_reply_at: Option<DateTime<Utc>>,
     pub participant_ids: Vec<Uuid>,
     pub participant_avatars: Vec<Option<String>>,
+    /// Whether the thread has unread replies for the requesting user.
+    /// Only populated for authenticated message list requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_unread: Option<bool>,
 }
 
 /// Full message response with author info (matches client Message type).
@@ -576,6 +580,22 @@ pub async fn create(
         }
     }
 
+    // Check threads_enabled for guild channels when creating a thread reply
+    if body.parent_id.is_some() {
+        if let Some(guild_id) = channel.guild_id {
+            let threads_enabled: (bool,) =
+                sqlx::query_as("SELECT threads_enabled FROM guilds WHERE id = $1")
+                    .bind(guild_id)
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(MessageError::Database)?;
+
+            if !threads_enabled.0 {
+                return Err(MessageError::Forbidden);
+            }
+        }
+    }
+
     // Validate parent_id if provided (thread reply)
     if let Some(parent_id) = body.parent_id {
         let parent_msg = db::find_message_by_id(&state.db, parent_id)
@@ -931,6 +951,21 @@ async fn build_message_responses(
             });
     }
 
+    // Batch-fetch thread info for parent messages with replies
+    let parent_ids_with_threads: Vec<Uuid> = messages
+        .iter()
+        .filter(|m| m.parent_id.is_none() && m.thread_reply_count > 0)
+        .map(|m| m.id)
+        .collect();
+
+    let mut thread_infos = build_batch_thread_infos(
+        pool,
+        requesting_user_id,
+        &parent_ids_with_threads,
+        &messages,
+    )
+    .await;
+
     // Build response objects
     let response = messages
         .into_iter()
@@ -954,6 +989,8 @@ async fn build_message_responses(
                 detect_mention_type(&msg.content, Some(&author.username))
             };
 
+            let thread_info = thread_infos.remove(&msg.id);
+
             MessageResponse {
                 id: msg.id,
                 channel_id: msg.channel_id,
@@ -969,7 +1006,7 @@ async fn build_message_responses(
                 created_at: msg.created_at,
                 mention_type,
                 reactions,
-                thread_info: None,
+                thread_info,
             }
         })
         .collect();
@@ -1014,7 +1051,134 @@ async fn build_thread_info(pool: &sqlx::PgPool, parent_id: Uuid) -> ThreadInfoRe
         last_reply_at: parent.and_then(|p| p.thread_last_reply_at),
         participant_ids,
         participant_avatars,
+        has_unread: None,
     }
+}
+
+/// Batch-build thread info for multiple parent messages.
+///
+/// Efficiently fetches participants, avatars, read states, and latest replies
+/// in bulk queries to avoid N+1 patterns.
+async fn build_batch_thread_infos(
+    pool: &sqlx::PgPool,
+    requesting_user_id: Uuid,
+    parent_ids: &[Uuid],
+    messages: &[db::Message],
+) -> std::collections::HashMap<Uuid, ThreadInfoResponse> {
+    if parent_ids.is_empty() {
+        return std::collections::HashMap::new();
+    }
+
+    // Batch fetch participants (up to 5 per thread)
+    let participants_map = match db::get_batch_thread_participants(pool, parent_ids, 5).await {
+        Ok(map) => map,
+        Err(e) => {
+            tracing::warn!(
+                parent_count = parent_ids.len(),
+                error = %e,
+                "Failed to batch-fetch thread participants, avatars will be missing"
+            );
+            std::collections::HashMap::new()
+        }
+    };
+
+    // Collect all unique participant user IDs for avatar lookup
+    let all_participant_ids: Vec<Uuid> = participants_map
+        .values()
+        .flatten()
+        .copied()
+        .collect::<std::collections::HashSet<Uuid>>()
+        .into_iter()
+        .collect();
+
+    // Single bulk user lookup for all participant avatars
+    let users = if all_participant_ids.is_empty() {
+        vec![]
+    } else {
+        match db::find_users_by_ids(pool, &all_participant_ids).await {
+            Ok(users) => users,
+            Err(e) => {
+                tracing::warn!(
+                    user_count = all_participant_ids.len(),
+                    error = %e,
+                    "Failed to fetch thread participant users, avatars will be missing"
+                );
+                vec![]
+            }
+        }
+    };
+    let user_map: std::collections::HashMap<Uuid, &db::User> =
+        users.iter().map(|u| (u.id, u)).collect();
+
+    // Batch fetch read states and latest reply IDs for unread detection
+    let read_states =
+        match db::get_batch_thread_read_states(pool, requesting_user_id, parent_ids).await {
+            Ok(states) => states,
+            Err(e) => {
+                tracing::warn!(
+                    parent_count = parent_ids.len(),
+                    error = %e,
+                    "Failed to batch-fetch thread read states, unread indicators may be inaccurate"
+                );
+                std::collections::HashMap::new()
+            }
+        };
+    let latest_replies = match db::get_batch_thread_latest_reply_ids(pool, parent_ids).await {
+        Ok(replies) => replies,
+        Err(e) => {
+            tracing::warn!(
+                parent_count = parent_ids.len(),
+                error = %e,
+                "Failed to batch-fetch latest thread replies, unread indicators may be inaccurate"
+            );
+            std::collections::HashMap::new()
+        }
+    };
+
+    // Build a map of parent_id -> message data for counters
+    let msg_map: std::collections::HashMap<Uuid, &db::Message> =
+        messages.iter().map(|m| (m.id, m)).collect();
+
+    // Assemble ThreadInfoResponse per parent
+    let mut result = std::collections::HashMap::new();
+
+    for &parent_id in parent_ids {
+        let participant_ids = participants_map
+            .get(&parent_id)
+            .cloned()
+            .unwrap_or_default();
+
+        let participant_avatars: Vec<Option<String>> = participant_ids
+            .iter()
+            .map(|uid| user_map.get(uid).and_then(|u| u.avatar_url.clone()))
+            .collect();
+
+        // Determine unread status
+        let has_unread = if let Some(latest_reply_id) = latest_replies.get(&parent_id) {
+            match read_states.get(&parent_id) {
+                Some(Some(last_read_id)) => Some(last_read_id != latest_reply_id),
+                Some(None) => Some(true), // Has read state but no message ID → unread
+                None => Some(true),       // No read state at all → unread
+            }
+        } else {
+            None // No replies → no unread state
+        };
+
+        let msg = msg_map.get(&parent_id);
+
+        result.insert(
+            parent_id,
+            ThreadInfoResponse {
+                reply_count: msg.map_or(0, |m| m.thread_reply_count),
+                last_reply_at: msg.and_then(|m| m.thread_last_reply_at),
+                participant_ids,
+                participant_avatars,
+                has_unread,
+            },
+        );
+    }
+
+    result
 }
 
 /// List thread replies for a parent message.

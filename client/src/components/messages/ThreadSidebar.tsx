@@ -15,6 +15,7 @@ import {
   loadMoreThreadReplies,
   sendThreadReply,
 } from "@/stores/threads";
+import { areThreadsEnabled } from "@/stores/guilds";
 
 interface ThreadSidebarProps {
   channelId: string;
@@ -128,6 +129,7 @@ const ThreadSidebar: Component<ThreadSidebarProps> = (props) => {
               message={parentMessage()!}
               guildId={props.guildId}
               isInsideThread={true}
+              threadsEnabled={areThreadsEnabled(props.guildId)}
             />
           </div>
         </Show>
@@ -158,6 +160,7 @@ const ThreadSidebar: Component<ThreadSidebarProps> = (props) => {
                   compact={false}
                   guildId={props.guildId}
                   isInsideThread={true}
+                  threadsEnabled={areThreadsEnabled(props.guildId)}
                 />
               )}
             </For>
@@ -168,7 +171,8 @@ const ThreadSidebar: Component<ThreadSidebarProps> = (props) => {
         <div ref={repliesEndRef} />
       </div>
 
-      {/* Reply input */}
+      {/* Reply input (hidden when threads are disabled — existing threads are read-only) */}
+      <Show when={areThreadsEnabled(props.guildId)}>
       <div class="px-4 pb-4 pt-2 border-t border-white/5">
         <div class="flex items-end gap-2 bg-surface-layer2 rounded-lg px-3 py-2 border border-white/5 focus-within:border-accent-primary/50 transition-colors">
           <textarea
@@ -191,6 +195,7 @@ const ThreadSidebar: Component<ThreadSidebarProps> = (props) => {
           </button>
         </div>
       </div>
+      </Show>
     </div>
   );
 };

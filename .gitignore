@@ -16,8 +16,6 @@ dist/
 # =============================================================================
 client/src-tauri/target/
 client/src-tauri/WixTools/
-client/src-tauri/icons/icon.ico
-client/src-tauri/icons/icon.png
 
 # =============================================================================
 # Environment & Secrets

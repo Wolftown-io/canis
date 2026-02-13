@@ -13,6 +13,7 @@ use axum::body::Body;
 use axum::http::Method;
 use helpers::{body_to_json, create_test_user, generate_access_token, make_admin, TestApp};
 use serial_test::serial;
+use tokio::time::{timeout, Duration};
 
 // ============================================================================
 // Database state helpers
@@ -41,7 +42,7 @@ async fn set_setup_complete(pool: &sqlx::PgPool, complete: bool) -> bool {
 // Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_status_returns_setup_state() {
     let app = TestApp::new().await;
@@ -61,7 +62,7 @@ async fn test_status_returns_setup_state() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_config_returns_values_when_setup_incomplete() {
     let app = TestApp::new().await;
@@ -97,7 +98,7 @@ async fn test_config_returns_values_when_setup_incomplete() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_config_returns_403_when_setup_complete() {
     let app = TestApp::new().await;
@@ -117,7 +118,7 @@ async fn test_config_returns_403_when_setup_complete() {
     assert_eq!(json["error"], "SETUP_ALREADY_COMPLETE");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_complete_requires_auth() {
     let app = TestApp::new().await;
@@ -140,7 +141,7 @@ async fn test_complete_requires_auth() {
     assert_eq!(json["error"], "MISSING_AUTH");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_complete_requires_admin() {
     let app = TestApp::new().await;
@@ -172,7 +173,7 @@ async fn test_complete_requires_admin() {
     assert_eq!(json["error"], "FORBIDDEN");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_complete_succeeds_for_admin() {
     let app = TestApp::new().await;
@@ -217,7 +218,7 @@ async fn test_complete_succeeds_for_admin() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_complete_rejects_invalid_body() {
     let app = TestApp::new().await;
@@ -250,7 +251,7 @@ async fn test_complete_rejects_invalid_body() {
     assert_eq!(json["error"], "VALIDATION_ERROR");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn test_complete_already_done() {
     let app = TestApp::new().await;
@@ -276,7 +277,9 @@ async fn test_complete_already_done() {
         ))
         .unwrap();
 
-    let resp = app.oneshot(req).await;
+    let resp = timeout(Duration::from_secs(10), app.oneshot(req))
+        .await
+        .expect("setup/complete request timed out (possible deadlock)");
     assert_eq!(resp.status(), 403);
 
     let json = body_to_json(resp).await;

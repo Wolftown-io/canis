@@ -14,6 +14,7 @@ import type {
   RemoteTrack,
   ScreenShareOptions,
   ScreenShareQuality,
+  WebcamOptions,
   ConnectionMetrics,
   QualityLevel,
 } from "./types";
@@ -34,6 +35,10 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   private screenShareStream: MediaStream | null = null;
   private screenShareTrack: RTCRtpSender | null = null;
   private screenShareAudioTrack: RTCRtpSender | null = null;
+
+  // Webcam state
+  private webcamStream: MediaStream | null = null;
+  private webcamSender: RTCRtpSender | null = null;
 
   // Mic test
   private micTestStream: MediaStream | null = null;
@@ -163,9 +168,12 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   async leave(): Promise<VoiceResult<void>> {
     console.log("[BrowserVoiceAdapter] Leaving voice");
 
-    // Clean up screen share first
+    // Clean up screen share and webcam first
     if (this.screenShareStream) {
       this.cleanupScreenShareState();
+    }
+    if (this.webcamStream) {
+      this.cleanupWebcamState();
     }
 
     // Send voice_leave message to server
@@ -770,6 +778,71 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     }
   }
 
+  // Webcam
+
+  isWebcamActive(): boolean {
+    return this.webcamStream !== null;
+  }
+
+  async startWebcam(options?: WebcamOptions): Promise<VoiceResult<void>> {
+    if (!this.peerConnection) {
+      return { ok: false, error: { type: "not_connected" } };
+    }
+
+    if (this.webcamStream) {
+      return { ok: false, error: { type: "unknown", message: "Webcam already active" } };
+    }
+
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: {
+          deviceId: options?.deviceId ? { exact: options.deviceId } : undefined,
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 },
+        },
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        stream.getTracks().forEach(t => t.stop());
+        return { ok: false, error: { type: "unknown", message: "No video track in webcam stream" } };
+      }
+
+      // Listen for track ending (e.g., user revokes camera permission)
+      videoTrack.onended = () => {
+        console.log("[BrowserVoiceAdapter] Webcam track ended by user/system");
+        this.cleanupWebcamState();
+      };
+
+      // Add video track to peer connection
+      this.webcamSender = this.peerConnection.addTrack(videoTrack, stream);
+      this.webcamStream = stream;
+
+      console.log("[BrowserVoiceAdapter] Webcam started");
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[BrowserVoiceAdapter] Failed to start webcam:", err);
+      return { ok: false, error: this.mapMediaError(err) };
+    }
+  }
+
+  async stopWebcam(): Promise<VoiceResult<void>> {
+    if (!this.webcamStream) {
+      return { ok: false, error: { type: "unknown", message: "Webcam not active" } };
+    }
+
+    try {
+      this.cleanupWebcamState();
+      console.log("[BrowserVoiceAdapter] Webcam stopped");
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[BrowserVoiceAdapter] Failed to stop webcam:", err);
+      return { ok: false, error: { type: "unknown", message: String(err) } };
+    }
+  }
+
   // Cleanup
 
   dispose(): void {
@@ -833,6 +906,22 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     this.screenShareAudioTrack = null;
   }
 
+  private cleanupWebcamState(): void {
+    // Remove track from peer connection
+    if (this.peerConnection && this.webcamSender) {
+      this.peerConnection.removeTrack(this.webcamSender);
+    }
+
+    // Stop the stream tracks
+    if (this.webcamStream) {
+      this.webcamStream.getTracks().forEach(track => track.stop());
+    }
+
+    // Clear state
+    this.webcamStream = null;
+    this.webcamSender = null;
+  }
+
   private setupPeerConnectionHandlers() {
     if (!this.peerConnection) return;
 
@@ -873,31 +962,43 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       }
     };
 
+    // Server-driven renegotiation: suppress browser-initiated negotiation
+    this.peerConnection.onnegotiationneeded = () => {
+      console.log("[BrowserVoiceAdapter] Negotiation needed (server-driven, ignoring)");
+    };
+
     // Remote track handler
     this.peerConnection.ontrack = (event) => {
       const track = event.track;
       const stream = event.streams[0];
 
-      console.log(`[BrowserVoiceAdapter] Remote ${track.kind} track received`);
+      // Parse stream ID format: "{userId}:{sourceType}" (e.g. "uuid:Webcam", "uuid:ScreenVideo")
+      const [userId, sourceType] = stream.id.split(":");
+
+      console.log(`[BrowserVoiceAdapter] Remote ${track.kind} track received, source: ${sourceType}, from: ${userId}`);
 
       if (track.kind === "video") {
-        // Video track = screen share
-        // Extract user ID from stream ID (format: "userId-ScreenVideo" from server)
-        const userId = stream.id.split("-")[0] || stream.id;
+        if (sourceType === "Webcam") {
+          // Webcam video track
+          console.log("[BrowserVoiceAdapter] Webcam video track from:", userId);
+          this.eventHandlers.onWebcamTrack?.(userId, track);
 
-        console.log("[BrowserVoiceAdapter] Screen share video track from:", userId);
+          track.onended = () => {
+            console.log("[BrowserVoiceAdapter] Webcam track ended for:", userId);
+            this.eventHandlers.onWebcamTrackRemoved?.(userId);
+          };
+        } else {
+          // Screen share video track (ScreenVideo or fallback)
+          console.log("[BrowserVoiceAdapter] Screen share video track from:", userId);
+          this.eventHandlers.onScreenShareTrack?.(userId, track);
 
-        this.eventHandlers.onScreenShareTrack?.(userId, track);
-
-        // Handle track ending
-        track.onended = () => {
-          console.log("[BrowserVoiceAdapter] Screen share track ended");
-          this.eventHandlers.onScreenShareTrackRemoved?.(userId);
-        };
+          track.onended = () => {
+            console.log("[BrowserVoiceAdapter] Screen share track ended");
+            this.eventHandlers.onScreenShareTrackRemoved?.(userId);
+          };
+        }
       } else {
-        // Audio track = voice or screen audio
-        const userId = stream.id;
-
+        // Audio track = voice (Microphone) or screen audio (ScreenAudio)
         this.remoteStreams.set(userId, stream);
 
         const remoteTrack: RemoteTrack = {
@@ -909,7 +1010,6 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
         this.eventHandlers.onRemoteTrack?.(remoteTrack);
 
-        // Handle track ending
         track.onended = () => {
           console.log("[BrowserVoiceAdapter] Remote audio track ended");
           this.remoteStreams.delete(userId);

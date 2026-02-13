@@ -366,13 +366,10 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    console.log('Viewport:', viewportWidth, 'x', viewportHeight);
-
     if (!props.parentPosition) {
       // Center on viewport
       const x = Math.max(16, (viewportWidth - modalWidth) / 2);
       const y = Math.max(16, (viewportHeight - modalHeight) / 2);
-      console.log('Modal centered at:', x, y);
       return { x, y };
     }
 
@@ -404,7 +401,6 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
       )
     );
 
-    console.log('Modal position:', leftPosition, finalTop);
     return {
       x: leftPosition,
       y: finalTop

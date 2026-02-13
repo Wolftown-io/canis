@@ -9,6 +9,7 @@ import {
   loadMessages,
   hasMoreMessages,
 } from "@/stores/messages";
+import { areThreadsEnabled } from "@/stores/guilds";
 import { shouldGroupWithPrevious } from "@/lib/utils";
 
 interface MessageListProps {
@@ -364,6 +365,7 @@ const MessageList: Component<MessageListProps> = (props) => {
                         message={data.message}
                         compact={data.isCompact}
                         guildId={props.guildId}
+                        threadsEnabled={areThreadsEnabled(props.guildId)}
                       />
                     ) : null;
                   })()}

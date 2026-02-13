@@ -16,6 +16,7 @@ use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 use webrtc::rtp_transceiver::rtp_transceiver_direction::RTCRtpTransceiverDirection;
 use webrtc::rtp_transceiver::RTCRtpTransceiverInit;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
+use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_remote::TrackRemote;
 
 use super::error::VoiceError;
@@ -48,6 +49,10 @@ pub struct Peer {
     pub session_id: Uuid,
     /// Timestamp when this peer connected.
     pub connected_at: DateTime<Utc>,
+    /// Pending track sources queued by the client before tracks arrive.
+    /// The client sends e.g. `VoiceWebcamStart` before `addTrack()`, so the
+    /// server can pop from this queue when `on_track` fires to identify the source.
+    pending_track_sources: RwLock<Vec<TrackSource>>,
 }
 
 impl Peer {
@@ -75,6 +80,7 @@ impl Peer {
             signal_tx,
             session_id: Uuid::now_v7(),
             connected_at: Utc::now(),
+            pending_track_sources: RwLock::new(Vec::new()),
         })
     }
 
@@ -120,12 +126,53 @@ impl Peer {
         Ok(())
     }
 
-    /// Remove an outgoing track.
-    pub async fn remove_outgoing_track(&self, source_user_id: Uuid, source_type: TrackSource) {
+    /// Remove an outgoing track, also removing it from the peer connection.
+    pub async fn remove_outgoing_track(
+        &self,
+        source_user_id: Uuid,
+        source_type: TrackSource,
+    ) -> bool {
         let mut tracks = self.outgoing_tracks.write().await;
-        tracks.remove(&(source_user_id, source_type));
-        // Note: Track removal from PeerConnection requires renegotiation,
-        // which usually happens via the SFU logic.
+        if let Some(track) = tracks.remove(&(source_user_id, source_type)) {
+            // Remove from PeerConnection so the subscriber stops receiving it
+            let senders = self.peer_connection.get_senders().await;
+            for sender in senders {
+                if let Some(t) = sender.track().await {
+                    if t.id() == track.id() {
+                        let _ = self.peer_connection.remove_track(&sender).await;
+                        break;
+                    }
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Enqueue an expected track source. Called before the client's `addTrack()`
+    /// so that `on_track` can identify the source correctly.
+    pub async fn push_pending_source(&self, source: TrackSource) {
+        let mut pending = self.pending_track_sources.write().await;
+        pending.push(source);
+    }
+
+    /// Dequeue the first pending video source, if any.
+    pub async fn pop_pending_video_source(&self) -> Option<TrackSource> {
+        let mut pending = self.pending_track_sources.write().await;
+        pending
+            .iter()
+            .position(|s| s.is_video())
+            .map(|pos| pending.remove(pos))
+    }
+
+    /// Dequeue the first pending audio source, if any.
+    pub async fn pop_pending_audio_source(&self) -> Option<TrackSource> {
+        let mut pending = self.pending_track_sources.write().await;
+        pending
+            .iter()
+            .position(|s| s.is_audio())
+            .map(|pos| pending.remove(pos))
     }
 
     /// Check if the peer connection is connected.

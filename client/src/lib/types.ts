@@ -101,7 +101,12 @@ export interface Guild {
   owner_id: string;
   icon_url: string | null;
   description: string | null;
+  threads_enabled: boolean;
   created_at: string;
+}
+
+export interface GuildSettings {
+  threads_enabled: boolean;
 }
 
 export interface GuildMember {
@@ -217,6 +222,7 @@ export interface Message {
   created_at: string;
   mention_type: "direct" | "everyone" | "here" | null;
   reactions?: Reaction[];
+  thread_info?: ThreadInfo;
 }
 
 export interface ThreadInfo {
@@ -224,6 +230,7 @@ export interface ThreadInfo {
   last_reply_at: string | null;
   participant_ids: string[];
   participant_avatars: Array<string | null>;
+  has_unread?: boolean;
 }
 
 // Paginated Response Types
@@ -250,10 +257,40 @@ export interface SearchResult {
   author: SearchAuthor;
   content: string;
   created_at: string;
+  headline: string;
+  rank: number;
 }
 
 export interface SearchResponse {
   results: SearchResult[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SearchFilters {
+  date_from?: string;
+  date_to?: string;
+  channel_id?: string;
+  author_id?: string;
+  has?: "link" | "file";
+  sort?: "relevance" | "date";
+}
+
+// Global Search Types
+
+export interface GlobalSearchSource {
+  type: "guild" | "dm";
+  guild_id: string | null;
+  guild_name: string | null;
+}
+
+export interface GlobalSearchResult extends SearchResult {
+  source: GlobalSearchSource;
+}
+
+export interface GlobalSearchResponse {
+  results: GlobalSearchResult[];
   total: number;
   limit: number;
   offset: number;
@@ -268,6 +305,13 @@ export interface VoiceParticipant {
   muted: boolean;
   speaking: boolean;
   screen_sharing: boolean;
+  webcam_active?: boolean;
+}
+
+export interface WebcamServerInfo {
+  user_id: string;
+  username: string;
+  quality: "low" | "medium" | "high" | "premium";
 }
 
 export interface ScreenShareServerInfo {
@@ -316,6 +360,9 @@ export type ClientEvent =
   | { type: "voice_ice_candidate"; channel_id: string; candidate: string }
   | { type: "voice_mute"; channel_id: string }
   | { type: "voice_unmute"; channel_id: string }
+  // Webcam events
+  | { type: "voice_webcam_start"; channel_id: string; quality: string }
+  | { type: "voice_webcam_stop"; channel_id: string }
   // Admin events
   | { type: "admin_subscribe" }
   | { type: "admin_unsubscribe" };
@@ -349,6 +396,7 @@ export type ServerEvent =
     channel_id: string;
     participants: VoiceParticipant[];
     screen_shares?: ScreenShareServerInfo[];
+    webcams?: WebcamServerInfo[];
   }
   | { type: "voice_error"; code: string; message: string }
   // Screen share events
@@ -373,6 +421,20 @@ export type ServerEvent =
     channel_id: string;
     user_id: string;
     new_quality: "low" | "medium" | "high" | "premium";
+  }
+  // Webcam events
+  | {
+    type: "webcam_started";
+    channel_id: string;
+    user_id: string;
+    username: string;
+    quality: "low" | "medium" | "high" | "premium";
+  }
+  | {
+    type: "webcam_stopped";
+    channel_id: string;
+    user_id: string;
+    reason: string;
   }
   | { type: "error"; code: string; message: string }
   // Call events
@@ -400,6 +462,8 @@ export type ServerEvent =
   // Reaction events
   | { type: "reaction_add"; channel_id: string; message_id: string; user_id: string; emoji: string }
   | { type: "reaction_remove"; channel_id: string; message_id: string; user_id: string; emoji: string }
+  // Guild emoji events
+  | { type: "guild_emoji_updated"; guild_id: string; emojis: GuildEmoji[] }
   // Friend events
   | { type: "friend_request_received"; friendship_id: string; from_user_id: string; from_username: string; from_display_name: string; from_avatar_url: string | null }
   | { type: "friend_request_accepted"; friendship_id: string; user_id: string; username: string; display_name: string; avatar_url: string | null }
@@ -895,6 +959,7 @@ export interface OidcLoginResult {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  setup_required: boolean;
 }
 
 /** Which auth methods are enabled on the server. */

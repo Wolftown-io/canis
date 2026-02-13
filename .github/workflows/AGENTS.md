@@ -49,7 +49,7 @@ Jobs:
 1. **lint** - `cargo fmt --check`, `cargo clippy`
 2. **test-server** - `cargo test -p vc-server`
 3. **test-shared** - `cargo test -p vc-common -p vc-crypto`
-4. **test-client** - `bun test` (frontend unit tests)
+4. **test-client** - `bun run test:run` (frontend unit tests, vitest)
 5. **build** - Verify compilation succeeds
 
 ### Release Pipeline (`release.yml`)

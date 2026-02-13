@@ -1103,6 +1103,83 @@ async fn test_slash_command_invocation_publishes_to_bot_channel() {
     delete_user(&app.pool, user_id).await;
 }
 
+/// Test that a duplicate command response is rejected (SET NX prevents overwrite).
+///
+/// Verifies the single-response semantic: once `interaction:{id}:response` is set,
+/// a second SET NX returns false and the original response is preserved.
+#[tokio::test]
+async fn test_duplicate_command_response_rejected() {
+    let app = TestApp::new().await;
+
+    let redis = db::create_redis_client(&app.config.redis_url)
+        .await
+        .unwrap();
+    let _connect = redis.connect();
+    redis.wait_for_connect().await.unwrap();
+
+    let interaction_id = uuid::Uuid::new_v4();
+    let bot_user_id = uuid::Uuid::new_v4();
+    let owner_key = format!("interaction:{interaction_id}:owner");
+    let response_key = format!("interaction:{interaction_id}:response");
+
+    // Set up ownership key (simulates command invocation)
+    redis
+        .set::<(), _, _>(
+            &owner_key,
+            bot_user_id.to_string(),
+            Some(fred::types::Expiration::EX(300)),
+            None,
+            false,
+        )
+        .await
+        .unwrap();
+
+    // First response — should succeed (SET NX on empty key)
+    let first_response = serde_json::json!({
+        "content": "First response",
+        "ephemeral": false,
+        "bot_user_id": bot_user_id,
+    });
+    let first_set: bool = redis
+        .set(
+            &response_key,
+            first_response.to_string(),
+            Some(fred::types::Expiration::EX(300)),
+            Some(fred::types::SetOptions::NX),
+            false,
+        )
+        .await
+        .unwrap();
+    assert!(first_set, "first SET NX should succeed");
+
+    // Second response — should be rejected (key already exists)
+    let second_response = serde_json::json!({
+        "content": "Second response (should be rejected)",
+        "ephemeral": false,
+        "bot_user_id": bot_user_id,
+    });
+    let second_set: bool = redis
+        .set(
+            &response_key,
+            second_response.to_string(),
+            Some(fred::types::Expiration::EX(300)),
+            Some(fred::types::SetOptions::NX),
+            false,
+        )
+        .await
+        .unwrap();
+    assert!(!second_set, "second SET NX should be rejected");
+
+    // Verify original response is preserved
+    let stored: String = redis.get(&response_key).await.unwrap();
+    let stored_value: serde_json::Value = serde_json::from_str(&stored).unwrap();
+    assert_eq!(stored_value["content"], "First response");
+
+    // Cleanup
+    redis.del::<(), _>(&owner_key).await.unwrap();
+    redis.del::<(), _>(&response_key).await.unwrap();
+}
+
 /// Test slash command fails when multiple bots provide same command in same scope.
 #[tokio::test]
 async fn test_slash_command_invocation_ambiguous() {

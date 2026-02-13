@@ -7,7 +7,7 @@
 import { createStore } from "solid-js/store";
 import * as tauri from "@/lib/tauri";
 import type { Activity, Message, ServerEvent, ThreadInfo, UserStatus } from "@/lib/types";
-import { updateUserActivity } from "./presence";
+import { updateUserActivity, updateUserPresence } from "./presence";
 import { addMessage, removeMessage, messagesState, setMessagesState } from "./messages";
 import {
   addThreadReply,
@@ -15,6 +15,9 @@ import {
   setThreadReadState,
   updateThreadInfo,
   updateParentThreadIndicator,
+  markThreadUnread,
+  clearThreadUnread,
+  threadsState,
 } from "./threads";
 import { handlePreferencesUpdated } from "./preferences";
 import {
@@ -177,8 +180,15 @@ export async function initWebSocket(): Promise<void> {
       await listen<{ channel_id: string; message_id: string; content: string; edited_at: string }>(
         "ws:message_edit",
         (event) => {
-          const { message_id, content } = event.payload;
-          console.log("Message edited:", message_id, content);
+          const { channel_id, message_id, content, edited_at } = event.payload;
+          const messages = messagesState.byChannel[channel_id];
+          if (messages) {
+            const index = messages.findIndex((m) => m.id === message_id);
+            if (index !== -1) {
+              setMessagesState("byChannel", channel_id, index, "content", content);
+              setMessagesState("byChannel", channel_id, index, "edited_at", edited_at);
+            }
+          }
         }
       )
     );
@@ -207,7 +217,7 @@ export async function initWebSocket(): Promise<void> {
     // Presence events
     unlisteners.push(
       await listen<{ user_id: string; status: UserStatus }>("ws:presence_update", (event) => {
-        console.log("Presence update:", event.payload.user_id, event.payload.status);
+        updateUserPresence(event.payload.user_id, event.payload.status);
       })
     );
 
@@ -369,6 +379,16 @@ export async function initWebSocket(): Promise<void> {
       )
     );
 
+    // Guild emoji events
+    unlisteners.push(
+      await listen<{ guild_id: string; emojis: any[] }>(
+        "ws:guild_emoji_updated",
+        (event) => {
+          handleGuildEmojiUpdated(event.payload.guild_id, event.payload.emojis);
+        }
+      )
+    );
+
     // Read sync events (Tauri → frontend parity with browser mode)
     unlisteners.push(
       await listen<{ channel_id: string }>("ws:channel_read", (event) => {
@@ -433,6 +453,25 @@ export async function initWebSocket(): Promise<void> {
       )
     );
 
+    // Webcam events (Tauri → frontend parity with browser mode)
+    unlisteners.push(
+      await listen<{ channel_id: string; user_id: string; username: string; quality: string }>(
+        "ws:webcam_started",
+        async (event) => {
+          await handleWebcamStarted(event.payload);
+        }
+      )
+    );
+
+    unlisteners.push(
+      await listen<{ channel_id: string; user_id: string; reason: string }>(
+        "ws:webcam_stopped",
+        async (event) => {
+          await handleWebcamStopped(event.payload);
+        }
+      )
+    );
+
     // Voice stats events
     unlisteners.push(
       await listen<{ channel_id: string; user_id: string; latency: number; packet_loss: number; jitter: number; quality: number }>(
@@ -480,6 +519,18 @@ export async function initWebSocket(): Promise<void> {
     unlisteners.push(
       await listen<{ report_id: string }>("ws:admin_report_resolved", async (event) => {
         await handleAdminReportResolved(event.payload.report_id);
+      })
+    );
+
+    unlisteners.push(
+      await listen<{ user_id: string; username: string }>("ws:admin_user_deleted", async (event) => {
+        await handleAdminUserDeleted(event.payload.user_id, event.payload.username);
+      })
+    );
+
+    unlisteners.push(
+      await listen<{ guild_id: string; guild_name: string }>("ws:admin_guild_deleted", async (event) => {
+        await handleAdminGuildDeleted(event.payload.guild_id, event.payload.guild_name);
       })
     );
 
@@ -627,9 +678,17 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       }
       break;
 
-    case "message_edit":
-      console.log("Message edited:", event.message_id, event.content);
+    case "message_edit": {
+      const editMessages = messagesState.byChannel[event.channel_id];
+      if (editMessages) {
+        const editIndex = editMessages.findIndex((m) => m.id === event.message_id);
+        if (editIndex !== -1) {
+          setMessagesState("byChannel", event.channel_id, editIndex, "content", event.content);
+          setMessagesState("byChannel", event.channel_id, editIndex, "edited_at", event.edited_at);
+        }
+      }
       break;
+    }
 
     case "message_delete":
       removeMessage(event.channel_id, event.message_id);
@@ -644,7 +703,7 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       break;
 
     case "presence_update":
-      console.log("Presence update:", event.user_id, event.status);
+      updateUserPresence(event.user_id, event.status);
       break;
 
     case "rich_presence_update":
@@ -679,7 +738,7 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       break;
 
     case "voice_room_state":
-      await handleVoiceRoomState(event.channel_id, event.participants, event.screen_shares);
+      await handleVoiceRoomState(event.channel_id, event.participants, event.screen_shares, event.webcams);
       break;
 
     case "screen_share_started":
@@ -692,6 +751,14 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
     case "screen_share_quality_changed":
       await handleScreenShareQualityChanged(event);
+      break;
+
+    case "webcam_started":
+      await handleWebcamStarted(event);
+      break;
+
+    case "webcam_stopped":
+      await handleWebcamStopped(event);
       break;
 
     case "voice_error":
@@ -818,6 +885,11 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
     case "reaction_remove":
       handleReactionRemove(event.channel_id, event.message_id, event.user_id, event.emoji);
+      break;
+
+    // Guild emoji events
+    case "guild_emoji_updated":
+      handleGuildEmojiUpdated(event.guild_id, event.emojis);
       break;
 
     // Friend events
@@ -1185,7 +1257,7 @@ async function handleVoiceUserUnmuted(channelId: string, userId: string): Promis
   }
 }
 
-async function handleVoiceRoomState(channelId: string, participants: any[], screenShares?: any[]): Promise<void> {
+async function handleVoiceRoomState(channelId: string, participants: any[], screenShares?: any[], webcams?: any[]): Promise<void> {
   const { voiceState, setVoiceState } = await import("@/stores/voice");
   const { produce } = await import("solid-js/store");
 
@@ -1197,6 +1269,7 @@ async function handleVoiceRoomState(channelId: string, participants: any[], scre
           state.participants[p.user_id] = p;
         }
         state.screenShares = screenShares ?? [];
+        state.webcams = webcams ?? [];
       })
     );
   }
@@ -1277,6 +1350,57 @@ export async function handleScreenShareQualityChanged(event: any): Promise<void>
   }
 }
 
+// Webcam event handlers
+
+export async function handleWebcamStarted(event: any): Promise<void> {
+  const { voiceState, setVoiceState } = await import("@/stores/voice");
+  const { produce } = await import("solid-js/store");
+
+  console.log("[WebSocket] Webcam started:", event.user_id);
+
+  if (voiceState.channelId === event.channel_id) {
+    setVoiceState(
+      produce((state) => {
+        // Add to webcams list
+        state.webcams.push({
+          user_id: event.user_id,
+          username: event.username,
+          quality: event.quality,
+        });
+
+        // Update participant's webcam_active flag
+        if (state.participants[event.user_id]) {
+          state.participants[event.user_id].webcam_active = true;
+        }
+      })
+    );
+  }
+}
+
+export async function handleWebcamStopped(event: any): Promise<void> {
+  const { voiceState, setVoiceState } = await import("@/stores/voice");
+  const { produce } = await import("solid-js/store");
+
+  console.log("[WebSocket] Webcam stopped:", event.user_id, event.reason);
+
+  if (voiceState.channelId === event.channel_id) {
+    setVoiceState(
+      produce((state) => {
+        // Remove from webcams list
+        state.webcams = state.webcams.filter(w => w.user_id !== event.user_id);
+
+        // Update participant's webcam_active flag
+        if (state.participants[event.user_id]) {
+          state.participants[event.user_id].webcam_active = false;
+        }
+
+        // If it was us, clear local state
+        // (authState comparison not available here, so the voice store handles it via WS event)
+      })
+    );
+  }
+}
+
 async function handleVoiceUserStatsEvent(event: {
   channel_id: string;
   user_id: string;
@@ -1321,6 +1445,13 @@ async function handleAdminGuildDeleted(guildId: string, guildName: string): Prom
   handleGuildDeletedEvent(guildId, guildName);
 }
 
+// Guild emoji event handler
+
+async function handleGuildEmojiUpdated(guildId: string, emojis: any[]): Promise<void> {
+  const { setGuildEmojis } = await import("@/stores/emoji");
+  setGuildEmojis(guildId, emojis);
+}
+
 // Thread event handlers
 
 function handleThreadReplyNew(
@@ -1334,6 +1465,12 @@ function handleThreadReplyNew(
 
   // Update thread info cache
   updateThreadInfo(parentId, threadInfo);
+
+  // Mark thread as unread if not currently open and reply is from another user
+  const user = currentUser();
+  if (threadsState.activeThreadId !== parentId && (!user || message.author.id !== user.id)) {
+    markThreadUnread(parentId);
+  }
 
   // Update parent message's thread indicator in main messages store
   updateParentThreadIndicator(channelId, parentId, threadInfo);
@@ -1351,15 +1488,20 @@ function handleThreadReplyDelete(
   // Remove reply from thread store
   removeThreadReply(parentId, messageId);
 
-  // Update thread info cache
+  // Update thread info cache (updateThreadInfo preserves existing has_unread)
   updateThreadInfo(parentId, threadInfo);
 
   // Update parent message's thread indicator in main messages store
   updateParentThreadIndicator(channelId, parentId, threadInfo);
+
+  // If the deleted message was the one that made the thread "read",
+  // and there are still newer unread replies, the unread state is preserved
+  // by updateThreadInfo's has_unread preservation logic.
 }
 
 function handleThreadRead(parentId: string, lastReadMessageId: string | null): void {
   setThreadReadState(parentId, lastReadMessageId);
+  clearThreadUnread(parentId);
 }
 
 function handleThreadNotification(message: Message): void {

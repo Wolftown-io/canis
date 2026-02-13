@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src --ext .ts,.tsx",
+    "lint:handlers": "bash scripts/check-dead-handlers.sh",
     "format": "prettier --write src",
     "test": "vitest",
     "test:run": "vitest run"

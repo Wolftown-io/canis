@@ -152,8 +152,9 @@ pub struct UpdateProfileResponse {
 // ============================================================================
 
 /// Username validation regex (matches DB constraint).
-static USERNAME_REGEX: std::sync::LazyLock<regex::Regex> =
-    std::sync::LazyLock::new(|| regex::Regex::new(r"^[a-z0-9_]{3,32}$").unwrap());
+static USERNAME_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"^[a-z0-9_]{3,32}$").expect("valid username regex")
+});
 
 // ============================================================================
 // Helper Functions
@@ -210,12 +211,23 @@ pub async fn register(
         return Err(AuthError::AuthMethodDisabled);
     }
 
-    // Check registration policy
-    let reg_policy = db::get_config_value(&state.db, "registration_policy")
+    // Check registration policy (fail-closed: deny registration if DB is unreachable)
+    let reg_policy_value = db::get_config_value(&state.db, "registration_policy")
         .await
-        .ok()
-        .and_then(|v| v.as_str().map(String::from))
-        .unwrap_or_else(|| "open".to_string());
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                "Failed to read registration_policy config - denying registration (fail-closed)"
+            );
+            AuthError::Database(e)
+        })?;
+    let reg_policy = reg_policy_value.as_str().ok_or_else(|| {
+        tracing::error!(
+            actual_value = ?reg_policy_value,
+            "registration_policy config value is not a string"
+        );
+        AuthError::Internal("Server configuration error".to_string())
+    })?;
     if reg_policy != "open" {
         // Both "closed" and "invite_only" reject direct registration
         return Err(AuthError::RegistrationDisabled);
@@ -486,7 +498,9 @@ pub async fn login(
             6,
             1,
             30,
-            secret.to_bytes().unwrap(),
+            secret
+                .to_bytes()
+                .map_err(|_| AuthError::Internal("Invalid TOTP secret encoding".into()))?,
             Some("VoiceChat".to_string()),
             user.username.clone(),
         )
@@ -752,13 +766,12 @@ pub async fn upload_avatar(
     let endpoint = &state.config.s3_endpoint;
 
     // Handle localhost vs cloud endpoint formatting
-    let url = if endpoint
+    let url = if let Some(ep) = endpoint
         .as_deref()
-        .is_some_and(|s| s.contains("localhost") || s.contains("127.0.0.1"))
+        .filter(|s| s.contains("localhost") || s.contains("127.0.0.1"))
     {
         // For MinIO/Local: endpoint/bucket/key
-        // endpoint is Option, so unwrap safe because of check
-        format!("{}/{}/{}", endpoint.as_ref().unwrap(), bucket, key)
+        format!("{ep}/{bucket}/{key}")
     } else if let Some(ep) = endpoint {
         // Custom endpoint (R2, etc): endpoint/bucket/key or bucket.endpoint/key
         // We'll stick to path style for safety if custom endpoint is used
@@ -927,7 +940,9 @@ pub async fn mfa_setup(
         6,
         1,
         30,
-        secret.to_bytes().unwrap(),
+        secret
+            .to_bytes()
+            .map_err(|_| AuthError::Internal("Invalid TOTP secret encoding".into()))?,
         Some("VoiceChat".to_string()),
         auth_user.username.clone(),
     )
@@ -985,7 +1000,9 @@ pub async fn mfa_verify(
         6,
         1,
         30,
-        secret.to_bytes().unwrap(),
+        secret
+            .to_bytes()
+            .map_err(|_| AuthError::Internal("Invalid TOTP secret encoding".into()))?,
         Some("VoiceChat".to_string()),
         user.username,
     )
@@ -1242,12 +1259,25 @@ pub async fn oidc_callback(
         // Existing user — login
         existing
     } else {
-        // New user — check registration policy
-        let reg_policy = db::get_config_value(&state.db, "registration_policy")
+        // New user — check registration policy (fail-closed: deny if DB unreachable)
+        let reg_policy_value = db::get_config_value(&state.db, "registration_policy")
             .await
-            .ok()
-            .and_then(|v| v.as_str().map(String::from))
-            .unwrap_or_else(|| "open".to_string());
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    provider = %flow_state.slug,
+                    "Failed to read registration_policy config - denying OIDC registration (fail-closed)"
+                );
+                AuthError::Database(e)
+            })?;
+        let reg_policy = reg_policy_value.as_str().ok_or_else(|| {
+            tracing::error!(
+                actual_value = ?reg_policy_value,
+                provider = %flow_state.slug,
+                "registration_policy config value is not a string"
+            );
+            AuthError::Internal("Server configuration error".to_string())
+        })?;
         if reg_policy != "open" {
             // Both "closed" and "invite_only" reject OIDC registration
             // (no mechanism to carry invite tokens through OIDC flow)
@@ -1458,11 +1488,17 @@ pub async fn forgot_password(
         })));
     }
 
-    // Look up user by email
-    let user = match find_user_by_email(&state.db, &body.email).await? {
-        Some(u) => u,
-        None => {
+    // Look up user by email — catch DB errors to prevent enumeration via 500 responses
+    let user = match find_user_by_email(&state.db, &body.email).await {
+        Ok(Some(u)) => u,
+        Ok(None) => {
             // User not found — return success silently (no enumeration)
+            return Ok(Json(serde_json::json!({
+                "message": "If an account with that email exists, a reset code has been sent."
+            })));
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Database error during password reset user lookup");
             return Ok(Json(serde_json::json!({
                 "message": "If an account with that email exists, a reset code has been sent."
             })));
@@ -1476,13 +1512,16 @@ pub async fn forgot_password(
         })));
     }
 
-    // Invalidate existing tokens for this user
+    // Invalidate existing tokens for this user — abort if this fails to prevent token accumulation
     if let Err(e) = invalidate_user_reset_tokens(&state.db, user.id).await {
-        tracing::warn!(
+        tracing::error!(
             error = %e,
             user_id = %user.id,
-            "Failed to invalidate existing reset tokens"
+            "Failed to invalidate existing reset tokens, aborting reset flow"
         );
+        return Ok(Json(serde_json::json!({
+            "message": "If an account with that email exists, a reset code has been sent."
+        })));
     }
 
     // Generate 32 random bytes → base64url token
@@ -1497,8 +1536,13 @@ pub async fn forgot_password(
     let token_hash = hash_token(&raw_token);
     let expires_at = Utc::now() + Duration::hours(1);
 
-    // Insert token into DB
-    create_password_reset_token(&state.db, user.id, &token_hash, expires_at).await?;
+    // Insert token into DB — catch DB errors to prevent enumeration via 500 responses
+    if let Err(e) = create_password_reset_token(&state.db, user.id, &token_hash, expires_at).await {
+        tracing::error!(error = %e, user_id = %user.id, "Failed to create password reset token");
+        return Ok(Json(serde_json::json!({
+            "message": "If an account with that email exists, a reset code has been sent."
+        })));
+    }
 
     // Send email — log warning on failure, return same generic response to prevent enumeration
     match email_service
@@ -1509,17 +1553,17 @@ pub async fn forgot_password(
             tracing::info!(user_id = %user.id, "Password reset email sent");
         }
         Err(e) => {
-            tracing::warn!(
+            tracing::error!(
                 error = %e,
                 user_id = %user.id,
                 "Failed to send password reset email"
             );
             // Clean up the orphaned token since the user never received it
             if let Err(cleanup_err) = invalidate_user_reset_tokens(&state.db, user.id).await {
-                tracing::warn!(
+                tracing::error!(
                     error = %cleanup_err,
                     user_id = %user.id,
-                    "Failed to clean up orphaned password reset token"
+                    "Failed to clean up orphaned password reset token after email failure"
                 );
             }
         }

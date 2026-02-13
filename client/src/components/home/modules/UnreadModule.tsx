@@ -6,11 +6,11 @@
  */
 
 import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from "solid-js";
-import { Inbox, Hash } from "lucide-solid";
-import { getUnreadAggregate, type UnreadAggregate } from "@/lib/tauri";
+import { Inbox, Hash, CheckCheck } from "lucide-solid";
+import { getUnreadAggregate, markAllGuildChannelsRead, markAllDMsRead, markAllRead, type UnreadAggregate } from "@/lib/tauri";
 import { selectGuild } from "@/stores/guilds";
-import { selectChannel } from "@/stores/channels";
-import { selectDM } from "@/stores/dms";
+import { selectChannel, markAllGuildChannelsAsRead } from "@/stores/channels";
+import { selectDM, markAllDMsAsRead } from "@/stores/dms";
 import { showToast } from "@/components/ui/Toast";
 import Skeleton from "@/components/ui/Skeleton";
 import CollapsibleModule from "./CollapsibleModule";
@@ -99,6 +99,49 @@ const UnreadModule: Component = () => {
     }
   };
 
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllRead();
+      setUnreadData(null);
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark all as read." });
+    }
+  };
+
+  const handleMarkGuildRead = async (guildId: string) => {
+    try {
+      await markAllGuildChannelsRead(guildId);
+      markAllGuildChannelsAsRead(guildId);
+      // Remove this guild from unread data
+      const current = unreadData();
+      if (current) {
+        const guilds = current.guilds.filter((g) => g.guild_id !== guildId);
+        const removedTotal = current.guilds.find((g) => g.guild_id === guildId)?.total_unread ?? 0;
+        setUnreadData({ ...current, guilds, total: current.total - removedTotal });
+      }
+    } catch (error) {
+      console.error("Failed to mark guild as read:", error);
+      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark guild channels as read." });
+    }
+  };
+
+  const handleMarkDMsRead = async () => {
+    try {
+      await markAllDMsRead();
+      markAllDMsAsRead();
+      // Remove DMs from unread data
+      const current = unreadData();
+      if (current) {
+        const dmTotal = current.dms.reduce((sum, d) => sum + d.unread_count, 0);
+        setUnreadData({ ...current, dms: [], total: current.total - dmTotal });
+      }
+    } catch (error) {
+      console.error("Failed to mark DMs as read:", error);
+      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark DMs as read." });
+    }
+  };
+
   const navigateToDM = (channelId: string) => {
     try {
       // Select the DM (this automatically switches to DMs view)
@@ -115,6 +158,18 @@ const UnreadModule: Component = () => {
 
   return (
     <CollapsibleModule id="unread" title="Unread" badge={totalUnread()}>
+      <Show when={hasUnreads()}>
+        <div class="flex justify-end mb-2">
+          <button
+            onClick={handleMarkAllRead}
+            class="flex items-center gap-1 text-xs text-text-secondary hover:text-accent-primary transition-colors"
+            title="Mark all as read"
+          >
+            <CheckCheck class="w-3.5 h-3.5" />
+            Mark All as Read
+          </button>
+        </div>
+      </Show>
       <Show
         when={!loading() && hasUnreads()}
         fallback={
@@ -170,8 +225,17 @@ const UnreadModule: Component = () => {
               <For each={unreadData()!.guilds}>
                 {(guild) => (
                   <div class="space-y-1">
-                    <div class="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                      {guild.guild_name}
+                    <div class="flex items-center justify-between">
+                      <div class="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                        {guild.guild_name}
+                      </div>
+                      <button
+                        onClick={() => handleMarkGuildRead(guild.guild_id)}
+                        class="text-text-muted hover:text-accent-primary transition-colors"
+                        title={`Mark all in ${guild.guild_name} as read`}
+                      >
+                        <CheckCheck class="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     <div class="space-y-1">
                       <For each={guild.channels}>
@@ -202,8 +266,17 @@ const UnreadModule: Component = () => {
           {/* DM Unreads */}
           <Show when={unreadData()?.dms && unreadData()!.dms.length > 0}>
             <div class="space-y-1">
-              <div class="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                Direct Messages
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Direct Messages
+                </div>
+                <button
+                  onClick={handleMarkDMsRead}
+                  class="text-text-muted hover:text-accent-primary transition-colors"
+                  title="Mark all DMs as read"
+                >
+                  <CheckCheck class="w-3.5 h-3.5" />
+                </button>
               </div>
               <div class="space-y-1">
                 <For each={unreadData()!.dms}>

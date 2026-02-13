@@ -373,7 +373,7 @@ export function patchGuild(guildId: string, diff: Record<string, unknown>): void
   }
 
   // Filter to only valid Guild fields
-  const validFields: (keyof Guild)[] = ["name", "icon_url", "description", "owner_id"];
+  const validFields: (keyof Guild)[] = ["name", "icon_url", "description", "owner_id", "threads_enabled"];
   const updates: Partial<Guild> = {};
   for (const field of validFields) {
     if (field in diff) {
@@ -384,6 +384,15 @@ export function patchGuild(guildId: string, diff: Record<string, unknown>): void
   if (Object.keys(updates).length > 0) {
     setGuildsState("guilds", guildIndex, (prev) => ({ ...prev, ...updates }));
   }
+}
+
+/**
+ * Check if threads are enabled for a guild.
+ */
+export function areThreadsEnabled(guildId: string | undefined | null): boolean {
+  if (!guildId) return true; // DMs always allow threads
+  const guild = guildsState.guilds.find((g) => g.id === guildId);
+  return guild?.threads_enabled ?? true;
 }
 
 // ============================================================================

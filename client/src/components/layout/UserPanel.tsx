@@ -8,7 +8,6 @@
  */
 
 import { Component, Show, createSignal, onMount } from "solid-js";
-import { useNavigate } from "@solidjs/router";
 import { Settings, Shield, LogOut } from "lucide-solid";
 import { authState, logout } from "@/stores/auth";
 import { adminState, checkAdminStatus } from "@/stores/admin";
@@ -21,7 +20,6 @@ import { AdminQuickModal } from "@/components/admin";
 import type { CustomStatus } from "@/lib/types";
 
 const UserPanel: Component = () => {
-  const navigate = useNavigate();
   const user = () => authState.user;
   const [showSettings, setShowSettings] = createSignal(false);
   const [showAdmin, setShowAdmin] = createSignal(false);
@@ -35,11 +33,9 @@ const UserPanel: Component = () => {
     return getUserPresence(userId)?.customStatus ?? null;
   };
 
-  const handleCustomStatusSave = async (status: CustomStatus | null) => {
-    // TODO: Implement custom status update via tauri/API when backend supports it
-    console.log("Custom status save:", status);
-    // For now, just close the modal - actual saving will be implemented
-    // when the backend endpoint is ready
+  const handleCustomStatusSave = async (_status: CustomStatus | null) => {
+    // No-op: backend does not support custom status yet (PresenceUpdate only handles online/away/busy/offline).
+    // Wire this up when a custom_status field is added to the presence system.
   };
 
   onMount(() => {
@@ -96,7 +92,7 @@ const UserPanel: Component = () => {
                 "text-text-secondary hover:text-accent-primary": !adminState.isElevated,
               }}
               title={adminState.isElevated ? "Admin Panel (Elevated)" : "Admin Panel"}
-              onClick={() => navigate("/admin")}
+              onClick={() => setShowAdmin(true)}
             >
               <Shield class="w-4 h-4" />
             </button>

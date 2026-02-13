@@ -82,11 +82,11 @@ const Sidebar: Component = () => {
     <aside class="w-[240px] flex flex-col bg-surface-layer2 z-10 transition-all duration-300 border-r border-white/10">
       {/* Server Header with Settings */}
       <header class="h-12 px-4 flex items-center justify-between border-b border-white/10 group">
-        <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:bg-surface-highlight rounded-lg -ml-2 px-2 py-1">
+        <div class="flex items-center gap-2 flex-1 min-w-0 rounded-lg -ml-2 px-2 py-1">
           <h1 class="font-bold text-lg text-text-primary truncate">
             {activeGuild()?.name || "VoiceChat"}
           </h1>
-          <ChevronDown class="w-4 h-4 text-text-secondary flex-shrink-0 transition-transform duration-200 group-hover:rotate-180" />
+          <ChevronDown class="w-4 h-4 text-text-secondary flex-shrink-0" />
         </div>
 
         {/* Settings gear - only show when in a guild */}

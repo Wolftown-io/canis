@@ -9,6 +9,7 @@ import { createStore } from "solid-js/store";
 import type { Message, ClaimedPrekeyInput, DMListItem, E2EEContent } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import { e2eeStore } from "@/stores/e2ee";
+import { showToast } from "@/components/ui/Toast";
 import { currentUser } from "@/stores/auth";
 
 // ============================================================================
@@ -230,6 +231,7 @@ export async function sendMessage(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to send message:", error);
+    showToast({ type: "error", title: "Send Failed", message: "Could not send message. Please try again." });
     setMessagesState({ error });
     return null;
   }
@@ -417,6 +419,7 @@ export async function sendEncryptedDM(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to send encrypted message:", error);
+    showToast({ type: "error", title: "Send Failed", message: "Could not send encrypted message. Please try again." });
     setMessagesState({ error });
     return null;
   }

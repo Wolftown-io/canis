@@ -70,6 +70,10 @@ async fn create_test_limiter(redis: fred::clients::Client) -> RateLimiter {
                 requests: 5,
                 window_secs: 60,
             },
+            search: LimitConfig {
+                requests: 15,
+                window_secs: 60,
+            },
             failed_auth: FailedAuthConfig {
                 max_failures: 3,
                 block_duration_secs: 60,

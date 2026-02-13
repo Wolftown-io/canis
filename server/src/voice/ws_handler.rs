@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
+use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 
 use super::error::VoiceError;
 use super::metrics::{finalize_session, get_guild_id, store_metrics};
@@ -20,6 +21,7 @@ use super::screen_share::{
 use super::sfu::SfuServer;
 use super::stats::VoiceStats;
 use super::track_types::TrackSource;
+use super::webcam::WebcamInfo;
 use super::Quality;
 use crate::ws::{ClientEvent, ServerEvent, VoiceParticipant};
 
@@ -89,6 +91,13 @@ pub async fn handle_voice_event(
         }
         ClientEvent::VoiceScreenShareStop { channel_id } => {
             handle_screen_share_stop(sfu, redis, user_id, channel_id).await
+        }
+        ClientEvent::VoiceWebcamStart {
+            channel_id,
+            quality,
+        } => handle_webcam_start(sfu, pool, user_id, channel_id, quality).await,
+        ClientEvent::VoiceWebcamStop { channel_id } => {
+            handle_webcam_stop(sfu, user_id, channel_id).await
         }
         _ => Ok(()), // Non-voice events handled elsewhere
     }
@@ -197,15 +206,18 @@ async fn handle_join(
             display_name: p.display_name,
             muted: p.muted,
             screen_sharing: p.screen_sharing,
+            webcam_active: p.webcam_active,
         })
         .collect();
 
     let screen_shares = room.get_screen_shares().await;
+    let webcams = room.get_webcams().await;
 
     tx.send(ServerEvent::VoiceRoomState {
         channel_id,
         participants,
         screen_shares,
+        webcams,
     })
     .await
     .map_err(|e| VoiceError::Signaling(e.to_string()))?;
@@ -257,6 +269,19 @@ async fn handle_leave(
         room.broadcast_except(
             user_id,
             ServerEvent::ScreenShareStopped {
+                channel_id,
+                user_id,
+                reason: "disconnected".to_string(),
+            },
+        )
+        .await;
+    }
+
+    // Check if webcam is active and stop it
+    if room.remove_webcam(user_id).await.is_some() {
+        room.broadcast_except(
+            user_id,
+            ServerEvent::WebcamStopped {
                 channel_id,
                 user_id,
                 reason: "disconnected".to_string(),
@@ -567,6 +592,27 @@ async fn handle_screen_share_start(
         }));
     }
 
+    // Queue pending track sources so setup_track_handler can identify them
+    peer.push_pending_source(TrackSource::ScreenVideo).await;
+    if has_audio {
+        peer.push_pending_source(TrackSource::ScreenAudio).await;
+    }
+
+    // Add recv transceivers for the incoming tracks
+    if let Err(e) = peer.add_recv_transceiver(RTPCodecType::Video).await {
+        warn!(user_id = %user_id, error = %e, "Failed to add video transceiver for screen share");
+    }
+    if has_audio {
+        if let Err(e) = peer.add_recv_transceiver(RTPCodecType::Audio).await {
+            warn!(user_id = %user_id, error = %e, "Failed to add audio transceiver for screen audio");
+        }
+    }
+
+    // Renegotiate so the client sees the new transceivers
+    if let Err(e) = SfuServer::renegotiate(&peer).await {
+        warn!(user_id = %user_id, error = %e, "Failed to renegotiate after screen share transceiver add");
+    }
+
     // Get username for the info
     let username = peer.username.clone();
 
@@ -619,14 +665,53 @@ async fn handle_screen_share_stop(
         .ok_or(VoiceError::RoomNotFound(channel_id))?;
 
     // Remove screen share from room
-    if room.remove_screen_share(user_id).await.is_none() {
+    let had_audio = if let Some(info) = room.remove_screen_share(user_id).await {
+        info.has_audio
+    } else {
         // User wasn't sharing, but that's okay - idempotent
         debug!(user_id = %user_id, "User tried to stop screen share but wasn't sharing");
         return Ok(());
-    }
+    };
 
     // Decrement Redis counter
     stop_screen_share(redis, channel_id).await;
+
+    // Clean up screen share tracks from the track router
+    room.track_router
+        .remove_source_track(user_id, TrackSource::ScreenVideo)
+        .await;
+    if had_audio {
+        room.track_router
+            .remove_source_track(user_id, TrackSource::ScreenAudio)
+            .await;
+    }
+
+    // Remove incoming tracks from the peer
+    if let Some(peer) = room.get_peer(user_id).await {
+        let mut incoming = peer.incoming_tracks.write().await;
+        incoming.remove(&TrackSource::ScreenVideo);
+        incoming.remove(&TrackSource::ScreenAudio);
+    }
+
+    // Remove outgoing tracks from all subscribers and renegotiate
+    let other_peers = room.get_other_peers(user_id).await;
+    for other_peer in &other_peers {
+        let removed_video = other_peer
+            .remove_outgoing_track(user_id, TrackSource::ScreenVideo)
+            .await;
+        let removed_audio = other_peer
+            .remove_outgoing_track(user_id, TrackSource::ScreenAudio)
+            .await;
+        if removed_video || removed_audio {
+            if let Err(e) = SfuServer::renegotiate(other_peer).await {
+                warn!(
+                    subscriber = %other_peer.user_id,
+                    error = %e,
+                    "Failed to renegotiate after screen share track removal"
+                );
+            }
+        }
+    }
 
     // Broadcast to room
     room.broadcast_all(ServerEvent::ScreenShareStopped {
@@ -640,6 +725,155 @@ async fn handle_screen_share_stop(
         user_id = %user_id,
         channel_id = %channel_id,
         "Screen share stopped"
+    );
+
+    Ok(())
+}
+
+/// Handle starting a webcam.
+async fn handle_webcam_start(
+    sfu: &Arc<SfuServer>,
+    pool: &PgPool,
+    user_id: Uuid,
+    channel_id: Uuid,
+    quality: Quality,
+) -> Result<(), VoiceError> {
+    info!(user_id = %user_id, channel_id = %channel_id, quality = ?quality, "User starting webcam");
+
+    // Rate limit check
+    sfu.check_rate_limit(user_id).await?;
+
+    // Check if user has VIEW_CHANNEL permission
+    crate::permissions::require_channel_access(pool, user_id, channel_id)
+        .await
+        .map_err(|_e: crate::permissions::PermissionError| VoiceError::Unauthorized)?;
+
+    // Get the room
+    let room = sfu
+        .get_room(channel_id)
+        .await
+        .ok_or(VoiceError::RoomNotFound(channel_id))?;
+
+    // Check user is in the room
+    let peer = room
+        .get_peer(user_id)
+        .await
+        .ok_or(VoiceError::ParticipantNotFound(user_id))?;
+
+    // Check if user already has webcam active
+    {
+        let webcams = room.webcams.read().await;
+        if webcams.contains_key(&user_id) {
+            return Err(VoiceError::Signaling("Webcam already active".to_string()));
+        }
+    }
+
+    // Queue pending track source so setup_track_handler identifies it as Webcam
+    peer.push_pending_source(TrackSource::Webcam).await;
+
+    // Add recv transceiver for the incoming webcam video track
+    if let Err(e) = peer.add_recv_transceiver(RTPCodecType::Video).await {
+        warn!(user_id = %user_id, error = %e, "Failed to add video transceiver for webcam");
+    }
+
+    // Renegotiate so the client sees the new transceiver
+    if let Err(e) = SfuServer::renegotiate(&peer).await {
+        warn!(user_id = %user_id, error = %e, "Failed to renegotiate after webcam transceiver add");
+    }
+
+    // Get username for the info
+    let username = peer.username.clone();
+
+    // Create webcam info and add to room
+    let info = WebcamInfo::new(user_id, username.clone(), quality);
+    room.add_webcam(info).await;
+
+    // Broadcast to room (including the user, so they get confirmation)
+    room.broadcast_all(ServerEvent::WebcamStarted {
+        channel_id,
+        user_id,
+        username,
+        quality,
+    })
+    .await;
+
+    info!(
+        user_id = %user_id,
+        channel_id = %channel_id,
+        quality = ?quality,
+        "Webcam started"
+    );
+
+    Ok(())
+}
+
+/// Handle stopping a webcam.
+async fn handle_webcam_stop(
+    sfu: &Arc<SfuServer>,
+    user_id: Uuid,
+    channel_id: Uuid,
+) -> Result<(), VoiceError> {
+    info!(user_id = %user_id, channel_id = %channel_id, "User stopping webcam");
+
+    // Get the room
+    let room = sfu
+        .get_room(channel_id)
+        .await
+        .ok_or(VoiceError::RoomNotFound(channel_id))?;
+
+    // Remove webcam from room
+    if room.remove_webcam(user_id).await.is_none() {
+        // User didn't have webcam active, but that's okay - idempotent
+        debug!(user_id = %user_id, "User tried to stop webcam but wasn't active");
+        return Ok(());
+    }
+
+    // Clean up the webcam track from the track router
+    // This removes all subscribers of this user's Webcam track
+    room.track_router
+        .remove_source_track(user_id, TrackSource::Webcam)
+        .await;
+
+    // Remove the incoming webcam track from the peer and clean up outgoing tracks
+    // on all other peers
+    if let Some(peer) = room.get_peer(user_id).await {
+        // Remove the incoming track record
+        {
+            let mut incoming = peer.incoming_tracks.write().await;
+            incoming.remove(&TrackSource::Webcam);
+        }
+    }
+
+    // Remove outgoing tracks from all subscribers and renegotiate
+    let other_peers = room.get_other_peers(user_id).await;
+    for other_peer in &other_peers {
+        if other_peer
+            .remove_outgoing_track(user_id, TrackSource::Webcam)
+            .await
+        {
+            // Renegotiate so subscriber's SDP reflects the removed track
+            if let Err(e) = SfuServer::renegotiate(other_peer).await {
+                warn!(
+                    subscriber = %other_peer.user_id,
+                    error = %e,
+                    "Failed to renegotiate after webcam track removal"
+                );
+            }
+        }
+    }
+
+    // Broadcast to room
+    room.broadcast_all(ServerEvent::WebcamStopped {
+        channel_id,
+        user_id,
+        reason: "user_stopped".to_string(),
+    })
+    .await;
+
+    info!(
+        user_id = %user_id,
+        channel_id = %channel_id,
+        "Webcam stopped"
     );
 
     Ok(())

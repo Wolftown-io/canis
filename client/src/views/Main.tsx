@@ -9,7 +9,7 @@
  * - CommandPalette (Ctrl+K quick actions)
  */
 
-import { Component, Show, onMount } from "solid-js";
+import { Component, Show, onMount, createEffect, onCleanup } from "solid-js";
 import { Hash, Volume2 } from "lucide-solid";
 import AppShell from "@/components/layout/AppShell";
 import CommandPalette from "@/components/layout/CommandPalette";
@@ -19,9 +19,11 @@ import TypingIndicator from "@/components/messages/TypingIndicator";
 import ThreadSidebar from "@/components/messages/ThreadSidebar";
 import { HomeView } from "@/components/home";
 import HomeSidebar from "@/components/home/HomeSidebar";
+import { SearchPanel } from "@/components/search";
 import { selectedChannel } from "@/stores/channels";
 import { loadGuilds, guildsState } from "@/stores/guilds";
 import { threadsState } from "@/stores/threads";
+import { showGlobalSearch, setShowGlobalSearch, clearSearch } from "@/stores/search";
 
 const Main: Component = () => {
   const channel = selectedChannel;
@@ -31,10 +33,39 @@ const Main: Component = () => {
     loadGuilds();
   });
 
+  // Global search keyboard shortcut: Ctrl+Shift+F
+  const handleGlobalSearchShortcut = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "F") {
+      e.preventDefault();
+      setShowGlobalSearch(!showGlobalSearch());
+    }
+  };
+
+  createEffect(() => {
+    window.addEventListener("keydown", handleGlobalSearchShortcut);
+    onCleanup(() => window.removeEventListener("keydown", handleGlobalSearchShortcut));
+  });
+
   return (
     <>
       {/* Command Palette (Global) */}
       <CommandPalette />
+
+      {/* Global Search Overlay */}
+      <Show when={showGlobalSearch()}>
+        <div class="fixed inset-0 z-[90] flex items-start justify-center pt-[10vh]">
+          <div
+            class="absolute inset-0 bg-black/50"
+            onClick={() => { setShowGlobalSearch(false); clearSearch(); }}
+          />
+          <div class="relative w-[640px] h-[70vh] rounded-xl border border-white/10 shadow-2xl overflow-hidden" style="background-color: var(--color-surface-layer2)">
+            <SearchPanel
+              mode="global"
+              onClose={() => { setShowGlobalSearch(false); clearSearch(); }}
+            />
+          </div>
+        </div>
+      </Show>
 
       {/* Main Application Shell */}
       <AppShell

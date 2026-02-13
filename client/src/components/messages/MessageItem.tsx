@@ -8,13 +8,15 @@ import Avatar from "@/components/ui/Avatar";
 import CodeBlock from "@/components/ui/CodeBlock";
 import ReactionBar from "./ReactionBar";
 import ThreadIndicator from "./ThreadIndicator";
-import MessageActions from "./MessageActions";
-import { getServerUrl, getAccessToken, addReaction, removeReaction } from "@/lib/tauri";
+import MessageActions, { QUICK_EMOJIS } from "./MessageActions";
+import { getServerUrl, getAccessToken, addReaction, removeReaction, deleteMessage } from "@/lib/tauri";
 import { showContextMenu, type ContextMenuEntry } from "@/components/ui/ContextMenu";
 import { currentUser } from "@/stores/auth";
 import { showUserContextMenu, triggerReport } from "@/lib/contextMenuBuilders";
 import { spoilerExtension } from "@/lib/markdown/spoilerExtension";
 import { openThread } from "@/stores/threads";
+import { removeMessage } from "@/stores/messages";
+import { showToast } from "@/components/ui/Toast";
 
 interface MessageItemProps {
   message: Message;
@@ -24,6 +26,8 @@ interface MessageItemProps {
   guildId?: string;
   /** If true, suppresses thread indicator and "Reply in Thread" actions (when rendered inside ThreadSidebar) */
   isInsideThread?: boolean;
+  /** Whether threads are enabled for this guild (default true) */
+  threadsEnabled?: boolean;
 }
 
 // Configure marked for GitHub Flavored Markdown
@@ -36,15 +40,63 @@ marked.use({ extensions: [spoilerExtension] });
 
 // Configure DOMPurify for safe HTML rendering (XSS prevention)
 const PURIFY_CONFIG = {
-  ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'del', 's', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
-  ALLOWED_ATTR: ['href', 'target', 'rel'],
+  ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'del', 's', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span', 'mark'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-spoiler'],
   ALLOW_DATA_ATTR: false,
   RETURN_TRUSTED_TYPE: false as const,
 };
 
+// Restrict class attribute values to prevent CSS-based UI spoofing
+const ALLOWED_CLASSES = new Set(['mention-everyone', 'mention-user', 'spoiler']);
+DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+  if (data.attrName === 'class') {
+    const filtered = data.attrValue.split(/\s+/).filter(cls => ALLOWED_CLASSES.has(cls)).join(' ');
+    data.attrValue = filtered;
+    if (!filtered) data.keepAttr = false;
+  }
+});
+
 const sanitizeHtml = (html: string): string => {
   return DOMPurify.sanitize(html, PURIFY_CONFIG) as string;
 };
+
+/**
+ * Highlight @mentions in text before markdown parsing.
+ * Protects inline code spans from modification, then wraps
+ * @everyone, @here, and @username in styled <mark> tags.
+ */
+function highlightMentions(text: string): string {
+  // Protect inline code spans from mention processing
+  const codeSpans: string[] = [];
+  let processed = text.replace(/`[^`]+`/g, (match) => {
+    codeSpans.push(match);
+    return `\x00CODE${codeSpans.length - 1}\x00`;
+  });
+
+  // Escape any existing mark/span tags to prevent injection via user HTML
+  processed = processed.replace(/<\/?(?:mark|span)\b[^>]*>/gi, (match) =>
+    match.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  );
+
+  // @everyone and @here -- high-visibility (only after whitespace or start of string)
+  processed = processed.replace(
+    /(?<=\s|^)@(everyone|here)\b/g,
+    '<mark class="mention-everyone">@$1</mark>'
+  );
+
+  // @username -- normal mention (2-32 chars, alphanumeric + underscore only)
+  processed = processed.replace(
+    /(?<=\s|^)@([a-zA-Z0-9_]{2,32})\b/g,
+    (match, username) => {
+      if (username === "everyone" || username === "here") return match;
+      return `<mark class="mention-user">@${username}</mark>`;
+    }
+  );
+
+  // Restore inline code spans
+  processed = processed.replace(/\x00CODE(\d+)\x00/g, (_, idx) => codeSpans[parseInt(idx)]);
+  return processed;
+}
 
 interface CodeBlockData {
   type: 'code';
@@ -59,12 +111,36 @@ interface TextBlock {
 
 type ContentBlock = CodeBlockData | TextBlock;
 
+// ---- Module-level singleton for Alt+1..4 reaction shortcuts ----
+// One global listener instead of one per rendered MessageItem.
+let reactionShortcutHandler: ((emoji: string) => void) | null = null;
+let reactionListenerRegistered = false;
+
+function ensureReactionShortcutListener() {
+  if (reactionListenerRegistered) return;
+  reactionListenerRegistered = true;
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (!e.altKey || !reactionShortcutHandler) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === "TEXTAREA" || tag === "INPUT") return;
+
+    const index = parseInt(e.key, 10) - 1;
+    if (index >= 0 && index < QUICK_EMOJIS.length) {
+      e.preventDefault();
+      reactionShortcutHandler(QUICK_EMOJIS[index]);
+    }
+  });
+}
+
 const MessageItem: Component<MessageItemProps> = (props) => {
   let contentRef: HTMLDivElement | undefined;
 
   const author = () => props.message.author;
   const isEdited = () => !!props.message.edited_at;
   const hasReactions = () => props.message.reactions && props.message.reactions.length > 0;
+
+  // Register the singleton keydown listener once
+  onMount(() => ensureReactionShortcutListener());
 
   // Setup spoiler click-to-reveal functionality
   onMount(() => {
@@ -93,6 +169,7 @@ const MessageItem: Component<MessageItemProps> = (props) => {
       await addReaction(props.message.channel_id, props.message.id, emoji);
     } catch (err) {
       console.error("Failed to add reaction:", err);
+      showToast({ type: "error", title: "Reaction Failed", message: "Could not add reaction." });
     }
   };
 
@@ -101,6 +178,7 @@ const MessageItem: Component<MessageItemProps> = (props) => {
       await removeReaction(props.message.channel_id, props.message.id, emoji);
     } catch (err) {
       console.error("Failed to remove reaction:", err);
+      showToast({ type: "error", title: "Reaction Failed", message: "Could not remove reaction." });
     }
   };
 
@@ -116,51 +194,55 @@ const MessageItem: Component<MessageItemProps> = (props) => {
   const isImage = (mimeType: string) => mimeType.startsWith("image/");
 
   // Parse markdown and extract code blocks for separate rendering
-  const contentBlocks = createMemo(() => {
+  const contentBlocks = createMemo((): ContentBlock[] => {
     const content = props.message.content;
-    const blocks: ContentBlock[] = [];
 
-    // Split content by code blocks
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    let lastIndex = 0;
-    let match;
+    try {
+      const blocks: ContentBlock[] = [];
 
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Add text before code block
-      if (match.index > lastIndex) {
-        const text = content.substring(lastIndex, match.index);
+      // Split content by fenced code blocks
+      const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = codeBlockRegex.exec(content)) !== null) {
+        if (match.index > lastIndex) {
+          const text = content.substring(lastIndex, match.index);
+          if (text.trim()) {
+            const html = sanitizeHtml(marked.parse(highlightMentions(text), { async: false }) as string);
+            blocks.push({ type: 'text', html });
+          }
+        }
+
+        blocks.push({
+          type: 'code',
+          language: match[1] || 'plaintext',
+          code: match[2].trim(),
+        });
+
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (lastIndex < content.length) {
+        const text = content.substring(lastIndex);
         if (text.trim()) {
-          const html = sanitizeHtml(marked.parse(text, { async: false }) as string);
+          const html = sanitizeHtml(marked.parse(highlightMentions(text), { async: false }) as string);
           blocks.push({ type: 'text', html });
         }
       }
 
-      // Add code block
-      blocks.push({
-        type: 'code',
-        language: match[1] || 'plaintext',
-        code: match[2].trim(),
-      });
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIndex < content.length) {
-      const text = content.substring(lastIndex);
-      if (text.trim()) {
-        const html = sanitizeHtml(marked.parse(text, { async: false }) as string);
+      if (blocks.length === 0) {
+        const html = sanitizeHtml(marked.parse(highlightMentions(content), { async: false }) as string);
         blocks.push({ type: 'text', html });
       }
-    }
 
-    // If no code blocks found, just parse the whole content
-    if (blocks.length === 0) {
-      const html = sanitizeHtml(marked.parse(content, { async: false }) as string);
-      blocks.push({ type: 'text', html });
+      return blocks;
+    } catch (err) {
+      console.error("Failed to parse message content:", err);
+      // Fallback: render plain text safely
+      const safeText = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }) as string;
+      return [{ type: 'text', html: safeText }];
     }
-
-    return blocks;
   });
 
   const handleContextMenu = (e: MouseEvent) => {
@@ -186,8 +268,8 @@ const MessageItem: Component<MessageItemProps> = (props) => {
       },
     ];
 
-    // Only show "Reply in Thread" for top-level messages, not inside ThreadSidebar
-    if (!msg.parent_id && !props.isInsideThread) {
+    // Only show "Reply in Thread" for top-level messages, not inside ThreadSidebar, and only when threads are enabled
+    if (!msg.parent_id && !props.isInsideThread && props.threadsEnabled !== false) {
       items.push(
         { separator: true },
         {
@@ -223,9 +305,15 @@ const MessageItem: Component<MessageItemProps> = (props) => {
           label: "Delete Message",
           icon: Trash2,
           danger: true,
-          action: () => {
-            // TODO: trigger delete confirmation
-            console.log("Delete message:", msg.id);
+          action: async () => {
+            if (confirm("Delete this message? This cannot be undone.")) {
+              try {
+                await deleteMessage(msg.id);
+                removeMessage(msg.channel_id, msg.id);
+              } catch (e) {
+                console.error("Failed to delete message:", e);
+              }
+            }
           },
         },
       );
@@ -237,6 +325,8 @@ const MessageItem: Component<MessageItemProps> = (props) => {
   return (
     <div
       onContextMenu={handleContextMenu}
+      onMouseEnter={() => { reactionShortcutHandler = handleAddReaction; }}
+      onMouseLeave={() => { reactionShortcutHandler = null; }}
       class={`group relative flex gap-4 px-4 py-0.5 hover:bg-white/3 transition-colors ${
         props.compact ? "mt-0" : "mt-4"
       }`}
@@ -276,6 +366,7 @@ const MessageItem: Component<MessageItemProps> = (props) => {
         guildId={props.guildId}
         isThreadReply={!!props.message.parent_id || !!props.isInsideThread}
         onReplyInThread={props.isInsideThread ? undefined : () => openThread(props.message)}
+        threadsEnabled={props.threadsEnabled}
       />
 
       {/* Content column */}

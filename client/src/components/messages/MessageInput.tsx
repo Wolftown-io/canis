@@ -7,6 +7,8 @@ import { showToast } from "@/components/ui/Toast";
 import { getDraft, saveDraft, clearDraft } from "@/stores/drafts";
 import AutocompletePopup from "./AutocompletePopup";
 import { guildsState } from "@/stores/guilds";
+import { channelsState } from "@/stores/channels";
+import { listGuildCommands, type GuildCommand } from "@/lib/api/bots";
 
 interface MessageInputProps {
   channelId: string;
@@ -32,10 +34,12 @@ const MessageInput: Component<MessageInputProps> = (props) => {
   const [pendingFiles, setPendingFiles] = createSignal<PendingFile[]>([]);
   const [isComposing, setIsComposing] = createSignal(false);
   // Autocomplete state
-  const [autocompleteType, setAutocompleteType] = createSignal<"user" | "emoji" | null>(null);
+  const [autocompleteType, setAutocompleteType] = createSignal<"user" | "emoji" | "channel" | "command" | null>(null);
   const [autocompleteQuery, setAutocompleteQuery] = createSignal("");
   const [autocompleteIndex, setAutocompleteIndex] = createSignal(0);
   const [autocompleteStart, setAutocompleteStart] = createSignal(0);
+  const [guildCommands, setGuildCommands] = createSignal<GuildCommand[]>([]);
+  const [commandsFetched, setCommandsFetched] = createSignal(false);
   let typingTimeout: NodeJS.Timeout | undefined;
   let textareaRef: HTMLTextAreaElement | undefined;
   let resizeFrame: number | undefined;
@@ -142,12 +146,39 @@ const MessageInput: Component<MessageInputProps> = (props) => {
     }
   };
 
-  // Detect @user or :emoji: triggers
+  // Reset command cache when guild changes (must run before fetch effect)
+  createEffect(() => {
+    void props.guildId;
+    setCommandsFetched(false);
+    setGuildCommands([]);
+  });
+
+  // Lazy-fetch guild commands when command autocomplete is activated
+  createEffect(() => {
+    if (autocompleteType() === "command" && !commandsFetched() && props.guildId) {
+      setCommandsFetched(true);
+      listGuildCommands(props.guildId!).then(setGuildCommands).catch(() => setGuildCommands([]));
+    }
+  });
+
+  // Detect @user, :emoji:, #channel, or /command triggers
   const detectAutocomplete = (value: string) => {
     if (!textareaRef) return;
 
     const cursorPos = textareaRef.selectionStart;
     const textBeforeCursor = value.substring(0, cursorPos);
+
+    // Check for /command (only at start of message, only in guilds)
+    if (props.guildId) {
+      const commandMatch = textBeforeCursor.match(/^\/(\w*)$/);
+      if (commandMatch) {
+        setAutocompleteType("command");
+        setAutocompleteQuery(commandMatch[1]);
+        setAutocompleteStart(0);
+        setAutocompleteIndex(0);
+        return;
+      }
+    }
 
     // Check for @user mentions
     const userMatch = textBeforeCursor.match(/@(\w*)$/);
@@ -163,6 +194,24 @@ const MessageInput: Component<MessageInputProps> = (props) => {
       setAutocompleteStart(cursorPos - userMatch[0].length);
       setAutocompleteIndex(0);
       return;
+    }
+
+    // Check for #channel mentions (only in guilds)
+    if (props.guildId) {
+      const channelMatch = textBeforeCursor.match(/#(\w*)$/);
+      if (channelMatch) {
+        // Prevent false positives like URL fragments or hex colors
+        const beforeHash = textBeforeCursor.substring(0, textBeforeCursor.length - channelMatch[0].length);
+        if (beforeHash.match(/[a-zA-Z0-9]$/)) {
+          setAutocompleteType(null);
+          return;
+        }
+        setAutocompleteType("channel");
+        setAutocompleteQuery(channelMatch[1]);
+        setAutocompleteStart(cursorPos - channelMatch[0].length);
+        setAutocompleteIndex(0);
+        return;
+      }
     }
 
     // Check for :emoji: triggers (min 2 chars to avoid false positives)
@@ -459,6 +508,8 @@ const MessageInput: Component<MessageInputProps> = (props) => {
           guildMembers={props.guildId ? guildsState.members[props.guildId] : undefined}
           dmParticipants={props.dmParticipants}
           guildId={props.guildId}
+          channels={channelsState.channels}
+          commands={guildCommands()}
           onSelect={handleAutocompleteSelect}
           onClose={() => setAutocompleteType(null)}
           onSelectionChange={setAutocompleteIndex}

@@ -153,7 +153,7 @@ async fn main() -> Result<()> {
                     tracing::debug!(count, "Cleaned up expired reset tokens");
                 }
                 Err(e) => {
-                    tracing::warn!(error = %e, "Failed to cleanup expired reset tokens");
+                    tracing::error!(error = %e, "Failed to cleanup expired reset tokens");
                 }
                 _ => {}
             }
@@ -165,12 +165,21 @@ async fn main() -> Result<()> {
     // Initialize email service (optional - password reset will be disabled if not configured)
     let email_service = if config.has_smtp() {
         match email::EmailService::new(&config) {
-            Ok(service) => {
-                info!("Email service initialized (SMTP)");
-                Some(service)
-            }
+            Ok(service) => match service.test_connection().await {
+                Ok(()) => {
+                    info!("Email service initialized and SMTP connection verified");
+                    Some(service)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "SMTP connection test failed: {}. Password reset disabled.",
+                        e
+                    );
+                    None
+                }
+            },
             Err(e) => {
-                tracing::warn!(
+                tracing::error!(
                     "Email service initialization failed: {}. Password reset disabled.",
                     e
                 );
