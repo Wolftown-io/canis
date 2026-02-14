@@ -10,10 +10,12 @@ use fred::interfaces::{ClientLike, EventInterface, KeysInterface, PubsubInterfac
 use helpers::{create_test_user, delete_user, generate_access_token, TestApp};
 use http_body_util::BodyExt;
 use serde_json::json;
+use serial_test::serial;
 use vc_server::db;
 
 /// Test creating a bot application.
 #[tokio::test]
+#[serial]
 async fn test_create_bot_application() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -46,6 +48,7 @@ async fn test_create_bot_application() {
 
 /// Test creating application with invalid name.
 #[tokio::test]
+#[serial]
 async fn test_create_bot_application_invalid_name() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -71,6 +74,7 @@ async fn test_create_bot_application_invalid_name() {
 
 /// Test listing bot applications.
 #[tokio::test]
+#[serial]
 async fn test_list_bot_applications() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -113,6 +117,7 @@ async fn test_list_bot_applications() {
 
 /// Test creating a bot user for an application.
 #[tokio::test]
+#[serial]
 async fn test_create_bot_user() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -170,6 +175,7 @@ async fn test_create_bot_user() {
 
 /// Test that creating bot user twice fails.
 #[tokio::test]
+#[serial]
 async fn test_create_bot_user_twice_fails() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -213,6 +219,7 @@ async fn test_create_bot_user_twice_fails() {
 
 /// Test resetting bot token.
 #[tokio::test]
+#[serial]
 async fn test_reset_bot_token() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -267,6 +274,7 @@ async fn test_reset_bot_token() {
 
 /// Test deleting a bot application.
 #[tokio::test]
+#[serial]
 async fn test_delete_bot_application() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -315,6 +323,7 @@ async fn test_delete_bot_application() {
 
 /// Test registering slash commands.
 #[tokio::test]
+#[serial]
 async fn test_register_slash_commands() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -383,6 +392,7 @@ async fn test_register_slash_commands() {
 
 /// Test command name validation.
 #[tokio::test]
+#[serial]
 async fn test_register_command_invalid_name() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -434,6 +444,7 @@ async fn test_register_command_invalid_name() {
 
 /// Test listing slash commands.
 #[tokio::test]
+#[serial]
 async fn test_list_slash_commands() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -501,6 +512,7 @@ async fn test_list_slash_commands() {
 
 /// Test guild-scoped command operations stay isolated per application.
 #[tokio::test]
+#[serial]
 async fn test_guild_scoped_commands_are_isolated_per_application() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -639,6 +651,7 @@ async fn test_guild_scoped_commands_are_isolated_per_application() {
 
 /// Test deleting a slash command.
 #[tokio::test]
+#[serial]
 async fn test_delete_slash_command() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -723,6 +736,7 @@ async fn test_delete_slash_command() {
 
 /// Test that non-owners cannot access applications.
 #[tokio::test]
+#[serial]
 async fn test_application_ownership() {
     let app = TestApp::new().await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -762,6 +776,7 @@ async fn test_application_ownership() {
 
 /// Test guild bot install endpoint requires guild management permissions.
 #[tokio::test]
+#[serial]
 async fn test_add_bot_to_guild() {
     let app = TestApp::new().await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -904,6 +919,7 @@ async fn test_add_bot_to_guild() {
 
 /// Test slash command routing publishes invocation to bot gateway channel.
 #[tokio::test]
+#[serial]
 async fn test_slash_command_invocation_publishes_to_bot_channel() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -1108,14 +1124,13 @@ async fn test_slash_command_invocation_publishes_to_bot_channel() {
 /// Verifies the single-response semantic: once `interaction:{id}:response` is set,
 /// a second SET NX returns false and the original response is preserved.
 #[tokio::test]
+#[serial]
 async fn test_duplicate_command_response_rejected() {
     let app = TestApp::new().await;
 
     let redis = db::create_redis_client(&app.config.redis_url)
         .await
         .unwrap();
-    let _connect = redis.connect();
-    redis.wait_for_connect().await.unwrap();
 
     let interaction_id = uuid::Uuid::new_v4();
     let bot_user_id = uuid::Uuid::new_v4();
@@ -1140,7 +1155,7 @@ async fn test_duplicate_command_response_rejected() {
         "ephemeral": false,
         "bot_user_id": bot_user_id,
     });
-    let first_set: bool = redis
+    let first_set: Option<String> = redis
         .set(
             &response_key,
             first_response.to_string(),
@@ -1150,7 +1165,7 @@ async fn test_duplicate_command_response_rejected() {
         )
         .await
         .unwrap();
-    assert!(first_set, "first SET NX should succeed");
+    assert!(first_set.is_some(), "first SET NX should succeed");
 
     // Second response — should be rejected (key already exists)
     let second_response = serde_json::json!({
@@ -1158,7 +1173,7 @@ async fn test_duplicate_command_response_rejected() {
         "ephemeral": false,
         "bot_user_id": bot_user_id,
     });
-    let second_set: bool = redis
+    let second_set: Option<String> = redis
         .set(
             &response_key,
             second_response.to_string(),
@@ -1168,7 +1183,7 @@ async fn test_duplicate_command_response_rejected() {
         )
         .await
         .unwrap();
-    assert!(!second_set, "second SET NX should be rejected");
+    assert!(second_set.is_none(), "second SET NX should be rejected");
 
     // Verify original response is preserved
     let stored: String = redis.get(&response_key).await.unwrap();
@@ -1182,6 +1197,7 @@ async fn test_duplicate_command_response_rejected() {
 
 /// Test slash command fails when multiple bots provide same command in same scope.
 #[tokio::test]
+#[serial]
 async fn test_slash_command_invocation_ambiguous() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
