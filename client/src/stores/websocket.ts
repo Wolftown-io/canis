@@ -1650,4 +1650,4 @@ async function handleAdminReportResolved(reportId: string): Promise<void> {
 }
 
 // Export stores for reading
-export { wsState, typingState };
+export { wsState, setWsState, typingState, setTypingState };

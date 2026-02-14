@@ -211,4 +211,4 @@ export function getOnlineFriends(): Friend[] {
 }
 
 // Export the store state
-export { friendsState };
+export { friendsState, setFriendsState };

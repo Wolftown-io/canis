@@ -302,4 +302,4 @@ export function patchUser(userId: string, diff: Record<string, unknown>): void {
 }
 
 // Export the store for reading
-export { presenceState };
+export { presenceState, setPresenceState };

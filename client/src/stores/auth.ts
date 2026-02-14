@@ -344,4 +344,4 @@ export function clearSetupRequired(): void {
 
 // Export the store for reading only
 // Use the exported functions (login, register, logout, etc.) to modify state
-export { authState };
+export { authState, setAuthState };

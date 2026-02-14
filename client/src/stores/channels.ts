@@ -450,4 +450,4 @@ export async function moveChannelToCategory(
 }
 
 // Export the store for reading
-export { channelsState };
+export { channelsState, setChannelsState };

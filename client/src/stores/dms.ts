@@ -216,4 +216,4 @@ export function getTotalUnreadCount(): number {
   return dmsState.dms.reduce((sum, dm) => sum + dm.unread_count, 0);
 }
 
-export { dmsState };
+export { dmsState, setDmsState };
