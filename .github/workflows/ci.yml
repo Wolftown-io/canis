@@ -45,6 +45,21 @@ jobs:
         run: cargo clippy --all-features --workspace --exclude vc-client -- -D warnings
 
   # ===========================================================================
+  # Documentation Governance
+  # ===========================================================================
+  docs-governance:
+    name: Docs Governance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docs governance consistency
+        run: python3 scripts/check_docs_governance.py
+
+      - name: Validate standardized release notes generation
+        run: python3 scripts/generate_release_notes.py --version v0.0.0-ci --output /tmp/release-notes.md
+
+  # ===========================================================================
   # Rust Tests (with database services)
   # ===========================================================================
   rust-test:
@@ -191,7 +206,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [rust-lint, rust-test, licenses]
+    needs: [rust-lint, rust-test, licenses, docs-governance]
     steps:
       - uses: actions/checkout@v4
 
@@ -213,7 +228,7 @@ jobs:
   # ===========================================================================
   tauri:
     name: Tauri ${{ matrix.platform }}
-    needs: [rust-lint, rust-test, frontend, licenses]
+    needs: [rust-lint, rust-test, frontend, licenses, docs-governance]
     strategy:
       fail-fast: false
       matrix:

@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
+      release_notes: ${{ steps.release_notes.outputs.release_notes }}
       is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
     steps:
       - uses: actions/checkout@v4
@@ -55,20 +55,18 @@ jobs:
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Get the previous tag
-          PREV_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+      - name: Validate docs governance consistency
+        run: python3 scripts/check_docs_governance.py
 
-          if [ -z "$PREV_TAG" ]; then
-            echo "changelog=Initial release" >> $GITHUB_OUTPUT
-          else
-            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            echo "$CHANGELOG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
+      - name: Generate standardized release notes
+        id: release_notes
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          python3 scripts/generate_release_notes.py --version "$VERSION" --output /tmp/release-notes.md
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/release-notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
   # ===========================================================================
   # Build Tauri Client (Multi-platform)
@@ -264,14 +262,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare-release.outputs.version }}
-          CHANGELOG: ${{ needs.prepare-release.outputs.changelog }}
           IS_PRERELEASE: ${{ needs.prepare-release.outputs.is_prerelease }}
         with:
           tag_name: ${{ needs.prepare-release.outputs.version }}
           name: Release ${{ needs.prepare-release.outputs.version }}
           body: |
-            ## Changes
-            ${{ needs.prepare-release.outputs.changelog }}
+            ${{ needs.prepare-release.outputs.release_notes }}
 
             ## Installation
 

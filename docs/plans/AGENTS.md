@@ -49,6 +49,19 @@ Implementation and design plans for features, following a two-document pattern: 
 - `2026-01-14-dm-voice-calls-implementation.md`
 - `permission-system-implementation-2026-01-13.md`
 
+### Lifecycle Metadata
+
+When replacing older plans, update lifecycle metadata immediately:
+
+- Superseded docs must include:
+  - `**Lifecycle:** Superseded`
+  - `**Superseded By:** <new-doc.md>`
+- Replacement docs must include:
+  - `**Lifecycle:** Active`
+  - `**Supersedes:** <old-doc.md>`
+
+Track all active/superseded pairs in `PLAN_LIFECYCLE.md`.
+
 ### Special Documents
 
 **Agent Prompts:**
@@ -151,6 +164,13 @@ What problem are we solving? Who has this problem?
 ```bash
 # Create implementation plan
 docs/plans/YYYY-MM-DD-feature-name-implementation.md
+```
+
+**3. If replacing existing plans, update lifecycle metadata:**
+```bash
+# Update docs/plans/PLAN_LIFECYCLE.md
+# Add Lifecycle/Supersedes headers in both old and new documents
+python3 scripts/check_docs_governance.py
 ```
 
 **Implementation plan template:**

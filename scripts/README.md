@@ -34,3 +34,32 @@ docker run --rm --network container:canis-dev-rustfs --entrypoint sh minio/mc -c
 - If file uploads return "Bucket not found" errors
 
 See [File Uploads Development Guide](../docs/development/file-uploads.md) for complete setup instructions.
+
+## Documentation Governance
+
+### `check_docs_governance.py`
+
+Validates documentation governance guardrails:
+
+1. `docs/project/roadmap.md` metadata and plan links
+2. `CHANGELOG.md` roadmap-alignment block consistency
+3. `docs/plans/PLAN_LIFECYCLE.md` supersession integrity
+4. `docs/project/RELEASE_NOTES_TEMPLATE.md` required headings
+
+**Usage**:
+
+```bash
+python3 scripts/check_docs_governance.py
+```
+
+### `generate_release_notes.py`
+
+Generates standardized milestone release notes from `CHANGELOG.md` `[Unreleased]`.
+
+**Usage**:
+
+```bash
+python3 scripts/generate_release_notes.py \
+  --version v0.1.0 \
+  --output /tmp/release-notes.md
+```

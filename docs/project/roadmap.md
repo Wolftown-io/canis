@@ -2,21 +2,24 @@
 
 This roadmap outlines the development path from the current prototype to a production-ready, multi-tenant SaaS platform.
 
-**Current Phase:** Phase 4 (Advanced Features) - In Progress
+**Current Phase:** Phase 5 (Ecosystem & SaaS Readiness) - In Progress
 
-**Last Updated:** 2026-02-13
+**Last Updated:** 2026-02-15
 
 ## Quick Status Overview
 
-| Phase | Status | Completion | Key Achievements |
-|-------|--------|------------|------------------|
-| **Phase 0** | ✅ Complete | 100% | N+1 fix, WebRTC optimization, MFA encryption |
-| **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
-| **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
-| **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
-| **Phase 4** | 🔄 In Progress | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
-| **Phase 5** | 📋 Planned | 0% | - |
-| **Phase 10** | 📋 Planned | 0% | SaaS Scaling Architecture |
+| Track | Phase | Status | Completion | Key Achievements |
+|-------|-------|--------|------------|------------------|
+| **Foundation** | **Phase 0** | ✅ Complete | 100% | N+1 fix, WebRTC optimization, MFA encryption |
+| **Foundation** | **Phase 1** | ✅ Complete | 100% | Voice state sync, audio device selection |
+| **Foundation** | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
+| **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
+| **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
+| **Expansion** | **Phase 5** | 🔄 In Progress | 43.75% (7/16) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial |
+| **Expansion** | **Phase 6** | 📋 Planned | 0% | Mobile, personal workspaces, sovereign guild model, live session toolkits |
+| **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
+| **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
+| **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
 
 **Production Ready Features:**
 - ✅ Modern UI with "Focused Hybrid" design system
@@ -38,6 +41,35 @@ This roadmap outlines the development path from the current prototype to a produ
 - ✅ Smart emoji picker with viewport-aware positioning and auto-flip
 - ✅ User blocking with Redis-backed enforcement across DMs, friend requests, and voice
 - ✅ User reporting system with admin claim/resolve workflow and real-time notifications
+
+## High-Level Topic Map (Official)
+
+This section is the canonical high-level roadmap view. Detailed implementation checklists remain in phase sections and linked plans.
+
+### Foundation (Delivered)
+- Core collaboration platform (guilds, channels, DMs, permissions, realtime chat).
+- Voice and media core (voice rooms, DM calls, screen sharing, connection monitoring).
+- Security baseline (MFA encryption, rate limiting, OIDC/SSO, password reset, E2EE DM and key backup).
+- Productivity UX (command palette, favorites, unread sync, context menus, search, threads).
+- Admin and governance baseline (admin tooling, reporting workflows, audit-oriented controls).
+
+### Expansion (In Progress / Next)
+- Developer ecosystem growth (bot platform maturation, webhooks, gateway improvements).
+- Safety maturity (advanced moderation filters, policy tooling, operator workflows).
+- Growth and onboarding (guild discovery, first-time experience, activation/retention UX).
+- Voice/media maturity (multi-stream completion, simulcast, advanced media processing).
+- Mobile strategy execution (Android-first path and shared Rust core evolution).
+
+### Scale and Trust (Planned)
+- SRE foundations (SLOs, observability standards, alerting, incident playbooks) ([Design](../plans/2026-02-15-sre-foundations-design.md), [OTel Reference](../plans/2026-02-15-opentelemetry-grafana-reference-design.md), [Implementation](../plans/2026-02-15-operational-safety-implementation-plan.md)).
+- Backup, restore, and disaster recovery drills (database, object storage, key material) ([Design](../plans/2026-02-15-backup-restore-drills-design.md), [Implementation](../plans/2026-02-15-topic-2-expansion-implementation-plan.md)).
+- Release governance (feature flags, staged rollouts, rollback playbooks) ([Design](../plans/2026-02-15-release-governance-design.md), [Implementation](../plans/2026-02-15-operational-safety-implementation-plan.md)).
+- Documentation governance (canonical feature matrix and active/superseded plan lifecycle) ([Design](../plans/2026-02-15-documentation-governance-design.md), [Implementation](../plans/2026-02-15-documentation-governance-implementation.md)).
+- Security verification cadence (threat-model refreshes, boundary regression suites, external testing) ([Design](../plans/2026-02-15-security-verification-cadence-design.md), [Implementation](../plans/2026-02-15-operational-safety-implementation-plan.md)).
+- SaaS and compliance readiness (limits/monetization, data governance, accessibility, identity trust) ([Design](../plans/2026-02-15-saas-compliance-readiness-design.md), [Implementation](../plans/2026-02-15-topic-2-expansion-implementation-plan.md)).
+- Infrastructure scale-out (storage and CDN architecture for large media workloads) ([Design](../plans/2026-02-15-infrastructure-scale-out-design.md), [Implementation](../plans/2026-02-15-topic-2-expansion-implementation-plan.md)).
+- Sovereign/BYO deployment options (customer-controlled storage and relay paths) ([Design](../plans/2026-02-15-sovereign-byo-deployment-design.md), [Implementation](../plans/2026-02-15-topic-2-expansion-implementation-plan.md)).
+- Reliability and operability excellence (performance budgets, chaos testing, upgrade safety, FinOps, policy-as-code, plugin security, tenancy isolation, operator supportability) ([Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md)).
 
 ---
 
@@ -167,8 +199,8 @@ This roadmap outlines the development path from the current prototype to a produ
 
 ---
 
-## Phase 4: Advanced Features 🔄 **IN PROGRESS**
-*Goal: Add competitive differentiators and mobile support.*
+## Phase 4: Advanced Features ✅ **COMPLETED**
+*Goal: Add competitive differentiators and trust/security foundations.*
 
 - [x] **[Security] E2EE Key Backup Foundation** ✅ (PR #22)
   - OlmAccount, OlmSession, RecoveryKey, EncryptedBackup entities.
@@ -346,8 +378,9 @@ This roadmap outlines the development path from the current prototype to a produ
   - 17 HTTP integration tests covering user reports (6) and admin report management (11).
 ---
 
-## Phase 5: Ecosystem & SaaS Readiness
+## Phase 5: Ecosystem & SaaS Readiness 🔄 **IN PROGRESS**
 *Goal: Open the platform to developers and prepare for massive scale.*
+- Implementation coverage for remaining open items is tracked per checklist item via dedicated Design and Implementation links.
 
 - [x] **[Test] E2E UI Test Coverage Suite** ✅
   - Comprehensive Playwright E2E test suite covering 68 UI items across 12 spec files.
@@ -384,17 +417,17 @@ This roadmap outlines the development path from the current prototype to a produ
   - ✅ Track source identification via pending source queue.
   - [ ] Tauri native webcam capture (Rust-side `start_webcam`/`stop_webcam` commands).
   - [ ] Implement Simulcast (quality tiers) for bandwidth management.
-- [ ] **[Voice] Evaluate str0m as WebRTC Alternative** `Priority: Low`
+- [ ] **[Voice] Evaluate str0m as WebRTC Alternative** ([Design](../plans/2026-02-15-phase-5-str0m-evaluation-design.md), [Implementation](../plans/2026-02-15-phase-5-str0m-evaluation-implementation.md)) `Priority: Low`
   - Current stack: webrtc-rs 0.11 (full-stack, owns I/O). Working, but project is stagnating.
   - Alternative: [str0m](https://github.com/algesten/str0m) — Sans-IO WebRTC library (pure Rust).
   - **Benefits:** Full I/O control, deterministic testing, better SFU fit, no hidden task spawning.
   - **Cost:** ~5,700 lines server + ~430 lines client rewrite (different programming model).
   - **Trigger:** Migrate when a security fix forces action on webrtc-rs, when hitting a performance wall requiring tighter I/O control, or during major voice architecture changes (e.g., MLS E2EE).
   - mediasoup (C++ FFI) ruled out due to `unsafe_code = "forbid"` policy.
-- [ ] **[SaaS] Limits & Monetization Logic**
+- [ ] **[SaaS] Limits & Monetization Logic** ([Design](../plans/2026-02-15-phase-5-limits-monetization-design.md), [Implementation](../plans/2026-02-15-phase-5-limits-monetization-implementation.md))
   - Enforce limits (storage, members) per Guild.
   - Prepare "Boost" logic for lifting limits.
-- [ ] **[Safety] Advanced Moderation & Safety Filters**
+- [ ] **[Safety] Advanced Moderation & Safety Filters** ([Design](../plans/2026-02-15-phase-5-moderation-filters-design.md), [Implementation](../plans/2026-02-15-phase-5-moderation-filters-implementation.md))
   - **Context:** Protect users and platform reputation with proactive content scanning.
   - **Implementation:**
     - **Backend:**
@@ -407,7 +440,7 @@ This roadmap outlines the development path from the current prototype to a produ
       - Allow guild admins to toggle filter categories
       - Configure action policies per filter type
       - View moderation logs with context
-- [ ] **[Ecosystem] Webhooks & Bot Gateway**
+- [ ] **[Ecosystem] Webhooks & Bot Gateway** ([Design](../plans/2026-02-15-phase-5-webhooks-bot-gateway-design.md), [Implementation](../plans/2026-02-15-phase-5-webhooks-bot-gateway-implementation.md))
   - **Context:** Expand the platform's utility with third-party integrations.
   - **Implementation:**
     - **Webhooks:**
@@ -421,7 +454,14 @@ This roadmap outlines the development path from the current prototype to a produ
       - Isolate bot traffic from user-facing real-time performance
       - Add rate limiting specific to bot connections
       - Support Gateway intents for event filtering
-- [ ] **[UX] Production-Scale Polish**
+- [ ] **[Ecosystem] Slash Command Reliability & /ping Reference Command** ([Design](../plans/2026-02-15-phase-5-slash-command-reliability-design.md), [Implementation](../plans/2026-02-15-phase-5-slash-command-reliability-implementation.md)) `Priority: High`
+  - **Context:** `/ command` works but has blocking correctness and UX reliability gaps that impact production confidence.
+  - **Implementation:**
+    - Harden uniqueness and ambiguity handling for command registration/listing/invocation
+    - Complete end-user command response delivery path (including ephemeral behavior)
+    - Align bot error-event contract and frontend autocomplete reliability fixes
+    - Add `/ping` as a canonical smoke-test command with end-to-end coverage
+- [ ] **[UX] Production-Scale Polish** ([Design](../plans/2026-02-15-phase-5-production-polish-design.md), [Implementation](../plans/2026-02-15-phase-5-production-polish-implementation.md))
   - **Implementation:**
     - **Virtualized Message Lists:**
       - Research and implement list virtualization for `MessageList.tsx`
@@ -445,7 +485,7 @@ This roadmap outlines the development path from the current prototype to a produ
     - ✅ /command autocomplete for browsing slash commands from installed bots
     - ✅ Alt+1..4 keyboard shortcuts for quick reactions on hovered messages
     - ✅ Backend `GET /api/guilds/{id}/commands` endpoint for guild command listing
-- [ ] **[Growth] Discovery & Onboarding**
+- [ ] **[Growth] Discovery & Onboarding** ([Design](../plans/2026-02-15-phase-5-discovery-onboarding-design.md), [Implementation](../plans/2026-02-15-phase-5-discovery-onboarding-implementation.md))
   - **Guild Discovery:**
     - **Backend:** Create public guild listing API with search and filters
     - **Backend:** Add guild tags/categories system
@@ -457,7 +497,7 @@ This roadmap outlines the development path from the current prototype to a produ
     - **Steps:** Welcome → Profile Setup → Mic Test → Theme Selection → Join First Guild
     - **UX:** Support skip/back navigation between steps
     - **Integration:** Launch on first login, can be retriggered from settings
-- [ ] **[UX] Advanced Search & Discovery**
+- [ ] **[UX] Advanced Search & Discovery** ([Design](../plans/2026-02-15-phase-5-search-discovery-design.md), [Implementation](../plans/2026-02-15-phase-5-search-discovery-implementation.md))
   - **Full-Text Search:**
     - ✅ **Backend:** Implement full-text search indexing using PostgreSQL tsvector with GIN index
     - ✅ **Backend:** Guild-scoped message search with `websearch_to_tsquery` (supports AND, OR, quotes, negation)
@@ -493,7 +533,7 @@ This roadmap outlines the development path from the current prototype to a produ
     - **UI:** Add actions at category level (DMs, Guild channels)
     - **UI:** Add guild-level "Mark all as read" button
     - **UI:** Add global "Mark everything as read" in Home view
-- [ ] **[Compliance] SaaS Trust & Data Governance**
+- [ ] **[Compliance] SaaS Trust & Data Governance** ([Design](../plans/2026-02-15-phase-5-trust-governance-design.md), [Implementation](../plans/2026-02-15-phase-5-trust-governance-implementation.md))
   - **Implementation:**
     - **Data Export (GDPR/CCPA):**
       - Create data export aggregator that generates JSON/ZIP of all user data
@@ -520,7 +560,7 @@ This roadmap outlines the development path from the current prototype to a produ
     - ✅ 11+ server integration tests
   - **Remaining:**
     - [ ] Guild-level toggle to enable/disable threads
-- [ ] **[Media] Advanced Media Processing**
+- [ ] **[Media] Advanced Media Processing** ([Design](../plans/2026-02-15-phase-5-media-processing-design.md), [Implementation](../plans/2026-02-15-phase-5-media-processing-implementation.md))
   - **Context:** Improve perceived performance and bandwidth efficiency.
   - **Implementation:**
     - **Backend:**
@@ -542,53 +582,87 @@ This roadmap outlines the development path from the current prototype to a produ
 
 ---
 
-## Phase 6: Competitive Differentiators & Mastery
+## Phase 6: Competitive Differentiators & Mastery 📋 **PLANNED**
 *Goal: Surpass industry leaders with unique utility and sovereignty features.*
+- Implementation coverage: [Mobile + Workspaces](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md), [Sovereign + Live Toolkit](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md), [Focus + Library](../plans/2026-02-15-phase-6-focus-library-implementation.md).
 
-- [ ] **[Client] Mobile Support**
+- [ ] **[Client] Mobile Support** ([Design](../plans/2026-02-15-phase-6-mobile-workspaces-design.md), [Implementation](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md))
   - Adapt Tauri frontend for mobile or begin Flutter/Native implementation.
-- [ ] **[UX] Personal Workspaces (Favorites v2)**
+- [ ] **[UX] Personal Workspaces (Favorites v2)** ([Design](../plans/2026-02-15-phase-6-mobile-workspaces-design.md), [Implementation](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md))
   - **Context:** Solve "Discord Bloat" by letting users aggregate channels from disparate guilds.
   - **Strategy:** Allow users to create custom "Workspaces" that act as virtual folders. Users can drag-and-drop channels from any guild into these workspaces for a unified Mission Control view.
-- [ ] **[Content] Sovereign Guild Model (BYO Infrastructure)**
+- [ ] **[Content] Sovereign Guild Model (BYO Infrastructure)** ([Design](../plans/2026-02-15-phase-6-sovereign-livekit-design.md), [Implementation](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md))
   - **Context:** Provide ultimate data ownership for privacy-conscious groups.
   - **Strategy:** Allow Guild Admins in the SaaS version to provide their own **S3 API** keys and **SFU Relay** configurations, ensuring their media and voice traffic never touches Canis-owned storage.
-- [ ] **[Voice] Live Session Toolkits**
+- [ ] **[Voice] Live Session Toolkits** ([Design](../plans/2026-02-15-phase-6-sovereign-livekit-design.md), [Implementation](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md))
   - **Context:** Turn voice channels into productive spaces.
   - **Strategy:** 
     - **Gaming/Raid Kit:** Multi-timer overlays and restricted side-notes for raid leads/shot-callers.
     - **Work/Task Kit:** Shared markdown notepad and collaborative "Action Item" tracking that auto-posts summaries to the channel post-session.
-- [ ] **[UX] Context-Aware Focus Engine**
+- [ ] **[UX] Context-Aware Focus Engine** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md))
   - **Context:** Prevent platform fatigue with intelligent notification routing.
   - **Strategy:** Use Tauri's desktop APIs to detect active foreground apps (e.g., IDEs, DAWs). Implement **VIP/Emergency Overrides** that allow specific users or channels to bypass DND during focused work sessions.
-- [ ] **[SaaS] The Digital Library (Wiki Mastery)**
+- [ ] **[SaaS] The Digital Library (Wiki Mastery)** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md))
   - **Context:** Transform "Information Pages" into a structured Knowledge Base.
   - **Strategy:** Enhance current Info Pages with version recovery, deep-linkable sections, and a "Library" view for long-term guild documentation.
 
 ---
 
-## Phase 7: Long-term / Optional SaaS Polish
+## Phase 7: Long-term / Optional SaaS Polish 📋 **PLANNED**
 *Goal: Highly optional features aimed at commercial scale and enterprise utility.*
+- Implementation coverage: [Billing + Identity](../plans/2026-02-15-phase-7-billing-identity-implementation.md), [A11y + Observability](../plans/2026-02-15-phase-7-a11y-observability-implementation.md).
 
-- [ ] **[SaaS] Billing & Subscription Infrastructure**
+- [ ] **[SaaS] Billing & Subscription Infrastructure** ([Design](../plans/2026-02-15-phase-7-billing-identity-design.md), [Implementation](../plans/2026-02-15-phase-7-billing-identity-implementation.md))
   - **Context:** Enable monetization for the managed hosting version.
   - **Strategy:** Integrate **Stripe** for subscription management. Create a `BillingService` to handle quotas, "Boost" payments, and tiered access levels.
-- [ ] **[Compliance] Accessibility (A11y) & Mastery**
+- [ ] **[Compliance] Accessibility (A11y) & Mastery** ([Design](../plans/2026-02-15-phase-7-a11y-observability-design.md), [Implementation](../plans/2026-02-15-phase-7-a11y-observability-implementation.md))
   - **Context:** Ensure the platform is usable by everyone and meets enterprise requirements.
   - **Strategy:** Conduct a full A11y audit. Implement WCAG compliance standards, screen-reader optimizations, and a robust Keyboard-Only navigation mode (`Cmd+K` Quick Switcher).
-- [ ] **[SaaS] Identity Trust & OAuth Linking**
+- [ ] **[SaaS] Identity Trust & OAuth Linking** ([Design](../plans/2026-02-15-phase-7-billing-identity-design.md), [Implementation](../plans/2026-02-15-phase-7-billing-identity-implementation.md))
   - **Context:** Improve community trust and security.
   - **Strategy:** Allow users to link external accounts (GitHub, Discord, LinkedIn). Enable Guilds to set entrance requirements based on "Verified Identity" signals.
-- [ ] **[Infra] SaaS Observability & Telemetry**
+- [ ] **[Infra] SaaS Observability & Telemetry** ([Design](../plans/2026-02-15-phase-7-a11y-observability-design.md), [Implementation](../plans/2026-02-15-phase-7-a11y-observability-implementation.md))
   - **Context:** Maintain uptime and catch bugs at scale.
   - **Strategy:** Integrate **Sentry** (error tracking) and **OpenTelemetry** for performance monitoring across the Rust backend and Tauri clients.
 
 ---
 
-## Phase 10: SaaS Infrastructure at Scale
-*Goal: Full SaaS-grade media delivery and CDN infrastructure.*
+## Phase 8: Reliability & Operability Excellence 📋 **PLANNED**
+*Goal: Turn reliability, isolation, and operator workflows into enforceable release standards.*
+- Implementation coverage: [Phase 8 Reliability Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md).
 
-- [ ] **[Storage] SaaS Scaling Architecture**
+- [ ] **[Perf] Performance Budgets as CI Gates** ([Design](../plans/2026-02-15-performance-budgets-ci-gates-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Prevent silent regressions in latency, memory, and CPU usage.
+  - **Strategy:** Add measurable performance budgets for voice/chat/client startup and enforce them in CI.
+- [ ] **[Infra] Chaos & Resilience Testing Program** ([Design](../plans/2026-02-15-chaos-resilience-testing-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Validate behavior under partial failure before incidents happen.
+  - **Strategy:** Run controlled fault-injection drills for DB/Valkey/WebSocket/media paths with recovery evidence.
+- [ ] **[Ops] Self-Hosted Upgrade Safety Framework** ([Design](../plans/2026-02-15-self-hosted-upgrade-safety-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Reduce operator risk during upgrades and migrations.
+  - **Strategy:** Provide preflight checks, compatibility matrix, rollback scripts, and documented safe-upgrade windows.
+- [ ] **[SaaS] FinOps & Cost Observability Track** ([Design](../plans/2026-02-15-finops-cost-observability-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Keep storage/egress/telemetry costs predictable as media usage grows.
+  - **Strategy:** Add cost dashboards, budget thresholds, and forecasting for major infrastructure spend categories.
+- [ ] **[Compliance] Policy-as-Code for Data Governance** ([Design](../plans/2026-02-15-data-governance-policy-as-code-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Documentation-only controls are hard to verify consistently.
+  - **Strategy:** Encode retention/deletion/access policies into testable rules and CI checks.
+- [ ] **[Security] Plugin/Bot Security Hardening Path** ([Design](../plans/2026-02-15-plugin-bot-security-hardening-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Ecosystem expansion increases trust-boundary and abuse risks.
+  - **Strategy:** Define capability model, signing/verification, and runtime guardrails before broad plugin rollout.
+- [ ] **[Security] Tenancy & Isolation Verification** ([Design](../plans/2026-02-15-tenancy-isolation-verification-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Multi-tenant correctness must be continuously proven.
+  - **Strategy:** Add isolation regression tests for data access, event routing, cache keys, and permission boundaries.
+- [ ] **[Ops] Operator Supportability Pack** ([Design](../plans/2026-02-15-operator-supportability-pack-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
+  - **Context:** Faster triage and diagnosis reduce incident impact.
+  - **Strategy:** Ship standard diagnostics bundles, health endpoints, and runbook-indexed troubleshooting flows.
+
+---
+
+## Phase 10: SaaS Infrastructure at Scale 📋 **PLANNED**
+*Goal: Full SaaS-grade media delivery and CDN infrastructure.*
+- Implementation coverage: [Phase 10 Storage Scaling](../plans/2026-02-15-phase-10-storage-scaling-implementation.md).
+
+- [ ] **[Storage] SaaS Scaling Architecture** ([Design](../plans/2026-02-15-phase-10-storage-scaling-design.md), [Implementation](../plans/2026-02-15-phase-10-storage-scaling-implementation.md))
   - Transition from Proxy Method to Signed URLs/Cookies.
   - CDN Integration with CloudFront/Cloudflare.
 

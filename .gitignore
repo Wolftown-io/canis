@@ -59,6 +59,8 @@ yarn-error.log*
 coverage/
 *.lcov
 tarpaulin-report.html
+__pycache__/
+*.pyc
 
 # =============================================================================
 # WSL2 Artifacts
