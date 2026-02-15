@@ -61,12 +61,12 @@ doctor: ## Verify toolchain, env, and service status
 	@echo "$(CYAN)Checking required commands...$(RESET)"
 	@command -v cargo >/dev/null || (echo "$(YELLOW)Missing: cargo$(RESET)" && exit 1)
 	@command -v bun >/dev/null || (echo "$(YELLOW)Missing: bun$(RESET)" && exit 1)
-	@command -v docker >/dev/null || (echo "$(YELLOW)Missing: docker$(RESET)" && exit 1)
-	@docker compose version >/dev/null 2>&1 || (echo "$(YELLOW)Missing: docker compose plugin$(RESET)" && exit 1)
+	@(command -v docker >/dev/null || command -v podman >/dev/null) || (echo "$(YELLOW)Missing: docker or podman$(RESET)" && exit 1)
+	@(docker compose version >/dev/null 2>&1 || podman-compose --version >/dev/null 2>&1) || (echo "$(YELLOW)Missing: docker compose plugin or podman-compose$(RESET)" && exit 1)
 	@echo "$(CYAN)Checking environment file...$(RESET)"
 	@[ -f .env ] && echo "$(GREEN).env present$(RESET)" || echo "$(YELLOW).env missing (run make setup)$(RESET)"
 	@echo "$(CYAN)Checking service status...$(RESET)"
-	@docker compose -f docker-compose.dev.yml ps >/dev/null 2>&1 && echo "$(GREEN)Compose reachable$(RESET)" || echo "$(YELLOW)Compose services unavailable (run make services-up)$(RESET)"
+	@(docker compose -f docker-compose.dev.yml ps >/dev/null 2>&1 || podman-compose -f docker-compose.dev.yml ps >/dev/null 2>&1) && echo "$(GREEN)Compose reachable$(RESET)" || echo "$(YELLOW)Compose services unavailable (run make services-up)$(RESET)"
 
 setup-clean: ## Clean setup (removes .env and Docker volumes)
 	@./scripts/dev-setup.sh --clean
