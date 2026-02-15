@@ -1,5 +1,8 @@
 # Phase 5: Architectural Synergies - Implementation Plan
 
+**Lifecycle:** Superseded
+**Superseded By:** `PHASE_5_SONNET_IMPLEMENTATION.md`
+
 ## Overview
 Phase 5 focuses on leveraging our specific technology stack (Rust, Tauri, Postgres) to deliver features that give Canis a competitive edge in performance and capability.
 

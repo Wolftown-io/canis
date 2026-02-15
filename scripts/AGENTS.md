@@ -7,6 +7,8 @@ Build, development, and utility scripts for the project.
 ## Key Files
 - `dev-setup.sh` - Complete development environment setup
 - `create-test-users.sh` - Create test users in development
+- `check_docs_governance.py` - Validates roadmap/changelog/lifecycle consistency
+- `generate_release_notes.py` - Builds standardized milestone release notes
 
 ## For AI Agents
 
@@ -29,6 +31,7 @@ Build, development, and utility scripts for the project.
 - Use `set -e` for error handling
 - Include usage/help text
 - Document prerequisites at the top
+- Keep scripts deterministic and CI-safe
 
 ### When to Add Scripts
 - Automating multi-step processes

@@ -1,5 +1,8 @@
 # Advanced Moderation & Safety — Implementation Plan v2
 
+**Lifecycle:** Active
+**Supersedes:** `2026-01-29-moderation-safety-implementation.md`
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement comprehensive platform safety features including content filtering, user reporting workflow, and absolute user blocking to enable safe public communities.

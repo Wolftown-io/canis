@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Roadmap Alignment
+- Current roadmap phase: Phase 5 (Ecosystem & SaaS Readiness) - In Progress
+- Roadmap last updated: 2026-02-15
+
+### Milestone Metadata
+- Milestone: Phase 5 - Ecosystem & SaaS Readiness
+- Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
+
 ### Added
 - Lazy loading for admin, settings, guild settings, voice, and screen share components — reduces initial bundle by code-splitting 17 components into separate chunks loaded on demand (#168)
 - Settings and category collapse state now persist across Tauri app restarts — audio, voice, theme, and notification preferences saved to `settings.json`, category expand/collapse state saved to `ui_state.json` in the app data directory (#172)
