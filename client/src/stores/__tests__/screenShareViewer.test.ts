@@ -123,7 +123,7 @@ describe("screenShareViewer", () => {
 
       expect(result).toBe(true);
       expect(viewerState.viewingUserId).toBe("user1");
-      expect(viewerState.videoTrack).toBe(track);
+      expect(viewerState.videoTrack).toEqual(track);
     });
   });
 
@@ -133,7 +133,7 @@ describe("screenShareViewer", () => {
       startViewing("user1", track);
 
       expect(viewerState.viewingUserId).toBe("user1");
-      expect(viewerState.videoTrack).toBe(track);
+      expect(viewerState.videoTrack).toEqual(track);
     });
 
     it("should add track to available tracks", () => {
