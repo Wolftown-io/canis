@@ -670,6 +670,9 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 
 ## Recent Changes
 
+### 2026-02-17
+- **Production-Scale Polish — Code Review Fixes** (PR #204) - Addressed 10 issues from code review: restructured MembersTab scroll container (moved ref outside `<Show>` conditional, replaced hardcoded max-height with flex layout), changed per-command toast dedup IDs to prevent different command timeouts from suppressing each other, memoized `sortedDMs` with `createMemo`, documented reactive getter contract in `VirtualizerOptions` interface, fixed `screenShareViewer` test proxy handling with `unwrap()`, added TODO comment for future component rendering tests, added Load More behavior comment in SearchPanel, consolidated duplicate CHANGELOG headings, and removed test-only CHANGELOG entry.
+
 ### 2026-02-13
 - **E2E UI Test Coverage Suite** - Created comprehensive Playwright test suite with 68 UI items across 12 spec files (10 new + 2 pre-existing). Shared helpers (`e2e/helpers.ts`) for login, navigation, and utilities. Coverage tracker at `docs/testing/ui-coverage.md`. First run: 8 passing (auth form rendering), 58 need backend, 3 not coverable. Test areas: Auth (12 items), Navigation (9), Messaging (5), Guild (5), Channels (4), Friends/DMs (5), Settings (8), Voice (6), Admin (6), Search (3), Permissions (5).
 
