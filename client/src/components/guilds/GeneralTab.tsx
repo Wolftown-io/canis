@@ -21,7 +21,7 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
       setThreadsEnabled(settings.threads_enabled);
     } catch (err) {
       console.error("Failed to load guild settings:", err);
-      showToast({ type: "error", title: "Settings Error", message: "Could not load guild settings." });
+      showToast({ type: "error", title: "Settings Error", message: "Could not load guild settings.", duration: 8000 });
     } finally {
       setLoading(false);
     }
@@ -35,7 +35,7 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
       setThreadsEnabled(newValue);
     } catch (err) {
       console.error("Failed to update guild settings:", err);
-      showToast({ type: "error", title: "Update Failed", message: "Could not update thread settings." });
+      showToast({ type: "error", title: "Update Failed", message: "Could not update thread settings.", duration: 8000 });
     } finally {
       setSaving(false);
     }

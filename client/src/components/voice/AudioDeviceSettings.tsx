@@ -215,12 +215,12 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
       const result = await voiceAdapter.setInputDevice(deviceId);
 
       if (!result.ok) {
-        showToast({ type: "error", title: getDeviceErrorMessage(result.error) });
+        showToast({ type: "error", title: getDeviceErrorMessage(result.error), duration: 8000 });
         console.error("Set input device failed:", result.error);
       }
     } catch (err) {
       console.error("Failed to set input device:", err);
-      showToast({ type: "error", title: "Unexpected error while changing input device" });
+      showToast({ type: "error", title: "Unexpected error while changing input device", duration: 8000 });
     }
   };
 
@@ -236,12 +236,12 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
       const result = await voiceAdapter.setOutputDevice(deviceId);
 
       if (!result.ok) {
-        showToast({ type: "error", title: getDeviceErrorMessage(result.error) });
+        showToast({ type: "error", title: getDeviceErrorMessage(result.error), duration: 8000 });
         console.error("Set output device failed:", result.error);
       }
     } catch (err) {
       console.error("Failed to set output device:", err);
-      showToast({ type: "error", title: "Unexpected error while changing output device" });
+      showToast({ type: "error", title: "Unexpected error while changing output device", duration: 8000 });
     }
   };
 
@@ -255,7 +255,7 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
       const result = await voiceAdapter.startMicTest(selectedInput());
 
       if (!result.ok) {
-        showToast({ type: "error", title: getDeviceErrorMessage(result.error) });
+        showToast({ type: "error", title: getDeviceErrorMessage(result.error), duration: 8000 });
         console.error("Mic test start failed:", result.error);
         return;
       }
@@ -272,7 +272,7 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
       }, 50);
     } catch (err) {
       console.error("Failed to start mic test:", err);
-      showToast({ type: "error", title: "Unexpected error while starting microphone test" });
+      showToast({ type: "error", title: "Unexpected error while starting microphone test", duration: 8000 });
     }
   };
 
@@ -335,7 +335,7 @@ const AudioDeviceSettings: Component<AudioDeviceSettingsProps> = (props) => {
       }, 1000);
     } catch (err) {
       console.error("Failed to test speaker:", err);
-      showToast({ type: "error", title: "Failed to play test sound. Check your browser permissions." });
+      showToast({ type: "error", title: "Failed to play test sound. Check your browser permissions.", duration: 8000 });
       setIsTestingSpeaker(false);
     }
   };

@@ -133,6 +133,7 @@ const RoleEditor: Component<RoleEditorProps> = (props) => {
         type: "error",
         title: "Failed to Save Role",
         message: "Could not save role changes. Please try again.",
+        duration: 8000,
       });
     } finally {
       setIsSaving(false);

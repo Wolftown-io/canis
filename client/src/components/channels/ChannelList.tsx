@@ -154,7 +154,7 @@ const ChannelList: Component = () => {
         await joinVoice(channelId);
       } catch (err) {
         console.error("Failed to join voice:", err);
-        showToast({ type: "error", title: "Could not join voice channel. Please try again." });
+        showToast({ type: "error", title: "Could not join voice channel. Please try again.", duration: 8000 });
       }
     }
   };

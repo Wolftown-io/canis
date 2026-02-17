@@ -3,6 +3,28 @@
  *
  * Provides a simple toast notification system for displaying
  * temporary messages to the user.
+ *
+ * ## Usage Conventions
+ *
+ * | Type    | Use for                                      | Duration |
+ * |---------|----------------------------------------------|----------|
+ * | error   | API failures, permission denials, fatal       | 8000ms   |
+ * | success | User-initiated actions that complete          | 3000ms   |
+ * | info    | Background events (reconnect, bot timeout)    | 5000ms   |
+ * | warning | Degraded state, approaching limits            | 5000ms   |
+ *
+ * ## Deduplication
+ *
+ * Pass a stable `id` for toasts that can fire repeatedly (e.g. WebSocket
+ * reconnect, rate limit warnings) to prevent toast spam. Example:
+ *
+ *   showToast({ type: "warning", title: "Rate limited", id: "rate-limit" })
+ *
+ * ## Default Durations
+ *
+ * If no `duration` is specified, toasts auto-dismiss after 5000ms.
+ * Use `duration: 0` for persistent toasts that require manual dismissal.
+ * Prefer explicit durations matching the convention table above.
  */
 
 import { Component, For, createSignal, onCleanup } from "solid-js";
@@ -33,8 +55,9 @@ interface ToastInstance extends ToastOptions {
   createdAt: number;
 }
 
-// Global toast state
+// Global toast state (toasts exported for testing)
 const [toasts, setToasts] = createSignal<ToastInstance[]>([]);
+export { toasts };
 
 // Active timeouts for auto-dismiss
 const dismissTimeouts = new Map<string, number>();

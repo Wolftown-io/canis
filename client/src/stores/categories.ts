@@ -60,7 +60,7 @@ export async function loadGuildCategories(guildId: string): Promise<void> {
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to load guild categories:", error);
-    showToast({ type: "error", title: "Categories Failed", message: "Could not load channel categories." });
+    showToast({ type: "error", title: "Categories Failed", message: "Could not load channel categories.", duration: 8000 });
     setCategoriesState({ isLoading: false, error });
   }
 }
@@ -111,7 +111,7 @@ export function toggleCategoryCollapse(categoryId: string): void {
   setCategoriesState("collapseState", categoryId, !currentState);
 
   tauri.updateCategoryCollapse(categoryId, !currentState).catch(() =>
-    showToast({ type: "error", title: "Save Failed", message: "Could not save collapse preference." }),
+    showToast({ type: "error", title: "Save Failed", message: "Could not save collapse preference.", duration: 8000 }),
   );
 }
 
@@ -126,7 +126,7 @@ export function setCategoryCollapse(
   setCategoriesState("collapseState", categoryId, collapsed);
 
   tauri.updateCategoryCollapse(categoryId, collapsed).catch(() =>
-    showToast({ type: "error", title: "Save Failed", message: "Could not save collapse preference." }),
+    showToast({ type: "error", title: "Save Failed", message: "Could not save collapse preference.", duration: 8000 }),
   );
 }
 

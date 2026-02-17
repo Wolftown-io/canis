@@ -144,6 +144,7 @@ export async function markDMAsRead(channelId: string): Promise<void> {
       type: "error",
       title: "Failed to Mark DM as Read",
       message: "Could not update read status. Will retry on next message.",
+      duration: 8000,
     });
   }
 }
@@ -167,6 +168,7 @@ export async function markAllDMsAsRead(): Promise<void> {
       type: "error",
       title: "Mark All Read Failed",
       message: "Could not mark all DMs as read. Please try again.",
+      duration: 8000,
     });
   }
 }

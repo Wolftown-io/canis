@@ -51,6 +51,7 @@ const AccountSettings: Component = () => {
         type: "error",
         title: "Upload Failed",
         message: errorMsg,
+        duration: 8000,
       });
     } finally {
       setIsUploading(false);

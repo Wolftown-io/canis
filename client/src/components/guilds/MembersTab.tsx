@@ -3,6 +3,7 @@
  */
 
 import { Component, createSignal, createMemo, For, Show, onMount } from "solid-js";
+import { createVirtualizer } from "@/lib/virtualizer";
 import { Search, Crown } from "lucide-solid";
 import { guildsState, loadGuildMembers, getGuildMembers } from "@/stores/guilds";
 import {
@@ -70,6 +71,15 @@ const MembersTab: Component<MembersTabProps> = (props) => {
     );
   });
 
+  let membersContainerRef: HTMLDivElement | undefined;
+
+  const virtualizer = createVirtualizer({
+    get count() { return filteredMembers().length; },
+    getScrollElement: () => membersContainerRef ?? null,
+    estimateSize: () => 80,
+    overscan: 5,
+  });
+
   const formatLastSeen = (member: GuildMember): string => {
     if (member.status === "online") return "Online";
     if (member.status === "idle") return "Idle";
@@ -106,7 +116,7 @@ const MembersTab: Component<MembersTabProps> = (props) => {
   };
 
   return (
-    <div class="p-6">
+    <div class="p-6 flex flex-col h-full">
       {/* Search */}
       <div class="relative mb-4">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
@@ -127,114 +137,136 @@ const MembersTab: Component<MembersTabProps> = (props) => {
       </div>
 
       {/* Members List */}
-      <Show
-        when={filteredMembers().length > 0}
-        fallback={
-          <div class="text-center py-8 text-text-secondary">
-            {search() ? "No members match your search" : "You're the only one here. Invite some friends!"}
-          </div>
-        }
+      <div
+        ref={membersContainerRef}
+        class="flex-1 overflow-y-auto min-h-0"
       >
-        <div class="space-y-1">
-          <For each={filteredMembers()}>
-            {(member) => {
-              const isMemberOwner = () => member.user_id === guild()?.owner_id;
-              const memberRoles = () => getMemberRoles(props.guildId, member.user_id);
+        <Show
+          when={filteredMembers().length > 0}
+          fallback={
+            <div class="text-center py-8 text-text-secondary">
+              {search() ? "No members match your search" : "You're the only one here. Invite some friends!"}
+            </div>
+          }
+        >
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+            <For each={virtualizer.getVirtualItems()}>
+              {(virtualItem) => {
+                const member = () => filteredMembers()[virtualItem.index];
+                return (
+                  <div
+                    data-index={virtualItem.index}
+                    ref={(el) => virtualizer.measureElement(el)}
+                    style={{
+                      position: "absolute",
+                      top: `${virtualItem.start}px`,
+                      width: "100%",
+                    }}
+                  >
+                    <Show when={member()}>
+                      {(m) => {
+                        const isMemberOwner = () => m().user_id === guild()?.owner_id;
+                        const memberRoles = () => getMemberRoles(props.guildId, m().user_id);
 
-              return (
-                <div
-                  class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group"
-                  onContextMenu={(e) => showUserContextMenu(e, { id: member.user_id, username: member.username, display_name: member.display_name })}
-                >
-                  {/* Avatar with status indicator */}
-                  <div class="relative flex-shrink-0">
-                    <div class="w-10 h-10 rounded-full bg-accent-primary/20 flex items-center justify-center">
-                      <Show
-                        when={member.avatar_url}
-                        fallback={
-                          <span class="text-sm font-semibold text-accent-primary">
-                            {member.display_name.charAt(0).toUpperCase()}
-                          </span>
-                        }
-                      >
-                        <img
-                          src={member.avatar_url!}
-                          alt={member.display_name}
-                          class="w-10 h-10 rounded-full object-cover"
-                        />
-                      </Show>
-                    </div>
-                    {/* Status dot */}
-                    <div
-                      class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
-                      style={{
-                        "background-color": getStatusColor(member.status),
-                        "border-color": "var(--color-surface-base)",
+                        return (
+                          <div
+                            class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group"
+                            onContextMenu={(e) => showUserContextMenu(e, { id: m().user_id, username: m().username, display_name: m().display_name })}
+                          >
+                            {/* Avatar with status indicator */}
+                            <div class="relative flex-shrink-0">
+                              <div class="w-10 h-10 rounded-full bg-accent-primary/20 flex items-center justify-center">
+                                <Show
+                                  when={m().avatar_url}
+                                  fallback={
+                                    <span class="text-sm font-semibold text-accent-primary">
+                                      {m().display_name.charAt(0).toUpperCase()}
+                                    </span>
+                                  }
+                                >
+                                  <img
+                                    src={m().avatar_url!}
+                                    alt={m().display_name}
+                                    class="w-10 h-10 rounded-full object-cover"
+                                  />
+                                </Show>
+                              </div>
+                              {/* Status dot */}
+                              <div
+                                class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
+                                style={{
+                                  "background-color": getStatusColor(m().status),
+                                  "border-color": "var(--color-surface-base)",
+                                }}
+                              />
+                            </div>
+
+                            {/* Member info */}
+                            <div class="flex-1 min-w-0">
+                              <div class="flex items-center gap-2">
+                                <span class="font-medium text-text-primary truncate">
+                                  {m().nickname || m().display_name}
+                                </span>
+                                <Show when={isMemberOwner()}>
+                                  <span title="Server Owner">
+                                    <Crown class="w-4 h-4 text-yellow-500" />
+                                  </span>
+                                </Show>
+                              </div>
+                              <div class="text-sm text-text-secondary">
+                                @{m().username}
+                              </div>
+                              <div class="text-xs text-text-secondary mt-0.5">
+                                Joined {formatJoinDate(m().joined_at)} &bull; {formatLastSeen(m())}
+                              </div>
+                              {/* Activity indicator */}
+                              <Show when={getUserActivity(m().user_id)}>
+                                <ActivityIndicator
+                                  activity={getUserActivity(m().user_id)!}
+                                  compact
+                                />
+                              </Show>
+                            </div>
+
+                            {/* Role badges */}
+                            <div class="flex items-center gap-1 flex-wrap flex-shrink-0">
+                              <For each={memberRoles()}>
+                                {(role) => (
+                                  <span
+                                    class="px-1.5 py-0.5 text-xs rounded-full"
+                                    style={{
+                                      "background-color": role.color ? `${role.color}20` : "var(--color-surface-layer1)",
+                                      color: role.color || "var(--color-text-secondary)",
+                                      border: `1px solid ${role.color || "var(--color-white-10)"}`,
+                                    }}
+                                  >
+                                    {role.name}
+                                  </span>
+                                )}
+                              </For>
+                              <Show when={memberRoles().length === 0}>
+                                <span class="text-xs text-text-secondary">(no roles)</span>
+                              </Show>
+                            </div>
+
+                            {/* Manage dropdown - replaces kick button */}
+                            <Show when={!isMemberOwner() && (canManageRoles() || canModerate(m().user_id))}>
+                              <MemberRoleDropdown
+                                guildId={props.guildId}
+                                userId={m().user_id}
+                              />
+                            </Show>
+                          </div>
+                        );
                       }}
-                    />
-                  </div>
-
-                  {/* Member info */}
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium text-text-primary truncate">
-                        {member.nickname || member.display_name}
-                      </span>
-                      <Show when={isMemberOwner()}>
-                        <span title="Server Owner">
-                          <Crown class="w-4 h-4 text-yellow-500" />
-                        </span>
-                      </Show>
-                    </div>
-                    <div class="text-sm text-text-secondary">
-                      @{member.username}
-                    </div>
-                    <div class="text-xs text-text-secondary mt-0.5">
-                      Joined {formatJoinDate(member.joined_at)} &bull; {formatLastSeen(member)}
-                    </div>
-                    {/* Activity indicator */}
-                    <Show when={getUserActivity(member.user_id)}>
-                      <ActivityIndicator
-                        activity={getUserActivity(member.user_id)!}
-                        compact
-                      />
                     </Show>
                   </div>
-
-                  {/* Role badges */}
-                  <div class="flex items-center gap-1 flex-wrap flex-shrink-0">
-                    <For each={memberRoles()}>
-                      {(role) => (
-                        <span
-                          class="px-1.5 py-0.5 text-xs rounded-full"
-                          style={{
-                            "background-color": role.color ? `${role.color}20` : "var(--color-surface-layer1)",
-                            color: role.color || "var(--color-text-secondary)",
-                            border: `1px solid ${role.color || "var(--color-white-10)"}`,
-                          }}
-                        >
-                          {role.name}
-                        </span>
-                      )}
-                    </For>
-                    <Show when={memberRoles().length === 0}>
-                      <span class="text-xs text-text-secondary">(no roles)</span>
-                    </Show>
-                  </div>
-
-                  {/* Manage dropdown - replaces kick button */}
-                  <Show when={!isMemberOwner() && (canManageRoles() || canModerate(member.user_id))}>
-                    <MemberRoleDropdown
-                      guildId={props.guildId}
-                      userId={member.user_id}
-                    />
-                  </Show>
-                </div>
-              );
-            }}
-          </For>
-        </div>
-      </Show>
+                );
+              }}
+            </For>
+          </div>
+        </Show>
+      </div>
 
       {/* Loading state */}
       <Show when={guildsState.isMembersLoading}>

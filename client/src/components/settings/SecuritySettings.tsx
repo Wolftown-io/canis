@@ -70,6 +70,7 @@ const SecuritySettings: Component<SecuritySettingsProps> = (props) => {
         type: "error",
         title: "Update Failed",
         message: "Could not update clipboard settings. Please try again.",
+        duration: 8000,
       });
     } finally {
       setIsSavingClipboard(false);
@@ -97,6 +98,7 @@ const SecuritySettings: Component<SecuritySettingsProps> = (props) => {
         type: "error",
         title: "Update Failed",
         message: "Could not update paranoid mode. Please try again.",
+        duration: 8000,
       });
     } finally {
       setIsSavingClipboard(false);

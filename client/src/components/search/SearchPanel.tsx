@@ -6,7 +6,7 @@
  * Uses server-side ts_headline for highlighting and ts_rank for relevance sorting.
  */
 
-import { Component, Show, For, createSignal, onCleanup } from "solid-js";
+import { Component, Show, For, createSignal, onCleanup, createMemo } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { Search, X, Loader2, Hash, Filter, Link, Paperclip, Globe, MessageSquare } from "lucide-solid";
 import { searchState, search, searchDMs, searchGlobal, loadMore, clearSearch, hasMore } from "@/stores/search";
@@ -16,6 +16,7 @@ import Avatar from "@/components/ui/Avatar";
 import { formatTimestamp } from "@/lib/utils";
 import DOMPurify from "dompurify";
 import SearchSyntaxHelp from "./SearchSyntaxHelp";
+import { createVirtualizer } from "@/lib/virtualizer";
 
 interface SearchPanelProps {
   onClose: () => void;
@@ -32,6 +33,16 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
   const [hasFilter, setHasFilter] = createSignal<"link" | "file" | "">("");
   const [sortOrder, setSortOrder] = createSignal<"relevance" | "date">("relevance");
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let resultsContainerRef: HTMLDivElement | undefined;
+
+  const resultCount = createMemo(() => searchState.results.length);
+
+  const virtualizer = createVirtualizer({
+    get count() { return resultCount(); },
+    getScrollElement: () => resultsContainerRef ?? null,
+    estimateSize: () => 100,
+    overscan: 5,
+  });
 
   const mode = () => props.mode ?? "guild";
 
@@ -250,7 +261,7 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
       </Show>
 
       {/* Results */}
-      <div class="flex-1 overflow-y-auto">
+      <div ref={resultsContainerRef} class="flex-1 overflow-y-auto">
         {/* Loading State */}
         <Show when={searchState.isSearching && searchState.results.length === 0}>
           <div class="flex items-center justify-center py-8">
@@ -284,67 +295,85 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
 
         {/* Results List */}
         <Show when={searchState.results.length > 0}>
-          <div class="divide-y divide-white/5">
-            <For each={searchState.results}>
-              {(result) => (
-                <button
-                  onClick={() => handleResultClick(result)}
-                  class="w-full p-3 text-left hover:bg-white/5 transition-colors"
-                >
-                  {/* Source Badge (global mode only) */}
-                  <Show when={mode() === "global" && "source" in result}>
-                    {(() => {
-                      const globalResult = result as GlobalSearchResult;
-                      return (
-                        <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
-                          <Show when={globalResult.source.type === "guild"} fallback={
-                            <><MessageSquare class="w-3 h-3" /><span>Direct Messages</span></>
-                          }>
-                            <Globe class="w-3 h-3" />
-                            <span>{globalResult.source.guild_name}</span>
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+            <For each={virtualizer.getVirtualItems()}>
+              {(virtualItem) => {
+                const result = () => searchState.results[virtualItem.index];
+                return (
+                  <div
+                    data-index={virtualItem.index}
+                    ref={(el) => virtualizer.measureElement(el)}
+                    style={{
+                      position: "absolute",
+                      top: `${virtualItem.start}px`,
+                      width: "100%",
+                    }}
+                  >
+                    <Show when={result()}>
+                      {(r) => (
+                        <button
+                          onClick={() => handleResultClick(r())}
+                          class="w-full p-3 text-left hover:bg-white/5 transition-colors border-b border-white/5"
+                        >
+                          {/* Source Badge (global mode only) */}
+                          <Show when={mode() === "global" && "source" in r()}>
+                            {(() => {
+                              const globalResult = r() as GlobalSearchResult;
+                              return (
+                                <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
+                                  <Show when={globalResult.source.type === "guild"} fallback={
+                                    <><MessageSquare class="w-3 h-3" /><span>Direct Messages</span></>
+                                  }>
+                                    <Globe class="w-3 h-3" />
+                                    <span>{globalResult.source.guild_name}</span>
+                                  </Show>
+                                  <span class="mx-0.5">&gt;</span>
+                                  <Hash class="w-3 h-3" />
+                                  <span>{r().channel_name}</span>
+                                </div>
+                              );
+                            })()}
                           </Show>
-                          <span class="mx-0.5">&gt;</span>
-                          <Hash class="w-3 h-3" />
-                          <span>{result.channel_name}</span>
-                        </div>
-                      );
-                    })()}
-                  </Show>
 
-                  {/* Channel Name (non-global mode) */}
-                  <Show when={mode() !== "global"}>
-                    <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
-                      <Hash class="w-3 h-3" />
-                      <span>{result.channel_name}</span>
-                    </div>
-                  </Show>
+                          {/* Channel Name (non-global mode) */}
+                          <Show when={mode() !== "global"}>
+                            <div class="flex items-center gap-1 text-xs text-text-secondary mb-1">
+                              <Hash class="w-3 h-3" />
+                              <span>{r().channel_name}</span>
+                            </div>
+                          </Show>
 
-                  {/* Author and Time */}
-                  <div class="flex items-center gap-2 mb-1">
-                    <Avatar
-                      src={result.author.avatar_url}
-                      alt={result.author.display_name}
-                      size="sm"
-                    />
-                    <span class="text-sm font-medium text-text-primary">
-                      {result.author.display_name}
-                    </span>
-                    <span class="text-xs text-text-secondary">
-                      {formatTimestamp(result.created_at)}
-                    </span>
+                          {/* Author and Time */}
+                          <div class="flex items-center gap-2 mb-1">
+                            <Avatar
+                              src={r().author.avatar_url}
+                              alt={r().author.display_name}
+                              size="sm"
+                            />
+                            <span class="text-sm font-medium text-text-primary">
+                              {r().author.display_name}
+                            </span>
+                            <span class="text-xs text-text-secondary">
+                              {formatTimestamp(r().created_at)}
+                            </span>
+                          </div>
+
+                          {/* Content Preview with server-side highlighting */}
+                          <p
+                            class="text-sm text-text-secondary line-clamp-2 [&_mark]:bg-accent-primary/30 [&_mark]:text-text-primary [&_mark]:rounded [&_mark]:px-0.5"
+                            innerHTML={sanitizeHeadline(r().headline)}
+                          />
+                        </button>
+                      )}
+                    </Show>
                   </div>
-
-                  {/* Content Preview with server-side highlighting */}
-                  <p
-                    class="text-sm text-text-secondary line-clamp-2 [&_mark]:bg-accent-primary/30 [&_mark]:text-text-primary [&_mark]:rounded [&_mark]:px-0.5"
-                    innerHTML={sanitizeHeadline(result.headline)}
-                  />
-                </button>
-              )}
+                );
+              }}
             </For>
           </div>
 
-          {/* Load More Button */}
+          {/* Load More Button — sits after the virtualizer container in normal flow.
+              New results append below existing ones; scroll position is preserved. */}
           <Show when={hasMore()}>
             <div class="p-3 text-center">
               <button

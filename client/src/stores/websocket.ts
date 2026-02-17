@@ -662,6 +662,7 @@ export async function initWebSocket(): Promise<void> {
             title: "Command Timeout",
             message: `Command /${event.payload.command_name} did not respond within 30 seconds.`,
             duration: 5000,
+            id: `cmd-timeout-${event.payload.command_name}`,
           });
         }
       )
@@ -1032,6 +1033,7 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
         title: "Command Timeout",
         message: `Command /${event.command_name} did not respond within 30 seconds.`,
         duration: 5000,
+        id: `cmd-timeout-${event.command_name}`,
       });
       break;
 

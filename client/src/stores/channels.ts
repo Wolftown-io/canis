@@ -245,6 +245,7 @@ export async function markChannelAsRead(channelId: string): Promise<void> {
         type: "error",
         title: "Failed to Mark as Read",
         message: "Could not mark channel as read. Will retry on next message.",
+        duration: 8000,
       });
       // Could revert here, but the server state is source of truth
     }
@@ -274,6 +275,7 @@ export async function markAllGuildChannelsAsRead(guildId: string): Promise<void>
       type: "error",
       title: "Mark All Read Failed",
       message: "Could not mark all channels as read. Please try again.",
+      duration: 8000,
     });
   }
 }

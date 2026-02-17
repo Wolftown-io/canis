@@ -169,7 +169,7 @@ const MessageItem: Component<MessageItemProps> = (props) => {
       await addReaction(props.message.channel_id, props.message.id, emoji);
     } catch (err) {
       console.error("Failed to add reaction:", err);
-      showToast({ type: "error", title: "Reaction Failed", message: "Could not add reaction." });
+      showToast({ type: "error", title: "Reaction Failed", message: "Could not add reaction.", duration: 8000 });
     }
   };
 
@@ -178,7 +178,7 @@ const MessageItem: Component<MessageItemProps> = (props) => {
       await removeReaction(props.message.channel_id, props.message.id, emoji);
     } catch (err) {
       console.error("Failed to remove reaction:", err);
-      showToast({ type: "error", title: "Reaction Failed", message: "Could not remove reaction." });
+      showToast({ type: "error", title: "Reaction Failed", message: "Could not remove reaction.", duration: 8000 });
     }
   };
 

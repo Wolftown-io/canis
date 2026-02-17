@@ -9,13 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Roadmap Alignment
 - Current roadmap phase: Phase 5 (Ecosystem & SaaS Readiness) - In Progress
-- Roadmap last updated: 2026-02-15
+- Roadmap last updated: 2026-02-17
 
 ### Milestone Metadata
 - Milestone: Phase 5 - Ecosystem & SaaS Readiness
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
 ### Added
+- Virtualized guild member list, DM conversation sidebar, and search results using `@tanstack/solid-virtual` for smooth scrolling with large datasets
+- Toast usage convention documentation with type/duration table and deduplication guidance
 - Built-in `/ping` command for smoke testing — responds with "Pong!" and server-side latency in any guild channel without bot installation
 - Command response delivery — bot slash command responses now reach the invoking user via WebSocket relay; non-ephemeral responses become persistent chat messages, ephemeral responses are shown only to the invoker
 - 30-second timeout notification when bots don't respond to slash commands
@@ -25,75 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings and category collapse state now persist across Tauri app restarts — audio, voice, theme, and notification preferences saved to `settings.json`, category expand/collapse state saved to `ui_state.json` in the app data directory (#172)
 - HTTP integration tests for chat module — 19 tests across channels CRUD, messages CRUD, DM operations, and upload error paths (`channels_http_test.rs`, `messages_http_test.rs`, `dm_http_test.rs`, `uploads_http_test.rs`) (#164)
 - Comprehensive Playwright E2E test suite covering 68 UI items across 12 spec files — Auth, Navigation, Messaging, Guild, Channels, Friends/DMs, Settings, Voice, Admin, Search, and Permissions with shared test helpers and coverage tracker (`docs/testing/ui-coverage.md`)
-
-### Fixed
-- Slash command autocomplete now allows hyphens in command names
-- Guild command listing shows all providers instead of silently deduplicating — fixes inconsistency where autocomplete showed one bot but invocation picked a different one
-- Ambiguity errors now include conflicting bot names for easier disambiguation
-- Slash command fetch retry no longer locks out permanently on failure
-- E2E tests no longer silently pass without assertions — eliminated 97 anti-pattern instances across 10 spec files: `.catch(() => false)` guards converted to hard `expect()` assertions, `waitForTimeout()` calls replaced with deterministic waits, duplicate `login()` with wrong default password removed from `permissions.spec.ts` (#186)
-
-### Changed
-- Replaced MinIO (AGPL-3.0) with RustFS (Apache-2.0) as the default S3-compatible object storage for development — no code changes needed, only Docker and documentation updates
-- Bot command responses now enforce single-response semantics — each `interaction_id` accepts exactly one `CommandResponse`, duplicate responses are rejected with a clear error (#176)
-- Guild channel permission checks in search and channel listing are now batched — fetches membership, roles, and channel overrides in ~4 queries total instead of 5 per channel, reducing database round-trips from 5N to constant for N-channel guilds (#181)
-- Dynamic SQL query construction now uses `sqlx::QueryBuilder` instead of manual `format!()`/`write!()` with parameter index tracking, eliminating a class of potential runtime parameter mismatch errors (#174)
-
-### Security
-- Eliminated all `.unwrap()` calls in production server code — TOTP secret decoding now returns proper errors instead of panicking, WebSocket auth responses use `.expect()` with justification, duration arithmetic uses `saturating_sub()`, and S3 endpoint formatting uses safe `if let` pattern (#163)
-- File upload magic byte validation — uploaded files are now verified against their claimed MIME type using content inspection, preventing file type spoofing (e.g. executables disguised as images)
-- Password reset endpoint no longer leaks user existence via HTTP 500 on database errors — all code paths now return generic 200
-- Password reset aborts if old token invalidation fails, preventing token accumulation
-- SMTP connection verified at server startup; misconfiguration logged at error level instead of warn
-- Page handlers no longer leak database schema details in error responses — all internal errors logged server-side, generic message returned to client
-- DOMPurify configuration no longer uses global `setConfig()` — inline config prevents cross-component state pollution
-- Mermaid SVG sanitization uses explicit `ALLOWED_TAGS` allowlist instead of additive `ADD_TAGS`, preventing HTML tag leakage into SVG context
-
-### Fixed
-- `get_page_by_id` now filters soft-deleted pages (`deleted_at IS NULL`), preventing operations on deleted pages
-- `reorder_pages` wrapped in database transaction to prevent partial reorder on failure, with duplicate page ID validation
-- Page acceptance endpoint now validates `requires_acceptance` flag before recording acceptance
-- Guild-scoped page acceptance endpoint added — guild pages are accepted via `/guilds/{id}/pages/{id}/accept`
-- Silent audit log failures (`.ok()`) replaced with explicit error logging across all page handlers
-- Silent `unwrap_or` in slug/limit checks replaced with `unwrap_or_else` + error logging in page creation/update handlers
-- `PlatformPagesCard` and `PageSection` components now use reactive `<Show>` wrappers instead of non-reactive early returns
-- `PlatformPagesCard` now displays error state when page loading fails instead of rendering empty
-- `AcceptanceManager` now checks `acceptPage` return value and surfaces acceptance failures to the user
-- `AcceptanceManager` shows blocking error overlay when a required platform page fails to load (instead of silently skipping)
-- `AcceptanceManager.handleDefer` now properly awaits async `showNextPage()` call
-- `PageAcceptanceModal` resets `isAccepting` state in `finally` block, preventing stuck "Accepting..." button on error
-- `PageAcceptanceModal` re-checks scroll height after markdown rendering completes, fixing premature "scroll to bottom" requirement
-- `PageAcceptanceModal` adds `role="dialog"` and `aria-modal` for accessibility
-- `PageView.handleDelete` now catches and displays delete errors instead of failing silently
-- `PageEditor` syncs form signals when `props.page` changes, fixing stale form data when navigating between pages
-- Client `MAX_PAGES_PER_SCOPE` constant corrected from 50 to 10 to match server
-- Password reset views now read server URL from localStorage, matching Login/Register behavior for self-hosted setups
-- Server URL forwarded from Forgot Password to Reset Password page via query parameter
-- Forgot Password and Reset Password form labels now linked to inputs via `for`/`id` for accessibility
-- Error messages on password reset forms announced to screen readers via `role="alert"`
-- Typed error handling (`err: unknown` + `instanceof Error`) in password reset forms instead of `catch(err: any)`
-- Expired reset token cleanup query now logs database errors instead of silently propagating
-- Content spoilers (`||text||`) now render correctly — DOMPurify config was stripping spoiler HTML tags
-- Mention highlighting no longer corrupts inline code spans (e.g. `` `@everyone` `` renders correctly)
-- Mention styling no longer bleeds through unrevealed spoiler overlays
-- Reaction add/remove errors now show toast notifications instead of failing silently
-- Command Palette mute/deafen commands now toggle microphone and deafen state instead of logging to console
-- "Delete Message" context menu action now calls the server API with confirmation dialog
-- "Mark as Read" channel context menu action now clears unread state via `markChannelAsRead`
-- "Mute/Unmute Channel" context menu action now toggles notification level via preferences store
-- "View Profile" and "Send Message" user context menu actions now navigate to or create a DM conversation
-- "Add Friend" user context menu action now sends a friend request
-- SearchPanel TypeScript compilation errors (type mismatch in `handleResultClick` signature)
-- Message edit WebSocket events now update message content in real-time instead of only logging
-- Presence update WebSocket events now update user online/offline status instead of only logging
-- Missing Tauri listeners for `admin_user_deleted` and `admin_guild_deleted` events
-- Missing `GuildEmojiUpdated` WebSocket handler in both browser and Tauri mode
-- Missing Tauri backend event forwarding for `GuildEmojiUpdated`, `AdminUserDeleted`, `AdminGuildDeleted`, `WebcamStarted`, `WebcamStopped`
-- Dead "Learn more" link (`href="#"`) in clipboard tamper warning modal replaced with informational text
-- Non-interactive guild header in sidebar had misleading cursor-pointer styling
-- Admin shield button in UserPanel now opens the AdminQuickModal instead of navigating directly (modal was unreachable dead code)
-
-### Added
 - Visual mention highlighting — `@everyone`, `@here`, and `@username` mentions render with accent-colored background styling
 - "Mark All as Read" bulk actions — mark all channels in a guild, all DMs, or everything as read at once
 - Per-guild thread toggle — guild managers can enable/disable message threads from Server Settings > General
@@ -103,22 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Global search across all guilds and DMs (`GET /api/search`, Ctrl+Shift+F shortcut)
 - "Search Everywhere" command in Command Palette (Ctrl+K)
 - Search syntax help tooltip showing AND, OR, "exact phrase", and -exclude operators
-
-### Changed
-- Search results now display server-generated highlighted snippets instead of client-side regex matching
-- Thread participant avatars — ThreadIndicator shows small overlapping avatar thumbnails of the most recent thread participants
-- Thread unread indicator — blue dot and bold text on threads with unread replies, clears when thread is opened or marked as read
-- #channel autocomplete — type `#` in guild channels to mention text channels with fuzzy matching
-- /command autocomplete — type `/` at the start of a message to browse available slash commands from installed bots
-- Reaction keyboard shortcuts — press Alt+1 through Alt+4 while hovering a message to quick-react (👍, ❤️, 😂, 😮)
-- Guild commands API endpoint (`GET /api/guilds/{id}/commands`) listing available slash commands from installed bots
-
 - Native webcam capture pipeline for Tauri desktop client using `nokhwa` (camera enumeration, RGB→I420 conversion, VP9 encoding, RTP sending)
 - Webcam video support in voice channels with camera toggle button
 - Simultaneous webcam and screen sharing (multi-stream)
 - Dynamic track add/remove with SFU renegotiation mid-session
 - Track source identification via pending source queue (Webcam vs ScreenVideo)
-
 - Advanced message search with filters (date range, channel, author, has:link, has:file)
 - DM message search endpoint (`GET /api/dm/search`) with the same filter support
 - DM search UI accessible from the home sidebar
@@ -151,21 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Developer documentation for the bot system (`docs/development/bot-system.md`)
   - Guild bot management UI in server settings (list installed bots, remove bots)
   - Guild bot list and remove API endpoints (`GET/DELETE /api/guilds/{id}/bots`)
-
-### Changed
-- Bot token format changed to "bot_user_id.secret" for indexed authentication (breaking change for existing bots)
-
-### Security
-- DOMPurify class attribute allowlist prevents CSS-based UI spoofing via arbitrary class injection in messages
-- Encrypted messages are now excluded from all search results
-- Fixed O(n) authentication DoS vulnerability in bot token verification (now uses indexed lookup)
-- Fixed TOCTOU race condition in bot user creation (moved check inside transaction with FOR UPDATE lock)
-- Fixed TOCTOU race condition in bot token reset (added transaction with FOR UPDATE lock)
-- Replaced weak UUID salt with proper CSPRNG (SaltString + OsRng) for Argon2 password hashing
-- Added channel membership authorization for bot message creation
-- Added content length validation for command responses to prevent Redis exhaustion
-- Added inbound bot gateway rate limiting to reduce abuse risk from compromised bot tokens
-- Bound command response interactions to the invoking bot identity before accepting responses
 - Slack-style message threads for organized side-discussions
   - Thread replies appear in a sidebar panel, keeping the main channel feed clean
   - Thread indicators show reply count and last reply time on parent messages
@@ -187,46 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - "Beginning of conversation" marker when full history is loaded
 - Configurable memory eviction for message history (default: 2000 messages per channel)
   - Drops messages far from viewport, re-fetches on scroll back
-
-### Fixed
-- Channel permission overrides now show only channel-relevant permissions
-  - Added `View Channel` to channel override controls so visibility can be managed explicitly
-  - Removed guild-level permission toggles from the channel override editor to reduce confusing options
-- Member moderation controls now appear for users who can kick but cannot manage roles
-  - The member "Manage" dropdown is shown when you have kick authority over a target based on role hierarchy
-  - Role assignment controls stay hidden unless you have `MANAGE_ROLES`, reducing confusing disabled actions
-- Windows Tauri build failure caused by `scap` screen capture dependency (upgraded to v0.1.0-beta.1 with patched Linux PipeWire engine)
-- CI pipeline failures: disk space exhaustion in security test, Docker build for shared crate structure, and Tauri bundling missing icon
-- Voice island visibility and contrast issues (#151)
-  - Disconnect button now uses higher contrast background and white icon for better visibility
-  - Drag handle opacity increased from 40% to 60%
-  - Connection status dot enlarged and changed to green with subtle glow
-  - Quality indicator now uses theme colors instead of hardcoded values
-- Favorite star button not responding to clicks in channel list (#152)
-  - Fixed invalid nested `<button>` HTML structure in ChannelItem that prevented click events from reaching the star toggle
-  - Converted outer channel button to a `<div>` with proper `role="button"` and keyboard accessibility
-- Avatar and file uploads in Tauri desktop app (#150)
-  - Added `get_auth_info` Tauri command to expose auth credentials to the webview
-  - Upload functions now properly retrieve auth token and server URL in Tauri mode
-  - Also fixes file attachment and emoji uploads in the desktop client
-- Volume slider now controls notification sound volume in Tauri desktop app (#146)
-  - Tauri `play_sound` command now accepts and applies volume setting
-  - Both notification playback and test sound respect the volume slider
-- Screen share volume slider thumb now visible and interactive (#146)
-  - Added proper CSS pseudo-selectors for the range input thumb
-- Sound notification testing now plays audio in browser/webview mode (#145)
-  - Added missing sound .wav files to `public/sounds/` for static serving
-  - Previously only embedded in Tauri binary, causing 404 for browser fetch
-- Potential message loss when WebSocket message arrives during pagination load
-  - `addMessage` now re-reads store state after async decryption to avoid overwriting concurrent prepends
-- File attachment uploads in text chat (#149)
-  - Fixed AWS SDK panic when initializing S3 client (missing tokio sleep implementation)
-  - Object storage bucket now automatically initialized in development environment
-  - Added comprehensive file uploads documentation (docs/development/file-uploads.md)
-  - Added storage initialization script (scripts/init-rustfs.sh)
-  - Updated setup guide with file upload configuration steps
-
-### Added
 - Message input enhancements for improved UX
   - Multi-line textarea with auto-resize (min 1 line, max 8 lines)
   - Shift+Enter for newlines, Enter to send
@@ -244,8 +111,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Autocomplete closes when clicking away from trigger in textarea
   - Full ARIA support for autocomplete popup (role="listbox", aria-activedescendant, aria-selected)
   - ARIA labels for all message action buttons (emoji reactions, picker, context menu)
-
-### Added
 - Channel-level permission system (VIEW_CHANNEL)
   - New VIEW_CHANNEL permission bit (bit 24) controls channel visibility and access
   - Users must have VIEW_CHANNEL to see channels in lists, read messages, or interact with channels
@@ -266,28 +131,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Guild owners bypass all channel-level restrictions
   - Comprehensive integration tests (18 tests covering all permission scenarios)
   - Detailed documentation with mermaid diagrams (docs/features/channel-permissions.md)
-
-### Added
 - New `BLOCK_CHECK_FAIL_OPEN` configuration option for Redis block check behavior
   - When false (default, recommended): Block checks fail-closed, rejecting DMs/calls if Redis is unavailable (secure default)
   - When true: Block checks fail-open, allowing actions if Redis is unavailable (prioritizes availability over security)
   - Affects DM creation, DM message sending, call initiation, and call joining
   - Provides explicit control over availability vs security tradeoff during Redis outages
-
-### Changed
-- Documentation audit and cleanup
-  - Updated all version numbers in standards.md to match actual dependencies
-  - Updated project specification status to Phase 4
-  - Fixed architecture diagrams (removed mediasoup, nnnoiseless references)
-  - Removed resolved tech debt and stale persona review sections from architecture overview
-  - Fixed broken internal documentation links across all docs
-
-### Removed
-- Deleted 12 stale documentation files (session artifacts, redundant license docs, completed update checklists, dependency snapshots)
-- Removed phantom dependencies from standards documentation (jsonrpsee, nnnoiseless, metrics, x25519-dalek, ed25519-dalek)
-- Removed stale scripts (resume-session.sh, update-deps.sh)
-
-### Added
 - PostgreSQL native full-text search for guild messages
   - Backend: tsvector column with GIN index for fast full-text search using `websearch_to_tsquery`
   - Backend: Guild-scoped search API with permission validation and pagination (`GET /api/guilds/:id/search`)
@@ -346,51 +194,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Max 5 visible toasts with auto-dismiss of oldest
   - Error toasts for failed operations (message send, mark as read, etc.)
   - Success toasts for completed actions (avatar upload, settings saved, role/channel created)
-
-### Fixed
-- Clippy warnings in crypto and server modules
-  - Suppress false-positive `missing_const_for_fn` lint in vc-crypto
-  - Fix `many_single_char_names` in BGRA→I420 color conversion
-  - Remove unnecessary raw string hashes in SQL queries
-
-### Security
-- Fixed channel permission bypass in favorites endpoint
-  - Add favorite (POST /api/me/favorites/:channel_id) now validates VIEW_CHANNEL permission
-  - Previously only checked guild membership, allowing users to favorite channels they couldn't view
-  - Fixes potential information disclosure where channel existence could be inferred without proper access
-
-### Changed
-- Upgraded vite-plugin-solid to 2.11.10 for vitest 4 compatibility
-- Upgraded vite to 7.3.1 for better tooling compatibility
-- Native screen capture for Tauri desktop client
-  - Source picker modal to select monitors or windows
-  - VP9 software encoding with quality tiers (480p15 to 1080p60)
-  - RTP packetization and delivery via WebRTC video track
-  - Quality picker with low/medium/high/premium presets
-  - Auto-stop screen share when leaving voice channel
-  - Cross-platform via scap (ScreenCaptureKit, WGC, PipeWire)
-- Forgot password workflow with SMTP email delivery
-  - POST /auth/forgot-password — request reset code via email
-  - POST /auth/reset-password — reset password with code
-  - SMTP configuration (SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, SMTP_TLS)
-  - Rate-limited endpoints (AuthPasswordReset category)
-  - All sessions invalidated on successful password reset
-  - No user enumeration (generic responses for unknown emails)
-  - Frontend pages: /forgot-password and /reset-password
-  - Background cleanup for expired reset tokens
-
-### Changed
-- Modernized dependencies across all workspace crates
-  - axum 0.7→0.8, tower 0.4→0.5, tower-http 0.5→0.6, utoipa 4→5
-  - fred 8→10 (Redis client), reqwest 0.11→0.13
-  - vodozemac 0.5→0.9 (E2EE crypto)
-  - cpal 0.15→0.17, rodio 0.19→0.21 (audio)
-  - sysinfo 0.30→0.34 (game detection)
-  - sqlx 0.7→0.8.6, rusqlite 0.29→0.32 (database)
-  - thiserror 1→2, validator 0.16→0.20, pulldown-cmark 0.10→0.13
-  - Removed unused x25519-dalek and ed25519-dalek crates
-
-### Added
 - Content spoilers with `||text||` syntax for hiding sensitive information
   - Click-to-reveal functionality with persistent reveal state
   - Supports markdown and inline spoilers
@@ -627,6 +430,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - User-friendly error messages showing both file size and limit in human-readable format (KB/MB)
 
 ### Changed
+- Upgraded message list virtualizer from custom implementation to `@tanstack/solid-virtual` for proper dynamic sizing via ResizeObserver
+- Replaced MinIO (AGPL-3.0) with RustFS (Apache-2.0) as the default S3-compatible object storage for development — no code changes needed, only Docker and documentation updates
+- Bot command responses now enforce single-response semantics — each `interaction_id` accepts exactly one `CommandResponse`, duplicate responses are rejected with a clear error (#176)
+- Guild channel permission checks in search and channel listing are now batched — fetches membership, roles, and channel overrides in ~4 queries total instead of 5 per channel, reducing database round-trips from 5N to constant for N-channel guilds (#181)
+- Dynamic SQL query construction now uses `sqlx::QueryBuilder` instead of manual `format!()`/`write!()` with parameter index tracking, eliminating a class of potential runtime parameter mismatch errors (#174)
+- Search results now display server-generated highlighted snippets instead of client-side regex matching
+- Thread participant avatars — ThreadIndicator shows small overlapping avatar thumbnails of the most recent thread participants
+- Thread unread indicator — blue dot and bold text on threads with unread replies, clears when thread is opened or marked as read
+- #channel autocomplete — type `#` in guild channels to mention text channels with fuzzy matching
+- /command autocomplete — type `/` at the start of a message to browse available slash commands from installed bots
+- Reaction keyboard shortcuts — press Alt+1 through Alt+4 while hovering a message to quick-react (👍, ❤️, 😂, 😮)
+- Guild commands API endpoint (`GET /api/guilds/{id}/commands`) listing available slash commands from installed bots
+- Bot token format changed to "bot_user_id.secret" for indexed authentication (breaking change for existing bots)
+- Documentation audit and cleanup
+  - Updated all version numbers in standards.md to match actual dependencies
+  - Updated project specification status to Phase 4
+  - Fixed architecture diagrams (removed mediasoup, nnnoiseless references)
+  - Removed resolved tech debt and stale persona review sections from architecture overview
+  - Fixed broken internal documentation links across all docs
+- Upgraded vite-plugin-solid to 2.11.10 for vitest 4 compatibility
+- Upgraded vite to 7.3.1 for better tooling compatibility
+- Native screen capture for Tauri desktop client
+  - Source picker modal to select monitors or windows
+  - VP9 software encoding with quality tiers (480p15 to 1080p60)
+  - RTP packetization and delivery via WebRTC video track
+  - Quality picker with low/medium/high/premium presets
+  - Auto-stop screen share when leaving voice channel
+  - Cross-platform via scap (ScreenCaptureKit, WGC, PipeWire)
+- Forgot password workflow with SMTP email delivery
+  - POST /auth/forgot-password — request reset code via email
+  - POST /auth/reset-password — reset password with code
+  - SMTP configuration (SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, SMTP_TLS)
+  - Rate-limited endpoints (AuthPasswordReset category)
+  - All sessions invalidated on successful password reset
+  - No user enumeration (generic responses for unknown emails)
+  - Frontend pages: /forgot-password and /reset-password
+  - Background cleanup for expired reset tokens
+- Modernized dependencies across all workspace crates
+  - axum 0.7→0.8, tower 0.4→0.5, tower-http 0.5→0.6, utoipa 4→5
+  - fred 8→10 (Redis client), reqwest 0.11→0.13
+  - vodozemac 0.5→0.9 (E2EE crypto)
+  - cpal 0.15→0.17, rodio 0.19→0.21 (audio)
+  - sysinfo 0.30→0.34 (game detection)
+  - sqlx 0.7→0.8.6, rusqlite 0.29→0.32 (database)
+  - thiserror 1→2, validator 0.16→0.20, pulldown-cmark 0.10→0.13
+  - Removed unused x25519-dalek and ed25519-dalek crates
 - **BREAKING:** Authentication responses now include `setup_required` boolean field
   - Affects `POST /auth/register`, `POST /auth/login`, and `POST /auth/refresh` endpoints
   - Existing clients must handle the new field or update their deserialization logic
@@ -657,9 +506,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 ### Removed
+- Deleted 12 stale documentation files (session artifacts, redundant license docs, completed update checklists, dependency snapshots)
+- Removed phantom dependencies from standards documentation (jsonrpsee, nnnoiseless, metrics, x25519-dalek, ed25519-dalek)
+- Removed stale scripts (resume-session.sh, update-deps.sh)
 - Legacy unscoped `GET /api/channels` endpoint that returned all channels across all guilds
 
 ### Fixed
+- Message list layout drift when images load or code blocks expand — now uses real element measurement instead of estimated sizes
+- Toast notifications now use consistent durations (error: 8s, success: 3s) and dedup IDs for repeatable events (command timeout, screen share)
+- Slash command autocomplete now allows hyphens in command names
+- Guild command listing shows all providers instead of silently deduplicating — fixes inconsistency where autocomplete showed one bot but invocation picked a different one
+- Ambiguity errors now include conflicting bot names for easier disambiguation
+- Slash command fetch retry no longer locks out permanently on failure
+- E2E tests no longer silently pass without assertions — eliminated 97 anti-pattern instances across 10 spec files: `.catch(() => false)` guards converted to hard `expect()` assertions, `waitForTimeout()` calls replaced with deterministic waits, duplicate `login()` with wrong default password removed from `permissions.spec.ts` (#186)
+- `get_page_by_id` now filters soft-deleted pages (`deleted_at IS NULL`), preventing operations on deleted pages
+- `reorder_pages` wrapped in database transaction to prevent partial reorder on failure, with duplicate page ID validation
+- Page acceptance endpoint now validates `requires_acceptance` flag before recording acceptance
+- Guild-scoped page acceptance endpoint added — guild pages are accepted via `/guilds/{id}/pages/{id}/accept`
+- Silent audit log failures (`.ok()`) replaced with explicit error logging across all page handlers
+- Silent `unwrap_or` in slug/limit checks replaced with `unwrap_or_else` + error logging in page creation/update handlers
+- `PlatformPagesCard` and `PageSection` components now use reactive `<Show>` wrappers instead of non-reactive early returns
+- `PlatformPagesCard` now displays error state when page loading fails instead of rendering empty
+- `AcceptanceManager` now checks `acceptPage` return value and surfaces acceptance failures to the user
+- `AcceptanceManager` shows blocking error overlay when a required platform page fails to load (instead of silently skipping)
+- `AcceptanceManager.handleDefer` now properly awaits async `showNextPage()` call
+- `PageAcceptanceModal` resets `isAccepting` state in `finally` block, preventing stuck "Accepting..." button on error
+- `PageAcceptanceModal` re-checks scroll height after markdown rendering completes, fixing premature "scroll to bottom" requirement
+- `PageAcceptanceModal` adds `role="dialog"` and `aria-modal` for accessibility
+- `PageView.handleDelete` now catches and displays delete errors instead of failing silently
+- `PageEditor` syncs form signals when `props.page` changes, fixing stale form data when navigating between pages
+- Client `MAX_PAGES_PER_SCOPE` constant corrected from 50 to 10 to match server
+- Password reset views now read server URL from localStorage, matching Login/Register behavior for self-hosted setups
+- Server URL forwarded from Forgot Password to Reset Password page via query parameter
+- Forgot Password and Reset Password form labels now linked to inputs via `for`/`id` for accessibility
+- Error messages on password reset forms announced to screen readers via `role="alert"`
+- Typed error handling (`err: unknown` + `instanceof Error`) in password reset forms instead of `catch(err: any)`
+- Expired reset token cleanup query now logs database errors instead of silently propagating
+- Content spoilers (`||text||`) now render correctly — DOMPurify config was stripping spoiler HTML tags
+- Mention highlighting no longer corrupts inline code spans (e.g. `` `@everyone` `` renders correctly)
+- Mention styling no longer bleeds through unrevealed spoiler overlays
+- Reaction add/remove errors now show toast notifications instead of failing silently
+- Command Palette mute/deafen commands now toggle microphone and deafen state instead of logging to console
+- "Delete Message" context menu action now calls the server API with confirmation dialog
+- "Mark as Read" channel context menu action now clears unread state via `markChannelAsRead`
+- "Mute/Unmute Channel" context menu action now toggles notification level via preferences store
+- "View Profile" and "Send Message" user context menu actions now navigate to or create a DM conversation
+- "Add Friend" user context menu action now sends a friend request
+- SearchPanel TypeScript compilation errors (type mismatch in `handleResultClick` signature)
+- Message edit WebSocket events now update message content in real-time instead of only logging
+- Presence update WebSocket events now update user online/offline status instead of only logging
+- Missing Tauri listeners for `admin_user_deleted` and `admin_guild_deleted` events
+- Missing `GuildEmojiUpdated` WebSocket handler in both browser and Tauri mode
+- Missing Tauri backend event forwarding for `GuildEmojiUpdated`, `AdminUserDeleted`, `AdminGuildDeleted`, `WebcamStarted`, `WebcamStopped`
+- Dead "Learn more" link (`href="#"`) in clipboard tamper warning modal replaced with informational text
+- Non-interactive guild header in sidebar had misleading cursor-pointer styling
+- Admin shield button in UserPanel now opens the AdminQuickModal instead of navigating directly (modal was unreachable dead code)
+- Channel permission overrides now show only channel-relevant permissions
+  - Added `View Channel` to channel override controls so visibility can be managed explicitly
+  - Removed guild-level permission toggles from the channel override editor to reduce confusing options
+- Member moderation controls now appear for users who can kick but cannot manage roles
+  - The member "Manage" dropdown is shown when you have kick authority over a target based on role hierarchy
+  - Role assignment controls stay hidden unless you have `MANAGE_ROLES`, reducing confusing disabled actions
+- Windows Tauri build failure caused by `scap` screen capture dependency (upgraded to v0.1.0-beta.1 with patched Linux PipeWire engine)
+- CI pipeline failures: disk space exhaustion in security test, Docker build for shared crate structure, and Tauri bundling missing icon
+- Voice island visibility and contrast issues (#151)
+  - Disconnect button now uses higher contrast background and white icon for better visibility
+  - Drag handle opacity increased from 40% to 60%
+  - Connection status dot enlarged and changed to green with subtle glow
+  - Quality indicator now uses theme colors instead of hardcoded values
+- Favorite star button not responding to clicks in channel list (#152)
+  - Fixed invalid nested `<button>` HTML structure in ChannelItem that prevented click events from reaching the star toggle
+  - Converted outer channel button to a `<div>` with proper `role="button"` and keyboard accessibility
+- Avatar and file uploads in Tauri desktop app (#150)
+  - Added `get_auth_info` Tauri command to expose auth credentials to the webview
+  - Upload functions now properly retrieve auth token and server URL in Tauri mode
+  - Also fixes file attachment and emoji uploads in the desktop client
+- Volume slider now controls notification sound volume in Tauri desktop app (#146)
+  - Tauri `play_sound` command now accepts and applies volume setting
+  - Both notification playback and test sound respect the volume slider
+- Screen share volume slider thumb now visible and interactive (#146)
+  - Added proper CSS pseudo-selectors for the range input thumb
+- Sound notification testing now plays audio in browser/webview mode (#145)
+  - Added missing sound .wav files to `public/sounds/` for static serving
+  - Previously only embedded in Tauri binary, causing 404 for browser fetch
+- Potential message loss when WebSocket message arrives during pagination load
+  - `addMessage` now re-reads store state after async decryption to avoid overwriting concurrent prepends
+- File attachment uploads in text chat (#149)
+  - Fixed AWS SDK panic when initializing S3 client (missing tokio sleep implementation)
+  - Object storage bucket now automatically initialized in development environment
+  - Added comprehensive file uploads documentation (docs/development/file-uploads.md)
+  - Added storage initialization script (scripts/init-rustfs.sh)
+  - Updated setup guide with file upload configuration steps
+- Clippy warnings in crypto and server modules
+  - Suppress false-positive `missing_const_for_fn` lint in vc-crypto
+  - Fix `many_single_char_names` in BGRA→I420 color conversion
+  - Remove unnecessary raw string hashes in SQL queries
 - Screen share quality tier now rejects invalid values instead of silently defaulting to "medium"
 - Eliminated redundant screen capture source lookup (was querying all targets twice per share start)
 - Encoder shutdown now responds promptly to stop signal instead of blocking on next frame
@@ -685,7 +626,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pixel font rendering fixed (blurry text in pixel themes)
 - Reaction API endpoints corrected with proper WebSocket handlers
 - Message pagination cursor comparison corrected for stable ordering
-- Message pagination cursor comparison corrected for stable ordering
 - Server build failure fixed by adding `Deserialize` to `GuildEmoji`
 - **Fixed**: Pinned notes functionality restored (fixed API wrapper implementation) (#105)
 - Documentation formatting in admin handlers fixed
@@ -693,6 +633,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused `update_user_password` database function (#131)
 
 ### Security
+- Eliminated all `.unwrap()` calls in production server code — TOTP secret decoding now returns proper errors instead of panicking, WebSocket auth responses use `.expect()` with justification, duration arithmetic uses `saturating_sub()`, and S3 endpoint formatting uses safe `if let` pattern (#163)
+- File upload magic byte validation — uploaded files are now verified against their claimed MIME type using content inspection, preventing file type spoofing (e.g. executables disguised as images)
+- Password reset endpoint no longer leaks user existence via HTTP 500 on database errors — all code paths now return generic 200
+- Password reset aborts if old token invalidation fails, preventing token accumulation
+- SMTP connection verified at server startup; misconfiguration logged at error level instead of warn
+- Page handlers no longer leak database schema details in error responses — all internal errors logged server-side, generic message returned to client
+- DOMPurify configuration no longer uses global `setConfig()` — inline config prevents cross-component state pollution
+- Mermaid SVG sanitization uses explicit `ALLOWED_TAGS` allowlist instead of additive `ADD_TAGS`, preventing HTML tag leakage into SVG context
+- DOMPurify class attribute allowlist prevents CSS-based UI spoofing via arbitrary class injection in messages
+- Encrypted messages are now excluded from all search results
+- Fixed O(n) authentication DoS vulnerability in bot token verification (now uses indexed lookup)
+- Fixed TOCTOU race condition in bot user creation (moved check inside transaction with FOR UPDATE lock)
+- Fixed TOCTOU race condition in bot token reset (added transaction with FOR UPDATE lock)
+- Replaced weak UUID salt with proper CSPRNG (SaltString + OsRng) for Argon2 password hashing
+- Added channel membership authorization for bot message creation
+- Added content length validation for command responses to prevent Redis exhaustion
+- Added inbound bot gateway rate limiting to reduce abuse risk from compromised bot tokens
+- Bound command response interactions to the invoking bot identity before accepting responses
+- Fixed channel permission bypass in favorites endpoint
+  - Add favorite (POST /api/me/favorites/:channel_id) now validates VIEW_CHANNEL permission
+  - Previously only checked guild membership, allowing users to favorite channels they couldn't view
+  - Fixes potential information disclosure where channel existence could be inferred without proper access
 - **CRITICAL FIX**: WebSocket event filtering race condition that could allow blocked users' messages to leak through
   - Replaced `try_read()` with `blocking_read()` in WebSocket event filtering for messages, typing indicators, voice events, and presence updates
   - Previous implementation used `try_read().map(...).unwrap_or(false)` which would fail open on lock contention, allowing blocked users' events through

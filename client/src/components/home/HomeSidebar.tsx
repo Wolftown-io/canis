@@ -1,4 +1,4 @@
-import { Component, For, Show, createSignal, onMount } from "solid-js";
+import { Component, For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { Users, Plus, ChevronDown } from "lucide-solid";
 import { dmsState, loadDMs, selectFriendsTab } from "@/stores/dms";
 import DMItem from "./DMItem";
@@ -6,6 +6,7 @@ import NewMessageModal from "./NewMessageModal";
 import UserPanel from "@/components/layout/UserPanel";
 import AddFriend from "@/components/social/AddFriend";
 import SearchPanel from "@/components/search/SearchPanel";
+import { createVirtualizer } from "@/lib/virtualizer";
 
 const HomeSidebar: Component = () => {
   const [showNewMessage, setShowNewMessage] = createSignal(false);
@@ -18,13 +19,22 @@ const HomeSidebar: Component = () => {
   });
 
   // Sort DMs by last_message timestamp (descending)
-  const sortedDMs = () => {
+  const sortedDMs = createMemo(() => {
     return [...dmsState.dms].sort((a, b) => {
       const timeA = a.last_message?.created_at || a.created_at;
       const timeB = b.last_message?.created_at || b.created_at;
       return new Date(timeB).getTime() - new Date(timeA).getTime();
     });
-  };
+  });
+
+  let dmListRef: HTMLDivElement | undefined;
+
+  const virtualizer = createVirtualizer({
+    get count() { return sortedDMs().length; },
+    getScrollElement: () => dmListRef ?? null,
+    estimateSize: () => 56,
+    overscan: 3,
+  });
 
   return (
     <aside class="w-[240px] flex flex-col bg-surface-layer2 border-r border-white/10 h-full z-10">
@@ -102,7 +112,7 @@ const HomeSidebar: Component = () => {
       </div>
 
       {/* DM List */}
-      <div class="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+      <div ref={dmListRef} class="flex-1 overflow-y-auto px-2 pb-2">
         <Show when={showDMs()}>
           <Show
             when={!dmsState.isLoading}
@@ -126,9 +136,28 @@ const HomeSidebar: Component = () => {
                 </div>
               }
             >
-              <For each={sortedDMs()}>
-                {(dm) => <DMItem dm={dm} />}
-              </For>
+              <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+                <For each={virtualizer.getVirtualItems()}>
+                  {(virtualItem) => {
+                    const dm = () => sortedDMs()[virtualItem.index];
+                    return (
+                      <div
+                        data-index={virtualItem.index}
+                        ref={(el) => virtualizer.measureElement(el)}
+                        style={{
+                          position: "absolute",
+                          top: `${virtualItem.start}px`,
+                          width: "100%",
+                        }}
+                      >
+                        <Show when={dm()}>
+                          <DMItem dm={dm()!} />
+                        </Show>
+                      </div>
+                    );
+                  }}
+                </For>
+              </div>
             </Show>
           </Show>
         </Show>

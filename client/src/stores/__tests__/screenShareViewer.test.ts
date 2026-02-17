@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { unwrap } from "solid-js/store";
 import {
   viewerState,
   addAvailableTrack,
@@ -123,7 +124,7 @@ describe("screenShareViewer", () => {
 
       expect(result).toBe(true);
       expect(viewerState.viewingUserId).toBe("user1");
-      expect(viewerState.videoTrack).toBe(track);
+      expect(unwrap(viewerState).videoTrack).toBe(track);
     });
   });
 
@@ -133,7 +134,7 @@ describe("screenShareViewer", () => {
       startViewing("user1", track);
 
       expect(viewerState.viewingUserId).toBe("user1");
-      expect(viewerState.videoTrack).toBe(track);
+      expect(unwrap(viewerState).videoTrack).toBe(track);
     });
 
     it("should add track to available tracks", () => {

@@ -624,6 +624,7 @@ export async function stopScreenShare(): Promise<void> {
         title: "Screen share stopped locally",
         message: "Server may still show you as sharing. Reconnect if needed.",
         duration: 5000,
+        id: "screen-share-stop-warning",
       });
     }
   }

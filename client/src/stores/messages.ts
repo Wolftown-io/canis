@@ -231,7 +231,7 @@ export async function sendMessage(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to send message:", error);
-    showToast({ type: "error", title: "Send Failed", message: "Could not send message. Please try again." });
+    showToast({ type: "error", title: "Send Failed", message: "Could not send message. Please try again.", duration: 8000 });
     setMessagesState({ error });
     return null;
   }
@@ -419,7 +419,7 @@ export async function sendEncryptedDM(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to send encrypted message:", error);
-    showToast({ type: "error", title: "Send Failed", message: "Could not send encrypted message. Please try again." });
+    showToast({ type: "error", title: "Send Failed", message: "Could not send encrypted message. Please try again.", duration: 8000 });
     setMessagesState({ error });
     return null;
   }

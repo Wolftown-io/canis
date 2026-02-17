@@ -38,6 +38,7 @@ const BotApplications: Component = () => {
         type: 'error',
         title: 'Failed to load applications',
         message: error instanceof Error ? error.message : 'Failed to load applications',
+        duration: 8000,
       });
     } finally {
       setLoading(false);
@@ -47,7 +48,7 @@ const BotApplications: Component = () => {
   async function handleCreateApplication() {
     const name = newAppName().trim();
     if (!name || name.length < 2 || name.length > 100) {
-      showToast({ type: 'error', title: 'Invalid application name', message: 'Name must be 2-100 characters' });
+      showToast({ type: 'error', title: 'Invalid application name', message: 'Name must be 2-100 characters', duration: 8000 });
       return;
     }
 
@@ -59,13 +60,14 @@ const BotApplications: Component = () => {
       setShowCreateModal(false);
       setNewAppName('');
       setNewAppDescription('');
-      showToast({ type: 'success', title: 'Application created', message: 'Application created successfully' });
+      showToast({ type: 'success', title: 'Application created', message: 'Application created successfully', duration: 3000 });
       loadApplications();
     } catch (error) {
       showToast({
         type: 'error',
         title: 'Failed to create application',
         message: error instanceof Error ? error.message : 'Failed to create application',
+        duration: 8000,
       });
     }
   }
@@ -83,6 +85,7 @@ const BotApplications: Component = () => {
         type: 'error',
         title: 'Failed to create bot user',
         message: error instanceof Error ? error.message : 'Failed to create bot user',
+        duration: 8000,
       });
     }
   }
@@ -94,12 +97,13 @@ const BotApplications: Component = () => {
       const tokenData = await resetBotToken(appId);
       setCurrentToken(tokenData);
       setShowTokenModal(true);
-      showToast({ type: 'success', title: 'Token reset', message: 'Token reset successfully' });
+      showToast({ type: 'success', title: 'Token reset', message: 'Token reset successfully', duration: 3000 });
     } catch (error) {
       showToast({
         type: 'error',
         title: 'Failed to reset token',
         message: error instanceof Error ? error.message : 'Failed to reset token',
+        duration: 8000,
       });
     }
   }
@@ -109,13 +113,14 @@ const BotApplications: Component = () => {
 
     try {
       await deleteBotApplication(appId);
-      showToast({ type: 'success', title: 'Application deleted', message: 'Application deleted successfully' });
+      showToast({ type: 'success', title: 'Application deleted', message: 'Application deleted successfully', duration: 3000 });
       loadApplications();
     } catch (error) {
       showToast({
         type: 'error',
         title: 'Failed to delete application',
         message: error instanceof Error ? error.message : 'Failed to delete application',
+        duration: 8000,
       });
     }
   }
@@ -124,7 +129,7 @@ const BotApplications: Component = () => {
     const token = currentToken()?.token;
     if (token) {
       navigator.clipboard.writeText(token);
-      showToast({ type: 'success', title: 'Token copied', message: 'Token copied to clipboard' });
+      showToast({ type: 'success', title: 'Token copied', message: 'Token copied to clipboard', duration: 3000 });
     }
   }
 

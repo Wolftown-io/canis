@@ -30,6 +30,7 @@ const UnreadModule: Component = () => {
         type: "error",
         title: "Failed to Load Unreads",
         message: "Could not fetch unread messages. Will retry when window gains focus.",
+        duration: 8000,
       });
     } finally {
       setLoading(false);
@@ -95,6 +96,7 @@ const UnreadModule: Component = () => {
         type: "error",
         title: "Navigation Failed",
         message: "Could not navigate to channel. Please try again.",
+        duration: 8000,
       });
     }
   };
@@ -105,7 +107,7 @@ const UnreadModule: Component = () => {
       setUnreadData(null);
     } catch (error) {
       console.error("Failed to mark all as read:", error);
-      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark all as read." });
+      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark all as read.", duration: 8000 });
     }
   };
 
@@ -122,7 +124,7 @@ const UnreadModule: Component = () => {
       }
     } catch (error) {
       console.error("Failed to mark guild as read:", error);
-      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark guild channels as read." });
+      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark guild channels as read.", duration: 8000 });
     }
   };
 
@@ -138,7 +140,7 @@ const UnreadModule: Component = () => {
       }
     } catch (error) {
       console.error("Failed to mark DMs as read:", error);
-      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark DMs as read." });
+      showToast({ type: "error", title: "Mark All Read Failed", message: "Could not mark DMs as read.", duration: 8000 });
     }
   };
 
@@ -152,6 +154,7 @@ const UnreadModule: Component = () => {
         type: "error",
         title: "Navigation Failed",
         message: "Could not navigate to DM. Please try again.",
+        duration: 8000,
       });
     }
   };

@@ -278,6 +278,7 @@ const MessageInput: Component<MessageInputProps> = (props) => {
         type: "error",
         title: "Failed to Send Message",
         message: "Could not send your message. Please try again.",
+        duration: 8000,
       });
     } finally {
       setIsSending(false);

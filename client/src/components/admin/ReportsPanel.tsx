@@ -72,7 +72,7 @@ const ReportsPanel: Component = () => {
       setStats(s);
     } catch (err) {
       console.error("[Admin] Failed to load report stats:", err);
-      showToast({ type: "error", title: "Failed to load report stats" });
+      showToast({ type: "error", title: "Failed to load report stats", duration: 8000 });
     } finally {
       setStatsLoading(false);
     }
@@ -97,11 +97,11 @@ const ReportsPanel: Component = () => {
     setActionLoading(true);
     try {
       await tauri.adminClaimReport(reportId);
-      showToast({ type: "success", title: "Report claimed" });
+      showToast({ type: "success", title: "Report claimed", duration: 3000 });
       await loadReports();
       await loadStats();
     } catch (err) {
-      showToast({ type: "error", title: "Failed to claim report", message: err instanceof Error ? err.message : undefined });
+      showToast({ type: "error", title: "Failed to claim report", message: err instanceof Error ? err.message : undefined, duration: 8000 });
     } finally {
       setActionLoading(false);
     }
@@ -114,13 +114,13 @@ const ReportsPanel: Component = () => {
     setActionLoading(true);
     try {
       await tauri.adminResolveReport(id, resolveAction(), resolveNote() || undefined);
-      showToast({ type: "success", title: "Report resolved" });
+      showToast({ type: "success", title: "Report resolved", duration: 3000 });
       setResolveReportId(null);
       setResolveNote("");
       await loadReports();
       await loadStats();
     } catch (err) {
-      showToast({ type: "error", title: "Failed to resolve report", message: err instanceof Error ? err.message : undefined });
+      showToast({ type: "error", title: "Failed to resolve report", message: err instanceof Error ? err.message : undefined, duration: 8000 });
     } finally {
       setActionLoading(false);
     }

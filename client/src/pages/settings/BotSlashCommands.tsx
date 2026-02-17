@@ -49,6 +49,7 @@ const BotSlashCommands: Component = () => {
         type: 'error',
         title: 'Failed to load data',
         message: error instanceof Error ? error.message : 'Failed to load data',
+        duration: 8000,
       });
     } finally {
       setLoading(false);
@@ -64,6 +65,7 @@ const BotSlashCommands: Component = () => {
         type: 'error',
         title: 'Failed to load commands',
         message: error instanceof Error ? error.message : 'Failed to load commands',
+        duration: 8000,
       });
     }
   }
@@ -95,11 +97,11 @@ const BotSlashCommands: Component = () => {
     const description = newDescription().trim();
 
     if (!name) {
-      showToast({ type: 'error', title: 'Invalid command', message: 'Command name is required' });
+      showToast({ type: 'error', title: 'Invalid command', message: 'Command name is required', duration: 8000 });
       return;
     }
     if (!description) {
-      showToast({ type: 'error', title: 'Invalid command', message: 'Command description is required' });
+      showToast({ type: 'error', title: 'Invalid command', message: 'Command description is required', duration: 8000 });
       return;
     }
 
@@ -109,7 +111,7 @@ const BotSlashCommands: Component = () => {
       const hasName = opt.name.trim().length > 0;
       const hasDesc = opt.description.trim().length > 0;
       if (hasName !== hasDesc) {
-        showToast({ type: 'error', title: 'Invalid option', message: 'All options must have both a name and description' });
+        showToast({ type: 'error', title: 'Invalid option', message: 'All options must have both a name and description', duration: 8000 });
         return;
       }
     }
@@ -125,13 +127,14 @@ const BotSlashCommands: Component = () => {
       });
       setShowCreateModal(false);
       resetForm();
-      showToast({ type: 'success', title: 'Command registered', message: 'Command registered successfully' });
+      showToast({ type: 'success', title: 'Command registered', message: 'Command registered successfully', duration: 3000 });
       loadCommands();
     } catch (error) {
       showToast({
         type: 'error',
         title: 'Failed to register command',
         message: error instanceof Error ? error.message : 'Failed to register command',
+        duration: 8000,
       });
     }
   }
@@ -141,13 +144,14 @@ const BotSlashCommands: Component = () => {
 
     try {
       await deleteSlashCommand(params.id, commandId);
-      showToast({ type: 'success', title: 'Command deleted', message: 'Command deleted successfully' });
+      showToast({ type: 'success', title: 'Command deleted', message: 'Command deleted successfully', duration: 3000 });
       loadCommands();
     } catch (error) {
       showToast({
         type: 'error',
         title: 'Failed to delete command',
         message: error instanceof Error ? error.message : 'Failed to delete command',
+        duration: 8000,
       });
     }
   }
@@ -157,13 +161,14 @@ const BotSlashCommands: Component = () => {
 
     try {
       await deleteAllSlashCommands(params.id);
-      showToast({ type: 'success', title: 'All commands deleted', message: 'All commands deleted successfully' });
+      showToast({ type: 'success', title: 'All commands deleted', message: 'All commands deleted successfully', duration: 3000 });
       loadCommands();
     } catch (error) {
       showToast({
         type: 'error',
         title: 'Failed to delete commands',
         message: error instanceof Error ? error.message : 'Failed to delete commands',
+        duration: 8000,
       });
     }
   }

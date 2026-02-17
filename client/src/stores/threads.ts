@@ -92,7 +92,7 @@ export async function loadThreadReplies(parentId: string): Promise<void> {
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to load thread replies:", error);
-    showToast({ type: "error", title: "Thread Load Failed", message: "Could not load thread replies." });
+    showToast({ type: "error", title: "Thread Load Failed", message: "Could not load thread replies.", duration: 8000 });
     setThreadsState("error", error);
   } finally {
     setThreadsState("loadingThreads", parentId, false);
@@ -151,7 +151,7 @@ export async function sendThreadReply(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to send thread reply:", error);
-    showToast({ type: "error", title: "Reply Failed", message: "Could not send thread reply. Please try again." });
+    showToast({ type: "error", title: "Reply Failed", message: "Could not send thread reply. Please try again.", duration: 8000 });
     setThreadsState("error", error);
     return null;
   }
