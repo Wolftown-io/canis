@@ -157,10 +157,11 @@ export async function fetchUploadLimits(): Promise<void> {
     }
 
     // Validate response structure
+    const obj = data as Record<string, unknown>;
     if (!data || typeof data !== 'object' ||
-      typeof (data as any).max_avatar_size !== 'number' ||
-      typeof (data as any).max_emoji_size !== 'number' ||
-      typeof (data as any).max_upload_size !== 'number') {
+      typeof obj['max_avatar_size'] !== 'number' ||
+      typeof obj['max_emoji_size'] !== 'number' ||
+      typeof obj['max_upload_size'] !== 'number') {
       console.error('[Upload Limits] Invalid response structure:', data);
       console.error('[Upload Limits] Expected {max_avatar_size: number, max_emoji_size: number, max_upload_size: number}');
       return;

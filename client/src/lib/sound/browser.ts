@@ -170,5 +170,5 @@ export function playNotificationFallback(): boolean {
  * Check if Web Audio API is available.
  */
 export function isWebAudioSupported(): boolean {
-  return typeof AudioContext !== "undefined" || typeof (window as any).webkitAudioContext !== "undefined";
+  return typeof AudioContext !== "undefined" || "webkitAudioContext" in window;
 }

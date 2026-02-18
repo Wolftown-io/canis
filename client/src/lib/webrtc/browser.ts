@@ -19,6 +19,9 @@ import type {
   QualityLevel,
 } from "./types";
 
+/** HTMLAudioElement extended with the non-standard setSinkId API (Chrome/Edge). */
+type AudioElementWithSinkId = HTMLAudioElement & { setSinkId(id: string): Promise<void> };
+
 export class BrowserVoiceAdapter implements VoiceAdapter {
   private state: VoiceConnectionState = "disconnected";
   private channelId: string | null = null;
@@ -598,7 +601,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
         );
         audioElements.forEach((audio) => {
           if ("setSinkId" in audio) {
-            (audio as any).setSinkId(deviceId);
+            (audio as AudioElementWithSinkId).setSinkId(deviceId);
           }
         });
       }

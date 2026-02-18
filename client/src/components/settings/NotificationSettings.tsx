@@ -15,6 +15,7 @@ import {
   setQuietHoursEnabled,
   setQuietHoursTime,
   isWithinQuietHours,
+  type SoundOption,
 } from "@/stores/sound";
 import { AVAILABLE_SOUNDS, type SoundInfo } from "@/lib/sound/types";
 import { testSound } from "@/lib/sound";
@@ -48,10 +49,10 @@ const NotificationSettings: Component = () => {
   };
 
   const handleSoundSelect = async (soundId: string) => {
-    setSelectedSound(soundId as any);
+    setSelectedSound(soundId as SoundOption);
     // Play the newly selected sound for preview
     try {
-      await testSound(soundId as any);
+      await testSound(soundId as SoundOption);
     } catch (err) {
       console.error("Failed to play preview sound:", err);
     }

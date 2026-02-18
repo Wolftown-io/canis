@@ -882,7 +882,7 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       break;
 
     case "voice_user_stats":
-      await handleVoiceUserStatsEvent(event as any);
+      await handleVoiceUserStatsEvent(event);
       break;
 
     // Admin events

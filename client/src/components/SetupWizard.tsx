@@ -316,7 +316,7 @@ const SetupWizard: Component = () => {
               </label>
               <select
                 value={registrationPolicy()}
-                onChange={(e) => setRegistrationPolicy(e.currentTarget.value as any)}
+                onChange={(e) => setRegistrationPolicy(e.currentTarget.value as "open" | "invite_only" | "closed")}
                 disabled={isLoading()}
                 class="w-full px-3 py-2 bg-surface-base rounded-lg text-text-primary border border-white/10 focus:border-accent-primary focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
