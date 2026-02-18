@@ -10,8 +10,6 @@ use crate::auth::AuthUser;
 use crate::permissions::queries::get_system_admin;
 
 struct ElevatedSessionRecord {
-    #[allow(dead_code)]
-    id: uuid::Uuid,
     user_id: uuid::Uuid,
     elevated_at: chrono::DateTime<chrono::Utc>,
     expires_at: chrono::DateTime<chrono::Utc>,
@@ -60,7 +58,7 @@ pub async fn require_elevated(
 
     let elevated = sqlx::query_as!(
         ElevatedSessionRecord,
-        r#"SELECT id, user_id, elevated_at, expires_at, reason
+        r#"SELECT user_id, elevated_at, expires_at, reason
            FROM elevated_sessions
            WHERE user_id = $1 AND expires_at > NOW()
            ORDER BY elevated_at DESC

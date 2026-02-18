@@ -18,7 +18,6 @@ use crate::ws::{broadcast_to_user, ServerEvent};
 // ============================================================================
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum ChannelError {
     NotFound,
     Forbidden,

@@ -212,7 +212,7 @@ pub async fn get_admin_status(
     let elevated = if is_admin {
         sqlx::query_as!(
             ElevatedSessionRecord,
-            r#"SELECT id, user_id, elevated_at, expires_at, reason
+            r#"SELECT expires_at
                FROM elevated_sessions
                WHERE user_id = $1 AND expires_at > NOW()
                ORDER BY elevated_at DESC
@@ -232,17 +232,9 @@ pub async fn get_admin_status(
     }))
 }
 
-/// Elevated session record for querying.
+/// Elevated session record for querying (only the fields we actually use).
 struct ElevatedSessionRecord {
-    #[allow(dead_code)]
-    id: Uuid,
-    #[allow(dead_code)]
-    user_id: Uuid,
-    #[allow(dead_code)]
-    elevated_at: chrono::DateTime<chrono::Utc>,
     expires_at: chrono::DateTime<chrono::Utc>,
-    #[allow(dead_code)]
-    reason: Option<String>,
 }
 
 /// Get admin statistics.

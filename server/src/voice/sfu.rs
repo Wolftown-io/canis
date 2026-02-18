@@ -217,7 +217,6 @@ impl Room {
     /// Broadcast an event to all peers.
     ///
     /// Clones the peer list before sending to avoid holding the lock during I/O.
-    #[allow(dead_code)]
     pub async fn broadcast_all(&self, event: ServerEvent) {
         // Clone sender handles to release lock before I/O
         let senders: Vec<(Uuid, mpsc::Sender<ServerEvent>)> = {
@@ -734,7 +733,6 @@ impl SfuServer {
     }
 
     /// Get active room count.
-    #[allow(dead_code)]
     pub async fn room_count(&self) -> usize {
         self.rooms.read().await.len()
     }

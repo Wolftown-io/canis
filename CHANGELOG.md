@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Milestone: Phase 5 - Ecosystem & SaaS Readiness
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
+### Changed
+- Notification sounds now play for the active channel when the application window is in the background
+
 ### Added
 - Virtualized guild member list, DM conversation sidebar, and search results using `@tanstack/solid-virtual` for smooth scrolling with large datasets
 - Toast usage convention documentation with type/duration table and deduplication guidance

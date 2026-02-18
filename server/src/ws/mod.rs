@@ -745,8 +745,7 @@ pub mod channels {
         format!("channel:{channel_id}")
     }
 
-    /// Redis channel for user presence updates (future feature).
-    #[allow(dead_code)]
+    /// Redis channel for user presence updates.
     #[must_use]
     pub fn user_presence(user_id: Uuid) -> String {
         format!("presence:{user_id}")
@@ -763,10 +762,6 @@ pub mod channels {
     pub fn guild_events(guild_id: Uuid) -> String {
         format!("guild:{guild_id}")
     }
-
-    /// Redis channel for global events (future feature).
-    #[allow(dead_code)]
-    pub const GLOBAL_EVENTS: &str = "global";
 
     /// Redis channel for admin events.
     pub const ADMIN_EVENTS: &str = "admin:events";
@@ -921,6 +916,23 @@ pub async fn broadcast_member_patch(
     Ok(())
 }
 
+/// Build a plain-text HTTP error response without panicking.
+///
+/// Falls back to a 500 Internal Server Error if building the requested
+/// status fails (which cannot happen with hardcoded status codes, but
+/// avoids any `.expect` in the hot path).
+fn error_response(status: u16, body: &'static str) -> Response {
+    Response::builder()
+        .status(status)
+        .body(body.into())
+        .unwrap_or_else(|_| {
+            Response::builder()
+                .status(500)
+                .body("Internal Server Error".into())
+                .expect("fallback response builder")
+        })
+}
+
 /// WebSocket upgrade handler.
 ///
 /// Authentication is performed via the `Sec-WebSocket-Protocol` header to avoid
@@ -939,10 +951,10 @@ pub async fn handler(
     let token = match extract_token_from_protocol(&headers) {
         Some(t) => t,
         None => {
-            return Response::builder()
-                .status(401)
-                .body("Missing or invalid Sec-WebSocket-Protocol header. Expected: access_token.<jwt>".into())
-                .expect("static response builder");
+            return error_response(
+                401,
+                "Missing or invalid Sec-WebSocket-Protocol header. Expected: access_token.<jwt>",
+            );
         }
     };
 
@@ -950,20 +962,14 @@ pub async fn handler(
     let claims = match jwt::validate_access_token(&token, &state.config.jwt_public_key) {
         Ok(claims) => claims,
         Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid token".into())
-                .expect("static response builder");
+            return error_response(401, "Invalid token");
         }
     };
 
     let user_id = match Uuid::parse_str(&claims.sub) {
         Ok(id) => id,
         Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid user ID in token".into())
-                .expect("static response builder");
+            return error_response(401, "Invalid user ID in token");
         }
     };
 
