@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Milestone: Phase 5 - Ecosystem & SaaS Readiness
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
+### Fixed
+- E2EE key backups now include the actual identity keys and prekeys — previously the encrypted backup contained only a timestamp placeholder, making it impossible to restore E2EE keys from a backup
+
 ### Changed
 - Notification sounds now play for the active channel when the application window is in the background
 

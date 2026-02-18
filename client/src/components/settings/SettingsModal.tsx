@@ -8,6 +8,7 @@ import { Component, createSignal, For, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { X, Palette, Volume2, Mic, Shield, Eye, User, Bell } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
+import { initE2EE } from "@/lib/tauri";
 import AccountSettings from "./AccountSettings";
 import AppearanceSettings from "./AppearanceSettings";
 import NotificationSettings from "./NotificationSettings";
@@ -69,16 +70,18 @@ const SettingsModal: Component<SettingsModalProps> = (props) => {
     setBackupError(null);
 
     try {
-      // Create a backup with the key
-      // NOTE: This is a placeholder backup. When the full E2EE key store is
-      // implemented, this should include the actual identity keys and prekeys.
-      // For now, it validates the backup flow works end-to-end.
+      // Initialize E2EE using the recovery key as the encryption key.
+      // This derives the Olm account from disk (or creates it) and returns
+      // the actual identity keys and prekeys so they can be included in the
+      // encrypted backup.
+      const initResult = await initE2EE(key.fullKey);
       const backupData = JSON.stringify({
         version: 1,
         created_at: new Date().toISOString(),
-        // TODO: Include real identity keys and prekeys once E2EE key store exists
-        // identity_key: keyStore.getIdentityKey(),
-        // prekeys: keyStore.getPrekeys(),
+        device_id: initResult.device_id,
+        identity_key_ed25519: initResult.identity_key_ed25519,
+        identity_key_curve25519: initResult.identity_key_curve25519,
+        prekeys: initResult.prekeys,
       });
       await invoke("create_backup", {
         recoveryKey: key.fullKey,

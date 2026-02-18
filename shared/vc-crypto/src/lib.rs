@@ -6,6 +6,7 @@
 //! - **Megolm**: Efficient group encryption for channels
 
 pub mod error;
+#[cfg(feature = "megolm")]
 pub mod megolm;
 pub mod olm;
 pub mod recovery;

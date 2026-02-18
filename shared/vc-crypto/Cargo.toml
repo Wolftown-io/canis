@@ -22,6 +22,11 @@ getrandom = "0.2"
 argon2 = "0.5"
 aes-gcm = "0.10"
 
+[features]
+# Megolm group-encryption sessions (not yet implemented — guarded behind a
+# feature flag so that the todo!() stubs can never be reached accidentally).
+megolm = []
+
 [dev-dependencies]
 rand = "0.8"
 
