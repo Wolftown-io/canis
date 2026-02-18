@@ -124,12 +124,14 @@ pub async fn create_platform_page(
     // Create page
     let page = queries::create_page(
         &state.db,
-        None,
-        &req.title,
-        &slug,
-        &req.content,
-        req.requires_acceptance.unwrap_or(false),
-        user.id,
+        queries::CreatePageParams {
+            guild_id: None,
+            title: &req.title,
+            slug: &slug,
+            content: &req.content,
+            requires_acceptance: req.requires_acceptance.unwrap_or(false),
+            created_by: user.id,
+        },
     )
     .await
     .map_err(|e| {
@@ -206,12 +208,14 @@ pub async fn update_platform_page(
     // Update page
     let page = queries::update_page(
         &state.db,
-        id,
-        req.title.as_deref(),
-        req.slug.as_deref(),
-        req.content.as_deref(),
-        req.requires_acceptance,
-        user.id,
+        queries::UpdatePageParams {
+            id,
+            title: req.title.as_deref(),
+            slug: req.slug.as_deref(),
+            content: req.content.as_deref(),
+            requires_acceptance: req.requires_acceptance,
+            updated_by: user.id,
+        },
     )
     .await
     .map_err(|e| {
@@ -472,12 +476,14 @@ pub async fn create_guild_page(
     // Create page
     let page = queries::create_page(
         &state.db,
-        Some(guild_id),
-        &req.title,
-        &slug,
-        &req.content,
-        req.requires_acceptance.unwrap_or(false),
-        user.id,
+        queries::CreatePageParams {
+            guild_id: Some(guild_id),
+            title: &req.title,
+            slug: &slug,
+            content: &req.content,
+            requires_acceptance: req.requires_acceptance.unwrap_or(false),
+            created_by: user.id,
+        },
     )
     .await
     .map_err(|e| {
@@ -545,12 +551,14 @@ pub async fn update_guild_page(
     // Update page
     let page = queries::update_page(
         &state.db,
-        id,
-        req.title.as_deref(),
-        req.slug.as_deref(),
-        req.content.as_deref(),
-        req.requires_acceptance,
-        user.id,
+        queries::UpdatePageParams {
+            id,
+            title: req.title.as_deref(),
+            slug: req.slug.as_deref(),
+            content: req.content.as_deref(),
+            requires_acceptance: req.requires_acceptance,
+            updated_by: user.id,
+        },
     )
     .await
     .map_err(|e| {

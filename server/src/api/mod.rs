@@ -62,29 +62,31 @@ impl FromRef<AppState> for PgPool {
     }
 }
 
+/// Configuration for creating a new [`AppState`].
+pub struct AppStateConfig {
+    pub db: PgPool,
+    pub redis: fred::clients::Client,
+    pub config: Config,
+    pub s3: Option<S3Client>,
+    pub sfu: SfuServer,
+    pub rate_limiter: Option<RateLimiter>,
+    pub email: Option<EmailService>,
+    pub oidc_manager: Option<OidcProviderManager>,
+}
+
 impl AppState {
     /// Create new application state.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        db: PgPool,
-        redis: fred::clients::Client,
-        config: Config,
-        s3: Option<S3Client>,
-        sfu: SfuServer,
-        rate_limiter: Option<RateLimiter>,
-        email: Option<EmailService>,
-        oidc_manager: Option<OidcProviderManager>,
-    ) -> Self {
+    pub fn new(cfg: AppStateConfig) -> Self {
         Self {
-            db,
-            redis,
-            config: Arc::new(config),
-            s3,
-            sfu: Arc::new(sfu),
-            rate_limiter,
-            email: email.map(Arc::new),
-            oidc_manager: oidc_manager.map(Arc::new),
+            db: cfg.db,
+            redis: cfg.redis,
+            config: Arc::new(cfg.config),
+            s3: cfg.s3,
+            sfu: Arc::new(cfg.sfu),
+            rate_limiter: cfg.rate_limiter,
+            email: cfg.email.map(Arc::new),
+            oidc_manager: cfg.oidc_manager.map(Arc::new),
         }
     }
 

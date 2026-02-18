@@ -444,18 +444,20 @@ impl OidcProviderManager {
 
         db::create_oidc_provider(
             pool,
-            "legacy-oidc",
-            "SSO Login",
-            Some("key"),
-            "custom",
-            Some(issuer_url),
-            None,
-            None,
-            None,
-            client_id,
-            &encrypted_secret,
-            "openid profile email",
-            Uuid::nil(),
+            db::CreateOidcProviderParams {
+                slug: "legacy-oidc",
+                display_name: "SSO Login",
+                icon_hint: Some("key"),
+                provider_type: "custom",
+                issuer_url: Some(issuer_url),
+                authorization_url: None,
+                token_url: None,
+                userinfo_url: None,
+                client_id,
+                client_secret_encrypted: &encrypted_secret,
+                scopes: "openid profile email",
+                created_by: Uuid::nil(),
+            },
         )
         .await?;
 

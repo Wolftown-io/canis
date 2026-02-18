@@ -134,7 +134,8 @@ const DMConversation: Component = () => {
               el.onchange = (e: Event) => {
                 const input = e.target as HTMLInputElement;
                 const file = input.files?.[0];
-                if (file && dm()) {
+                const currentDm = dm();
+                if (file && currentDm) {
                   setUploadError(null);
 
                   // Frontend validation
@@ -146,9 +147,10 @@ const DMConversation: Component = () => {
                     return;
                   }
 
-                  uploadDMAvatar(dm()!.id, file)
+                  const dmId = currentDm.id;
+                  uploadDMAvatar(dmId, file)
                     .then((result) => {
-                      updateDMIconUrl(dm()!.id, result.icon_url);
+                      updateDMIconUrl(dmId, result.icon_url);
                     })
                     .catch((err) => {
                       console.error("Failed to upload icon", err);

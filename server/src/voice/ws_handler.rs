@@ -81,11 +81,13 @@ pub async fn handle_voice_event(
                 sfu,
                 pool,
                 redis,
-                user_id,
-                channel_id,
-                quality,
-                has_audio,
-                &source_label,
+                HandleScreenShareStartParams {
+                    user_id,
+                    channel_id,
+                    quality,
+                    has_audio,
+                    source_label: &source_label,
+                },
             )
             .await
         }
@@ -530,22 +532,26 @@ async fn handle_voice_stats(
 /// Default max screen shares per channel.
 const DEFAULT_MAX_SCREEN_SHARES: u32 = 2;
 
-/// Handle starting a screen share.
-#[allow(clippy::too_many_arguments)]
-async fn handle_screen_share_start(
-    sfu: &Arc<SfuServer>,
-    pool: &PgPool,
-    redis: &Client,
+/// Parameters for starting a screen share.
+struct HandleScreenShareStartParams<'a> {
     user_id: Uuid,
     channel_id: Uuid,
     quality: Quality,
     has_audio: bool,
-    source_label: &str,
+    source_label: &'a str,
+}
+
+/// Handle starting a screen share.
+async fn handle_screen_share_start(
+    sfu: &Arc<SfuServer>,
+    pool: &PgPool,
+    redis: &Client,
+    params: HandleScreenShareStartParams<'_>,
 ) -> Result<(), VoiceError> {
-    info!(user_id = %user_id, channel_id = %channel_id, quality = ?quality, "User starting screen share");
+    info!(user_id = %params.user_id, channel_id = %params.channel_id, quality = ?params.quality, "User starting screen share");
 
     // Check if user has VIEW_CHANNEL and SCREEN_SHARE permissions
-    let ctx = crate::permissions::require_channel_access(pool, user_id, channel_id)
+    let ctx = crate::permissions::require_channel_access(pool, params.user_id, params.channel_id)
         .await
         .map_err(|_e: crate::permissions::PermissionError| VoiceError::Unauthorized)?;
 
@@ -554,27 +560,27 @@ async fn handle_screen_share_start(
     }
 
     // Validate source label
-    if let Err(e) = validate_source_label(source_label) {
-        warn!(user_id = %user_id, "Invalid source label: {:?}", e);
+    if let Err(e) = validate_source_label(params.source_label) {
+        warn!(user_id = %params.user_id, "Invalid source label: {:?}", e);
         return Err(VoiceError::Signaling("Invalid source label".to_string()));
     }
 
     // Get the room
     let room = sfu
-        .get_room(channel_id)
+        .get_room(params.channel_id)
         .await
-        .ok_or(VoiceError::RoomNotFound(channel_id))?;
+        .ok_or(VoiceError::RoomNotFound(params.channel_id))?;
 
     // Check user is in the room
     let peer = room
-        .get_peer(user_id)
+        .get_peer(params.user_id)
         .await
-        .ok_or(VoiceError::ParticipantNotFound(user_id))?;
+        .ok_or(VoiceError::ParticipantNotFound(params.user_id))?;
 
     // Check if user is already sharing
     {
         let shares = room.screen_shares.read().await;
-        if shares.contains_key(&user_id) {
+        if shares.contains_key(&params.user_id) {
             return Err(VoiceError::Signaling("Already sharing screen".to_string()));
         }
     }
@@ -583,8 +589,8 @@ async fn handle_screen_share_start(
     // TODO: Get max_screen_shares from channel settings
     let max_shares = DEFAULT_MAX_SCREEN_SHARES;
 
-    if let Err(e) = try_start_screen_share(redis, channel_id, max_shares).await {
-        warn!(user_id = %user_id, channel_id = %channel_id, error = ?e, "Screen share limit check failed");
+    if let Err(e) = try_start_screen_share(redis, params.channel_id, max_shares).await {
+        warn!(user_id = %params.user_id, channel_id = %params.channel_id, error = ?e, "Screen share limit check failed");
         return Err(VoiceError::Signaling(match e {
             ScreenShareError::LimitReached => "Screen share limit reached".to_string(),
             ScreenShareError::InternalError => "Internal error".to_string(),
@@ -594,23 +600,23 @@ async fn handle_screen_share_start(
 
     // Queue pending track sources so setup_track_handler can identify them
     peer.push_pending_source(TrackSource::ScreenVideo).await;
-    if has_audio {
+    if params.has_audio {
         peer.push_pending_source(TrackSource::ScreenAudio).await;
     }
 
     // Add recv transceivers for the incoming tracks
     if let Err(e) = peer.add_recv_transceiver(RTPCodecType::Video).await {
-        warn!(user_id = %user_id, error = %e, "Failed to add video transceiver for screen share");
+        warn!(user_id = %params.user_id, error = %e, "Failed to add video transceiver for screen share");
     }
-    if has_audio {
+    if params.has_audio {
         if let Err(e) = peer.add_recv_transceiver(RTPCodecType::Audio).await {
-            warn!(user_id = %user_id, error = %e, "Failed to add audio transceiver for screen audio");
+            warn!(user_id = %params.user_id, error = %e, "Failed to add audio transceiver for screen audio");
         }
     }
 
     // Renegotiate so the client sees the new transceivers
     if let Err(e) = SfuServer::renegotiate(&peer).await {
-        warn!(user_id = %user_id, error = %e, "Failed to renegotiate after screen share transceiver add");
+        warn!(user_id = %params.user_id, error = %e, "Failed to renegotiate after screen share transceiver add");
     }
 
     // Get username for the info
@@ -618,11 +624,11 @@ async fn handle_screen_share_start(
 
     // Create screen share info
     let info = ScreenShareInfo::new(
-        user_id,
+        params.user_id,
         username.clone(),
-        source_label.to_string(),
-        has_audio,
-        quality,
+        params.source_label.to_string(),
+        params.has_audio,
+        params.quality,
     );
 
     // Add to room's screen shares
@@ -630,19 +636,19 @@ async fn handle_screen_share_start(
 
     // Broadcast to room (including the sharer, so they get confirmation)
     room.broadcast_all(ServerEvent::ScreenShareStarted {
-        channel_id,
-        user_id,
+        channel_id: params.channel_id,
+        user_id: params.user_id,
         username,
-        source_label: source_label.to_string(),
-        has_audio,
-        quality,
+        source_label: params.source_label.to_string(),
+        has_audio: params.has_audio,
+        quality: params.quality,
     })
     .await;
 
     info!(
-        user_id = %user_id,
-        channel_id = %channel_id,
-        quality = ?quality,
+        user_id = %params.user_id,
+        channel_id = %params.channel_id,
+        quality = ?params.quality,
         "Screen share started"
     );
 

@@ -755,13 +755,15 @@ pub async fn create(
     let message = if let Some(parent_id) = body.parent_id {
         db::create_thread_reply(
             &state.db,
-            parent_id,
-            channel_id,
-            auth_user.id,
-            &body.content,
-            body.encrypted,
-            body.nonce.as_deref(),
-            body.reply_to,
+            db::CreateThreadReplyParams {
+                parent_id,
+                channel_id,
+                user_id: auth_user.id,
+                content: &body.content,
+                encrypted: body.encrypted,
+                nonce: body.nonce.as_deref(),
+                reply_to: body.reply_to,
+            },
         )
         .await?
     } else {
@@ -1426,7 +1428,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::api::AppState;
+    use crate::api::{AppState, AppStateConfig};
     use crate::auth::AuthUser;
     use crate::config::Config;
 
@@ -1448,17 +1450,17 @@ mod tests {
             .await
             .expect("Failed to connect to Redis");
 
-        AppState::new(
-            pool,
+        AppState::new(AppStateConfig {
+            db: pool,
             redis,
             config,
-            None,
-            crate::voice::SfuServer::new(std::sync::Arc::new(Config::default_for_test()), None)
+            s3: None,
+            sfu: crate::voice::SfuServer::new(std::sync::Arc::new(Config::default_for_test()), None)
                 .unwrap(),
-            None, // No rate limiter in tests
-            None, // No email service in tests
-            None, // No OIDC in tests
-        )
+            rate_limiter: None,
+            email: None,
+            oidc_manager: None,
+        })
     }
 
     /// Helper to create a guild with proper permissions for testing
@@ -1570,13 +1572,15 @@ mod tests {
         // Create a channel
         let channel = db::create_channel(
             &pool,
-            "test-channel",
-            &db::ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            db::CreateChannelParams {
+                name: "test-channel",
+                channel_type: &db::ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -1681,13 +1685,15 @@ mod tests {
         // Create channel
         let channel = db::create_channel(
             &pool,
-            "test-channel",
-            &db::ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            db::CreateChannelParams {
+                name: "test-channel",
+                channel_type: &db::ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -1761,13 +1767,15 @@ mod tests {
         // Create channel
         let channel = db::create_channel(
             &pool,
-            "test-channel",
-            &db::ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            db::CreateChannelParams {
+                name: "test-channel",
+                channel_type: &db::ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -1892,13 +1900,15 @@ mod tests {
         // Create channel with no messages
         let channel = db::create_channel(
             &pool,
-            "empty-channel",
-            &db::ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            db::CreateChannelParams {
+                name: "empty-channel",
+                channel_type: &db::ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -1972,13 +1982,15 @@ mod tests {
 
         let channel = db::create_channel(
             &pool,
-            "test-channel",
-            &db::ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            db::CreateChannelParams {
+                name: "test-channel",
+                channel_type: &db::ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");

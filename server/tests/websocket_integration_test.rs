@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use fred::prelude::*;
 use sqlx::PgPool;
-use vc_server::api::AppState;
+use vc_server::api::{AppState, AppStateConfig};
 use vc_server::config::Config;
 use vc_server::db;
 use vc_server::ws::ServerEvent;
@@ -24,16 +24,16 @@ async fn test_websocket_broadcast_flow() {
     let sfu = vc_server::voice::SfuServer::new(Arc::new(config.clone()), None)
         .expect("Failed to create SFU");
 
-    let state = AppState::new(
-        db_pool.clone(),
-        redis.clone(),
-        config.clone(),
-        None,
+    let state = AppState::new(AppStateConfig {
+        db: db_pool.clone(),
+        redis: redis.clone(),
+        config: config.clone(),
+        s3: None,
         sfu,
-        None,
-        None,
-        None,
-    );
+        rate_limiter: None,
+        email: None,
+        oidc_manager: None,
+    });
 
     // 2. Create Test Data with unique identifiers
     let test_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
@@ -49,13 +49,15 @@ async fn test_websocket_broadcast_flow() {
         .expect("Create user2 failed");
     let channel = db::create_channel(
         &db_pool,
-        &channel_name,
-        &db::ChannelType::Text,
-        None,
-        None,
-        None,
-        None,
-        None, // user_limit
+        db::CreateChannelParams {
+            name: &channel_name,
+            channel_type: &db::ChannelType::Text,
+            category_id: None,
+            guild_id: None,
+            topic: None,
+            icon_url: None,
+            user_limit: None,
+        },
     )
     .await
     .expect("Create channel failed");
@@ -180,16 +182,16 @@ impl PermissionTestContext {
         let sfu = vc_server::voice::SfuServer::new(Arc::new(config.clone()), None)
             .expect("Failed to create SFU");
 
-        let state = AppState::new(
-            db_pool.clone(),
-            redis.clone(),
-            config.clone(),
-            None,
+        let state = AppState::new(AppStateConfig {
+            db: db_pool.clone(),
+            redis: redis.clone(),
+            config: config.clone(),
+            s3: None,
             sfu,
-            None,
-            None,
-            None,
-        );
+            rate_limiter: None,
+            email: None,
+            oidc_manager: None,
+        });
 
         // Create test data with unique identifiers
         let test_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
@@ -300,13 +302,15 @@ impl PermissionTestContext {
         // Create channel in the guild
         let channel = db::create_channel(
             &db_pool,
-            &format!("test-channel-{test_id}"),
-            &db::ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            db::CreateChannelParams {
+                name: &format!("test-channel-{test_id}"),
+                channel_type: &db::ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Create channel failed");

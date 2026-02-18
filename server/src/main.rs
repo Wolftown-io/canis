@@ -228,16 +228,16 @@ async fn main() -> Result<()> {
     };
 
     // Build application state
-    let state = api::AppState::new(
-        db_pool.clone(),
-        redis.clone(),
-        config.clone(),
+    let state = api::AppState::new(api::AppStateConfig {
+        db: db_pool.clone(),
+        redis: redis.clone(),
+        config: config.clone(),
         s3,
         sfu,
         rate_limiter,
-        email_service,
+        email: email_service,
         oidc_manager,
-    );
+    });
 
     // Build router
     let app = api::create_router(state);

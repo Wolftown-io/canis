@@ -32,7 +32,7 @@ use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tower::ServiceExt;
 use uuid::Uuid;
-use vc_server::api::{create_router, AppState};
+use vc_server::api::{create_router, AppState, AppStateConfig};
 use vc_server::auth::jwt;
 use vc_server::config::Config;
 use vc_server::db;
@@ -217,16 +217,16 @@ impl TestApp {
         let sfu =
             SfuServer::new(Arc::new(config.clone()), None).expect("Failed to create SfuServer");
 
-        let state = AppState::new(
-            pool.clone(),
+        let state = AppState::new(AppStateConfig {
+            db: pool.clone(),
             redis,
-            config.clone(),
-            None,
+            config: config.clone(),
+            s3: None,
             sfu,
-            None,
-            None,
-            None,
-        );
+            rate_limiter: None,
+            email: None,
+            oidc_manager: None,
+        });
         let router = create_router(state);
         let config = Arc::new(config);
 
@@ -271,16 +271,16 @@ pub async fn fresh_test_app() -> TestApp {
         .expect("Failed to connect to test Redis");
     let sfu = SfuServer::new(Arc::new(config.clone()), None).expect("Failed to create SfuServer");
 
-    let state = AppState::new(
-        pool.clone(),
+    let state = AppState::new(AppStateConfig {
+        db: pool.clone(),
         redis,
-        config.clone(),
-        None,
+        config: config.clone(),
+        s3: None,
         sfu,
-        None,
-        None,
-        None,
-    );
+        rate_limiter: None,
+        email: None,
+        oidc_manager: None,
+    });
     let router = create_router(state);
 
     TestApp {

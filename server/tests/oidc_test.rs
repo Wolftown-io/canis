@@ -500,18 +500,20 @@ async fn test_oidc_provider_crud() {
     // Create a provider
     let provider = vc_server::db::create_oidc_provider(
         &pool,
-        &slug,
-        "Test Provider",
-        Some("key"),
-        "custom",
-        None,
-        Some("https://example.com/auth"),
-        Some("https://example.com/token"),
-        Some("https://example.com/userinfo"),
-        "test-client-id",
-        &encrypted_secret,
-        "openid profile email",
-        user_id,
+        vc_server::db::CreateOidcProviderParams {
+            slug: &slug,
+            display_name: "Test Provider",
+            icon_hint: Some("key"),
+            provider_type: "custom",
+            issuer_url: None,
+            authorization_url: Some("https://example.com/auth"),
+            token_url: Some("https://example.com/token"),
+            userinfo_url: Some("https://example.com/userinfo"),
+            client_id: "test-client-id",
+            client_secret_encrypted: &encrypted_secret,
+            scopes: "openid profile email",
+            created_by: user_id,
+        },
     )
     .await
     .expect("Provider creation should succeed");
@@ -595,18 +597,20 @@ async fn test_load_providers_from_database() {
     // Create a test provider
     let provider = vc_server::db::create_oidc_provider(
         &pool,
-        &slug,
-        "Load Test",
-        Some("key"),
-        "custom",
-        None,
-        Some("https://example.com/auth"),
-        Some("https://example.com/token"),
-        None,
-        "client-id",
-        &encrypted_secret,
-        "openid",
-        user_id,
+        vc_server::db::CreateOidcProviderParams {
+            slug: &slug,
+            display_name: "Load Test",
+            icon_hint: Some("key"),
+            provider_type: "custom",
+            issuer_url: None,
+            authorization_url: Some("https://example.com/auth"),
+            token_url: Some("https://example.com/token"),
+            userinfo_url: None,
+            client_id: "client-id",
+            client_secret_encrypted: &encrypted_secret,
+            scopes: "openid",
+            created_by: user_id,
+        },
     )
     .await
     .expect("Provider creation should succeed");

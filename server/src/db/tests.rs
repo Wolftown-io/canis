@@ -301,13 +301,15 @@ mod postgres_tests {
         // Create text channel
         let text_channel = create_channel(
             &pool,
-            "general",
-            &ChannelType::Text,
-            None,
-            None,
-            Some("General discussion"),
-            None, // icon_url
-            None,
+            CreateChannelParams {
+                name: "general",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: Some("General discussion"),
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create text channel");
@@ -319,13 +321,15 @@ mod postgres_tests {
         // Create voice channel
         let voice_channel = create_channel(
             &pool,
-            "voice-lobby",
-            &ChannelType::Voice,
-            None,
-            None,
-            None,
-            None, // icon_url
-            Some(10),
+            CreateChannelParams {
+                name: "voice-lobby",
+                channel_type: &ChannelType::Voice,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: Some(10),
+            },
         )
         .await
         .expect("Failed to create voice channel");
@@ -352,13 +356,15 @@ mod postgres_tests {
     async fn test_find_channel_by_id(pool: PgPool) {
         let channel = create_channel(
             &pool,
-            "test-channel",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "test-channel",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -375,13 +381,15 @@ mod postgres_tests {
     async fn test_update_channel(pool: PgPool) {
         let channel = create_channel(
             &pool,
-            "old-name",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "old-name",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -408,13 +416,15 @@ mod postgres_tests {
     async fn test_delete_channel(pool: PgPool) {
         let channel = create_channel(
             &pool,
-            "to-delete",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "to-delete",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -440,13 +450,15 @@ mod postgres_tests {
         // Create channel and user
         let channel = create_channel(
             &pool,
-            "member-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "member-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -494,13 +506,15 @@ mod postgres_tests {
         // Create channel
         let channel = create_channel(
             &pool,
-            "user-list-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "user-list-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -540,13 +554,15 @@ mod postgres_tests {
         // Create channel and user
         let channel = create_channel(
             &pool,
-            "msg-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "msg-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -606,13 +622,15 @@ mod postgres_tests {
         // Create channel and user
         let channel = create_channel(
             &pool,
-            "pagination-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "pagination-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -660,13 +678,15 @@ mod postgres_tests {
         // Create channel and user
         let channel = create_channel(
             &pool,
-            "reply-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "reply-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -709,13 +729,15 @@ mod postgres_tests {
         // Create channel and users
         let channel = create_channel(
             &pool,
-            "admin-del-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "admin-del-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -751,13 +773,15 @@ mod postgres_tests {
         // Create channel, user, and message
         let channel = create_channel(
             &pool,
-            "attachment-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "attachment-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -820,13 +844,15 @@ mod postgres_tests {
         // Create channel, user, and message
         let channel = create_channel(
             &pool,
-            "multi-attach-test",
-            &ChannelType::Text,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "multi-attach-test",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("Failed to create channel");
@@ -915,13 +941,15 @@ mod postgres_tests {
         // Create a text channel in the guild
         let channel = create_channel(
             &pool,
-            "general",
-            &ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "general",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("create channel");
@@ -987,13 +1015,15 @@ mod postgres_tests {
 
         let channel = create_channel(
             &pool,
-            "updates",
-            &ChannelType::Text,
-            None,
-            Some(guild_id),
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "updates",
+                channel_type: &ChannelType::Text,
+                category_id: None,
+                guild_id: Some(guild_id),
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("create channel");
@@ -1049,13 +1079,15 @@ mod postgres_tests {
         // Create a DM channel
         let dm_channel = create_channel(
             &pool,
-            "dm-channel",
-            &ChannelType::Dm,
-            None,
-            None,
-            None,
-            None,
-            None,
+            CreateChannelParams {
+                name: "dm-channel",
+                channel_type: &ChannelType::Dm,
+                category_id: None,
+                guild_id: None,
+                topic: None,
+                icon_url: None,
+                user_limit: None,
+            },
         )
         .await
         .expect("create dm channel");

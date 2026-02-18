@@ -13,7 +13,7 @@ use helpers::{body_to_json, create_test_user, generate_access_token, TestApp};
 use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
-use vc_server::api::{create_router, AppState};
+use vc_server::api::{create_router, AppState, AppStateConfig};
 use vc_server::voice::sfu::SfuServer;
 
 // ============================================================================
@@ -33,16 +33,16 @@ async fn dm_test_app() -> TestApp {
         .expect("Failed to connect to test Redis");
     let sfu = SfuServer::new(Arc::new(config.clone()), None).expect("Failed to create SfuServer");
 
-    let state = AppState::new(
-        pool.clone(),
+    let state = AppState::new(AppStateConfig {
+        db: pool.clone(),
         redis,
-        config.clone(),
-        None,
+        config: config.clone(),
+        s3: None,
         sfu,
-        None,
-        None,
-        None,
-    );
+        rate_limiter: None,
+        email: None,
+        oidc_manager: None,
+    });
     let router = create_router(state);
     let config = Arc::new(config);
 

@@ -222,33 +222,34 @@ pub async fn get_page_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Page>, sql
     Ok(page)
 }
 
+/// Parameters for creating a new page.
+pub struct CreatePageParams<'a> {
+    pub guild_id: Option<Uuid>,
+    pub title: &'a str,
+    pub slug: &'a str,
+    pub content: &'a str,
+    pub requires_acceptance: bool,
+    pub created_by: Uuid,
+}
+
 /// Create a new page.
-#[allow(clippy::too_many_arguments)]
-pub async fn create_page(
-    pool: &PgPool,
-    guild_id: Option<Uuid>,
-    title: &str,
-    slug: &str,
-    content: &str,
-    requires_acceptance: bool,
-    created_by: Uuid,
-) -> Result<Page, sqlx::Error> {
-    let content_hash = hash_content(content);
-    let position = count_pages(pool, guild_id).await? as i32;
+pub async fn create_page(pool: &PgPool, params: CreatePageParams<'_>) -> Result<Page, sqlx::Error> {
+    let content_hash = hash_content(params.content);
+    let position = count_pages(pool, params.guild_id).await? as i32;
 
     let page: Page = sqlx::query_as!(
         Page,
         r"INSERT INTO pages (guild_id, title, slug, content, content_hash, position, requires_acceptance, created_by, updated_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
         RETURNING *",
-        guild_id,
-        title,
-        slug,
-        content,
+        params.guild_id,
+        params.title,
+        params.slug,
+        params.content,
         content_hash,
         position,
-        requires_acceptance,
-        created_by
+        params.requires_acceptance,
+        params.created_by
     )
     .fetch_one(pool)
     .await?;
@@ -256,26 +257,27 @@ pub async fn create_page(
     Ok(page)
 }
 
+/// Parameters for updating an existing page.
+pub struct UpdatePageParams<'a> {
+    pub id: Uuid,
+    pub title: Option<&'a str>,
+    pub slug: Option<&'a str>,
+    pub content: Option<&'a str>,
+    pub requires_acceptance: Option<bool>,
+    pub updated_by: Uuid,
+}
+
 /// Update an existing page.
-#[allow(clippy::too_many_arguments)]
-pub async fn update_page(
-    pool: &PgPool,
-    id: Uuid,
-    title: Option<&str>,
-    slug: Option<&str>,
-    content: Option<&str>,
-    requires_acceptance: Option<bool>,
-    updated_by: Uuid,
-) -> Result<Page, sqlx::Error> {
-    let page = get_page_by_id(pool, id)
+pub async fn update_page(pool: &PgPool, params: UpdatePageParams<'_>) -> Result<Page, sqlx::Error> {
+    let page = get_page_by_id(pool, params.id)
         .await?
         .ok_or(sqlx::Error::RowNotFound)?;
 
-    let new_title = title.unwrap_or(&page.title);
-    let new_slug = slug.unwrap_or(&page.slug);
-    let new_content = content.unwrap_or(&page.content);
-    let new_requires_acceptance = requires_acceptance.unwrap_or(page.requires_acceptance);
-    let new_content_hash = if content.is_some() {
+    let new_title = params.title.unwrap_or(&page.title);
+    let new_slug = params.slug.unwrap_or(&page.slug);
+    let new_content = params.content.unwrap_or(&page.content);
+    let new_requires_acceptance = params.requires_acceptance.unwrap_or(page.requires_acceptance);
+    let new_content_hash = if params.content.is_some() {
         hash_content(new_content)
     } else {
         page.content_hash.clone()
@@ -287,13 +289,13 @@ pub async fn update_page(
             title = $2, slug = $3, content = $4, content_hash = $5,
             requires_acceptance = $6, updated_by = $7, updated_at = NOW()
         WHERE id = $1 RETURNING *",
-        id,
+        params.id,
         new_title,
         new_slug,
         new_content,
         new_content_hash,
         new_requires_acceptance,
-        updated_by
+        params.updated_by
     )
     .fetch_one(pool)
     .await?;

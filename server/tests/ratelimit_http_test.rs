@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use helpers::spawn_test_server;
-use vc_server::api::{create_router, AppState};
+use vc_server::api::{create_router, AppState, AppStateConfig};
 use vc_server::config::Config;
 use vc_server::ratelimit::{LimitConfig, RateLimitConfig, RateLimiter, RateLimits};
 use vc_server::voice::sfu::SfuServer;
@@ -39,16 +39,16 @@ async fn create_rate_limited_app(limits: RateLimits) -> (helpers::TestServer, Co
     let mut limiter = RateLimiter::new(redis.clone(), rl_config);
     limiter.init().await.expect("Failed to initialize limiter");
 
-    let state = AppState::new(
-        pool,
+    let state = AppState::new(AppStateConfig {
+        db: pool,
         redis,
-        config.clone(),
-        None,
+        config: config.clone(),
+        s3: None,
         sfu,
-        Some(limiter),
-        None,
-        None,
-    );
+        rate_limiter: Some(limiter),
+        email: None,
+        oidc_manager: None,
+    });
     let router = create_router(state);
     let server = spawn_test_server(router).await;
 

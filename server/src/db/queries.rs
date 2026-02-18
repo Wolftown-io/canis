@@ -410,23 +410,24 @@ pub async fn find_channel_by_id(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<
     .map_err(db_error!("find_channel_by_id", channel_id = %id))
 }
 
+/// Parameters for creating a new channel.
+pub struct CreateChannelParams<'a> {
+    pub name: &'a str,
+    pub channel_type: &'a ChannelType,
+    pub category_id: Option<Uuid>,
+    pub guild_id: Option<Uuid>,
+    pub topic: Option<&'a str>,
+    pub icon_url: Option<&'a str>,
+    pub user_limit: Option<i32>,
+}
+
 /// Create a new channel.
-#[allow(clippy::too_many_arguments)]
-pub async fn create_channel(
-    pool: &PgPool,
-    name: &str,
-    channel_type: &ChannelType,
-    category_id: Option<Uuid>,
-    guild_id: Option<Uuid>,
-    topic: Option<&str>,
-    icon_url: Option<&str>,
-    user_limit: Option<i32>,
-) -> sqlx::Result<Channel> {
+pub async fn create_channel(pool: &PgPool, params: CreateChannelParams<'_>) -> sqlx::Result<Channel> {
     // Get the next position for this category
     let row = sqlx::query(
         "SELECT COALESCE(MAX(position), 0) + 1 as next_pos FROM channels WHERE category_id IS NOT DISTINCT FROM $1",
     )
-    .bind(category_id)
+    .bind(params.category_id)
     .fetch_one(pool)
     .await?;
 
@@ -439,13 +440,13 @@ pub async fn create_channel(
         RETURNING id, name, channel_type, category_id, guild_id, topic, icon_url, user_limit, position, max_screen_shares, created_at, updated_at
         ",
     )
-    .bind(name)
-    .bind(channel_type)
-    .bind(category_id)
-    .bind(guild_id)
-    .bind(topic)
-    .bind(icon_url)
-    .bind(user_limit)
+    .bind(params.name)
+    .bind(params.channel_type)
+    .bind(params.category_id)
+    .bind(params.guild_id)
+    .bind(params.topic)
+    .bind(params.icon_url)
+    .bind(params.user_limit)
     .bind(position)
     .fetch_one(pool)
     .await
@@ -854,17 +855,21 @@ pub async fn list_thread_replies(
     }
 }
 
+/// Parameters for creating a thread reply.
+pub struct CreateThreadReplyParams<'a> {
+    pub parent_id: Uuid,
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
+    pub content: &'a str,
+    pub encrypted: bool,
+    pub nonce: Option<&'a str>,
+    pub reply_to: Option<Uuid>,
+}
+
 /// Create a thread reply atomically: insert reply + update parent counters.
-#[allow(clippy::too_many_arguments)]
 pub async fn create_thread_reply(
     pool: &PgPool,
-    parent_id: Uuid,
-    channel_id: Uuid,
-    user_id: Uuid,
-    content: &str,
-    encrypted: bool,
-    nonce: Option<&str>,
-    reply_to: Option<Uuid>,
+    params: CreateThreadReplyParams<'_>,
 ) -> sqlx::Result<Message> {
     let mut tx = pool.begin().await?;
 
@@ -875,13 +880,13 @@ pub async fn create_thread_reply(
         RETURNING *
         ",
     )
-    .bind(channel_id)
-    .bind(user_id)
-    .bind(content)
-    .bind(encrypted)
-    .bind(nonce)
-    .bind(reply_to)
-    .bind(parent_id)
+    .bind(params.channel_id)
+    .bind(params.user_id)
+    .bind(params.content)
+    .bind(params.encrypted)
+    .bind(params.nonce)
+    .bind(params.reply_to)
+    .bind(params.parent_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -894,7 +899,7 @@ pub async fn create_thread_reply(
         WHERE id = $1
         ",
     )
-    .bind(parent_id)
+    .bind(params.parent_id)
     .bind(message.created_at)
     .execute(&mut *tx)
     .await?;
@@ -1748,22 +1753,26 @@ pub async fn get_oidc_provider_by_id(pool: &PgPool, id: Uuid) -> sqlx::Result<Oi
         })
 }
 
+/// Parameters for creating a new OIDC provider.
+pub struct CreateOidcProviderParams<'a> {
+    pub slug: &'a str,
+    pub display_name: &'a str,
+    pub icon_hint: Option<&'a str>,
+    pub provider_type: &'a str,
+    pub issuer_url: Option<&'a str>,
+    pub authorization_url: Option<&'a str>,
+    pub token_url: Option<&'a str>,
+    pub userinfo_url: Option<&'a str>,
+    pub client_id: &'a str,
+    pub client_secret_encrypted: &'a str,
+    pub scopes: &'a str,
+    pub created_by: Uuid,
+}
+
 /// Create a new OIDC provider.
-#[allow(clippy::too_many_arguments)]
 pub async fn create_oidc_provider(
     pool: &PgPool,
-    slug: &str,
-    display_name: &str,
-    icon_hint: Option<&str>,
-    provider_type: &str,
-    issuer_url: Option<&str>,
-    authorization_url: Option<&str>,
-    token_url: Option<&str>,
-    userinfo_url: Option<&str>,
-    client_id: &str,
-    client_secret_encrypted: &str,
-    scopes: &str,
-    created_by: Uuid,
+    params: CreateOidcProviderParams<'_>,
 ) -> sqlx::Result<OidcProviderRow> {
     sqlx::query_as::<_, OidcProviderRow>(
         "INSERT INTO oidc_providers (
@@ -1777,44 +1786,48 @@ pub async fn create_oidc_provider(
             $12
         ) RETURNING *",
     )
-    .bind(slug)
-    .bind(display_name)
-    .bind(icon_hint)
-    .bind(provider_type)
-    .bind(issuer_url)
-    .bind(authorization_url)
-    .bind(token_url)
-    .bind(userinfo_url)
-    .bind(client_id)
-    .bind(client_secret_encrypted)
-    .bind(scopes)
-    .bind(created_by)
+    .bind(params.slug)
+    .bind(params.display_name)
+    .bind(params.icon_hint)
+    .bind(params.provider_type)
+    .bind(params.issuer_url)
+    .bind(params.authorization_url)
+    .bind(params.token_url)
+    .bind(params.userinfo_url)
+    .bind(params.client_id)
+    .bind(params.client_secret_encrypted)
+    .bind(params.scopes)
+    .bind(params.created_by)
     .fetch_one(pool)
     .await
     .map_err(|e| {
-        error!(error = %e, slug = %slug, "Failed to create OIDC provider");
+        error!(error = %e, slug = %params.slug, "Failed to create OIDC provider");
         e
     })
 }
 
+/// Parameters for updating an OIDC provider.
+pub struct UpdateOidcProviderParams<'a> {
+    pub id: Uuid,
+    pub display_name: &'a str,
+    pub icon_hint: Option<&'a str>,
+    pub issuer_url: Option<&'a str>,
+    pub authorization_url: Option<&'a str>,
+    pub token_url: Option<&'a str>,
+    pub userinfo_url: Option<&'a str>,
+    pub client_id: &'a str,
+    pub client_secret_encrypted: Option<&'a str>,
+    pub scopes: &'a str,
+    pub enabled: bool,
+}
+
 /// Update an OIDC provider.
-#[allow(clippy::too_many_arguments)]
 pub async fn update_oidc_provider(
     pool: &PgPool,
-    id: Uuid,
-    display_name: &str,
-    icon_hint: Option<&str>,
-    issuer_url: Option<&str>,
-    authorization_url: Option<&str>,
-    token_url: Option<&str>,
-    userinfo_url: Option<&str>,
-    client_id: &str,
-    client_secret_encrypted: Option<&str>,
-    scopes: &str,
-    enabled: bool,
+    params: UpdateOidcProviderParams<'_>,
 ) -> sqlx::Result<OidcProviderRow> {
     // If client_secret_encrypted is provided, update it; otherwise keep existing
-    if let Some(secret) = client_secret_encrypted {
+    if let Some(secret) = params.client_secret_encrypted {
         sqlx::query_as::<_, OidcProviderRow>(
             "UPDATE oidc_providers SET
                 display_name = $2, icon_hint = $3,
@@ -1823,17 +1836,17 @@ pub async fn update_oidc_provider(
                 enabled = $11, updated_at = NOW()
             WHERE id = $1 RETURNING *",
         )
-        .bind(id)
-        .bind(display_name)
-        .bind(icon_hint)
-        .bind(issuer_url)
-        .bind(authorization_url)
-        .bind(token_url)
-        .bind(userinfo_url)
-        .bind(client_id)
+        .bind(params.id)
+        .bind(params.display_name)
+        .bind(params.icon_hint)
+        .bind(params.issuer_url)
+        .bind(params.authorization_url)
+        .bind(params.token_url)
+        .bind(params.userinfo_url)
+        .bind(params.client_id)
         .bind(secret)
-        .bind(scopes)
-        .bind(enabled)
+        .bind(params.scopes)
+        .bind(params.enabled)
         .fetch_one(pool)
         .await
     } else {
@@ -1845,21 +1858,21 @@ pub async fn update_oidc_provider(
                 enabled = $10, updated_at = NOW()
             WHERE id = $1 RETURNING *",
         )
-        .bind(id)
-        .bind(display_name)
-        .bind(icon_hint)
-        .bind(issuer_url)
-        .bind(authorization_url)
-        .bind(token_url)
-        .bind(userinfo_url)
-        .bind(client_id)
-        .bind(scopes)
-        .bind(enabled)
+        .bind(params.id)
+        .bind(params.display_name)
+        .bind(params.icon_hint)
+        .bind(params.issuer_url)
+        .bind(params.authorization_url)
+        .bind(params.token_url)
+        .bind(params.userinfo_url)
+        .bind(params.client_id)
+        .bind(params.scopes)
+        .bind(params.enabled)
         .fetch_one(pool)
         .await
     }
     .map_err(|e| {
-        error!(error = %e, id = %id, "Failed to update OIDC provider");
+        error!(error = %e, id = %params.id, "Failed to update OIDC provider");
         e
     })
 }

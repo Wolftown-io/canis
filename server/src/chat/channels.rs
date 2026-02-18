@@ -171,13 +171,15 @@ pub async fn create(
 
     let channel = db::create_channel(
         &state.db,
-        &body.name,
-        &channel_type,
-        body.category_id,
-        body.guild_id,
-        body.topic.as_deref(),
-        None, // icon_url
-        body.user_limit,
+        db::CreateChannelParams {
+            name: &body.name,
+            channel_type: &channel_type,
+            category_id: body.category_id,
+            guild_id: body.guild_id,
+            topic: body.topic.as_deref(),
+            icon_url: None,
+            user_limit: body.user_limit,
+        },
     )
     .await?;
 
