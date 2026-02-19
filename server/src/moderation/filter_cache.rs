@@ -21,7 +21,7 @@ use super::filter_queries;
 /// Cached engine paired with the generation it was built at.
 struct CachedEngine {
     engine: Arc<FilterEngine>,
-    generation: u64,
+    _generation: u64,
 }
 
 /// Thread-safe cache of per-guild filter engines.
@@ -89,7 +89,7 @@ impl FilterCache {
                 guild_id,
                 CachedEngine {
                     engine: Arc::clone(&engine),
-                    generation: gen_before,
+                    _generation: gen_before,
                 },
             );
         }

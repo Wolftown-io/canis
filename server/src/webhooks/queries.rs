@@ -105,6 +105,7 @@ pub async fn get_webhook_full(pool: &PgPool, webhook_id: Uuid) -> sqlx::Result<O
 }
 
 /// Update a webhook.
+#[allow(clippy::option_option)]
 pub async fn update_webhook(
     pool: &PgPool,
     webhook_id: Uuid,
@@ -191,6 +192,7 @@ pub async fn list_deliveries(
 }
 
 /// Log a delivery attempt.
+#[allow(clippy::too_many_arguments)]
 pub async fn log_delivery(
     pool: &PgPool,
     webhook_id: Uuid,
@@ -224,6 +226,7 @@ pub async fn log_delivery(
 }
 
 /// Insert a dead letter entry.
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_dead_letter(
     pool: &PgPool,
     webhook_id: Uuid,

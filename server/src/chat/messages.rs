@@ -32,7 +32,7 @@ pub enum MessageError {
     Blocked,
     ContentFiltered,
     Validation(String),
-    Database(sqlx::Error),
+    Database(#[allow(dead_code)] sqlx::Error),
 }
 
 impl IntoResponse for MessageError {
@@ -527,22 +527,22 @@ pub async fn create(
                     let latency_ms = start.elapsed().as_millis();
                     let content = format!("Pong! (latency: {latency_ms}ms)");
 
-                    let msg = sqlx::query!(
-                        r#"
+                    let msg: (Uuid, DateTime<Utc>) = sqlx::query_as(
+                        r"
                         INSERT INTO messages (channel_id, user_id, content)
                         VALUES ($1, $2, $3)
                         RETURNING id, created_at
-                        "#,
-                        channel_id,
-                        auth_user.id,
-                        content,
+                        ",
                     )
+                    .bind(channel_id)
+                    .bind(auth_user.id)
+                    .bind(&content)
                     .fetch_one(&state.db)
                     .await
                     .map_err(MessageError::Database)?;
 
                     let response = MessageResponse {
-                        id: msg.id,
+                        id: msg.0,
                         channel_id,
                         author,
                         content,
@@ -553,7 +553,7 @@ pub async fn create(
                         thread_reply_count: 0,
                         thread_last_reply_at: None,
                         edited_at: None,
-                        created_at: msg.created_at,
+                        created_at: msg.1,
                         mention_type: None,
                         reactions: None,
                         thread_info: None,
@@ -576,6 +576,7 @@ pub async fn create(
                     return Ok((StatusCode::OK, Json(response)));
                 }
 
+                #[allow(clippy::items_after_statements)]
                 #[derive(sqlx::FromRow)]
                 struct SlashCommandRow {
                     bot_user_id: Option<Uuid>,
@@ -613,10 +614,10 @@ pub async fn create(
                     if same_priority.len() > 1 {
                         let bot_ids: Vec<Uuid> =
                             same_priority.iter().filter_map(|c| c.bot_user_id).collect();
-                        let bot_names: Vec<String> = sqlx::query_scalar!(
+                        let bot_names: Vec<String> = sqlx::query_scalar::<_, Option<String>>(
                             "SELECT COALESCE(display_name, username) FROM users WHERE id = ANY($1)",
-                            &bot_ids,
                         )
+                        .bind(&bot_ids)
                         .fetch_all(&state.db)
                         .await
                         .unwrap_or_default()

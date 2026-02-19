@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use axum::extract::{DefaultBodyLimit, FromRef, State};
 use axum::middleware::{from_fn, from_fn_with_state};
-use axum::routing::{delete, get, patch, post, put};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use fred::interfaces::ClientLike;
 use serde::Serialize;

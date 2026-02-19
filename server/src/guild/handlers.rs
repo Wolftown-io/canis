@@ -991,7 +991,7 @@ pub async fn get_guild_settings(
     }))
 }
 
-/// Update guild settings (requires MANAGE_GUILD).
+/// Update guild settings (requires `MANAGE_GUILD`).
 /// PATCH /api/guilds/{id}/settings
 #[tracing::instrument(skip(state))]
 pub async fn update_guild_settings(

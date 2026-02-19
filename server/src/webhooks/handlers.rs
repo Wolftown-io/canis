@@ -9,7 +9,10 @@ use sqlx::PgPool;
 use tracing::{info, instrument};
 use uuid::Uuid;
 
-use super::types::*;
+use super::types::{
+    CreateWebhookRequest, DeliveryLogEntry, TestDeliveryResult, UpdateWebhookRequest,
+    WebhookCreatedResponse, WebhookError, WebhookResponse,
+};
 use super::{queries, signing};
 use crate::auth::AuthUser;
 
@@ -60,7 +63,7 @@ fn validate_url(url: &str) -> Result<(), WebhookError> {
     Ok(())
 }
 
-/// POST /api/applications/{app_id}/webhooks
+/// POST /`api/applications/{app_id}/webhooks`
 #[instrument(skip(pool, claims))]
 pub async fn create_webhook(
     State(pool): State<PgPool>,
@@ -126,7 +129,7 @@ pub async fn create_webhook(
     ))
 }
 
-/// GET /api/applications/{app_id}/webhooks
+/// GET /`api/applications/{app_id}/webhooks`
 #[instrument(skip(pool, claims))]
 pub async fn list_webhooks(
     State(pool): State<PgPool>,
@@ -142,7 +145,7 @@ pub async fn list_webhooks(
     Ok(Json(webhooks))
 }
 
-/// GET /api/applications/{app_id}/webhooks/{wh_id}
+/// GET /`api/applications/{app_id}/webhooks/{wh_id}`
 #[instrument(skip(pool, claims))]
 pub async fn get_webhook(
     State(pool): State<PgPool>,
@@ -159,7 +162,7 @@ pub async fn get_webhook(
     Ok(Json(webhook))
 }
 
-/// PATCH /api/applications/{app_id}/webhooks/{wh_id}
+/// PATCH /`api/applications/{app_id}/webhooks/{wh_id}`
 #[instrument(skip(pool, claims))]
 pub async fn update_webhook(
     State(pool): State<PgPool>,
@@ -221,7 +224,7 @@ pub async fn update_webhook(
     Ok(Json(webhook))
 }
 
-/// DELETE /api/applications/{app_id}/webhooks/{wh_id}
+/// DELETE /`api/applications/{app_id}/webhooks/{wh_id}`
 #[instrument(skip(pool, claims))]
 pub async fn delete_webhook(
     State(pool): State<PgPool>,
@@ -241,7 +244,7 @@ pub async fn delete_webhook(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /api/applications/{app_id}/webhooks/{wh_id}/test
+/// POST /`api/applications/{app_id}/webhooks/{wh_id}/test`
 #[instrument(skip(pool, claims))]
 pub async fn test_webhook(
     State(pool): State<PgPool>,
@@ -320,10 +323,10 @@ pub async fn test_webhook(
                 success,
                 response_status: Some(status),
                 latency_ms: latency,
-                error_message: if !success {
-                    Some(format!("HTTP {status}"))
-                } else {
+                error_message: if success {
                     None
+                } else {
+                    Some(format!("HTTP {status}"))
                 },
             }))
         }
@@ -336,7 +339,7 @@ pub async fn test_webhook(
     }
 }
 
-/// GET /api/applications/{app_id}/webhooks/{wh_id}/deliveries
+/// GET /`api/applications/{app_id}/webhooks/{wh_id}/deliveries`
 #[instrument(skip(pool, claims))]
 pub async fn list_deliveries(
     State(pool): State<PgPool>,

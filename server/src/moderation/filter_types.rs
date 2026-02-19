@@ -150,6 +150,7 @@ pub struct UpdatePatternRequest {
 /// - Field absent in JSON → `#[serde(default)]` yields `None` (skip calling this)
 /// - `"field": null` → `Some(None)` (clear the value)
 /// - `"field": "text"` → `Some(Some("text"))` (set value)
+#[allow(clippy::option_option)]
 fn deserialize_double_option<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
 where
     D: Deserializer<'de>,
@@ -172,7 +173,7 @@ pub struct PaginationQuery {
     pub offset: i64,
 }
 
-fn default_limit() -> i64 {
+const fn default_limit() -> i64 {
     50
 }
 

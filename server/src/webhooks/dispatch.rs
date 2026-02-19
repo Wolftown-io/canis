@@ -13,7 +13,7 @@ use super::{delivery, queries};
 
 /// Dispatch an event to all webhook subscribers for bots installed in a guild.
 ///
-/// Queries webhooks joined with guild_bot_installations where the webhook
+/// Queries webhooks joined with `guild_bot_installations` where the webhook
 /// subscribes to the given event type. Enqueues one delivery item per webhook.
 pub async fn dispatch_guild_event(
     db: &PgPool,

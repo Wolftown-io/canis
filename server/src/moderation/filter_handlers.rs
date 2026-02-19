@@ -427,7 +427,7 @@ async fn test_filter(
 // Helpers
 // ============================================================================
 
-/// Validate a regex pattern for compilation and ReDoS protection.
+/// Validate a regex pattern for compilation and `ReDoS` protection.
 fn validate_regex(pattern: &str) -> Result<(), FilterError> {
     // Try to compile
     let regex = regex::Regex::new(pattern)

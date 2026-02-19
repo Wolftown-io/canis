@@ -281,10 +281,10 @@ async fn process_delivery(
             let success = resp.status().is_success();
 
             // Log delivery result
-            let error_msg = if !success {
-                Some(format!("HTTP {status}"))
-            } else {
+            let error_msg = if success {
                 None
+            } else {
+                Some(format!("HTTP {status}"))
             };
             if let Err(e) = queries::log_delivery(
                 db,

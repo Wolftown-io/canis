@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Bot event types matching the `webhook_event_type` PostgreSQL enum.
+/// Bot event types matching the `webhook_event_type` `PostgreSQL` enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "webhook_event_type", rename_all = "snake_case")]
 pub enum BotEventType {
@@ -28,7 +28,7 @@ pub enum BotEventType {
 
 impl BotEventType {
     /// Parse from a string (e.g., `"message.created"`).
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s {
             "message.created" => Some(Self::MessageCreated),
             "member.joined" => Some(Self::MemberJoined),
@@ -39,7 +39,7 @@ impl BotEventType {
     }
 
     /// Convert to the dot-separated string form.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::MessageCreated => "message.created",
             Self::MemberJoined => "member.joined",
@@ -72,7 +72,7 @@ pub enum GatewayIntent {
 
 impl GatewayIntent {
     /// Parse from a string (e.g., `"messages"`).
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s {
             "messages" => Some(Self::Messages),
             "members" => Some(Self::Members),
@@ -82,7 +82,7 @@ impl GatewayIntent {
     }
 
     /// Convert to string form.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Messages => "messages",
             Self::Members => "members",
@@ -91,7 +91,7 @@ impl GatewayIntent {
     }
 
     /// Returns the event types covered by this intent.
-    pub fn event_types(&self) -> &'static [BotEventType] {
+    pub const fn event_types(&self) -> &'static [BotEventType] {
         match self {
             Self::Messages => &[BotEventType::MessageCreated],
             Self::Members => &[BotEventType::MemberJoined, BotEventType::MemberLeft],

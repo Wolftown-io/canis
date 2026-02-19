@@ -31,7 +31,7 @@ struct ApplicationRow {
 
 impl From<ApplicationRow> for ApplicationResponse {
     fn from(r: ApplicationRow) -> Self {
-        ApplicationResponse {
+        Self {
             id: r.id,
             name: r.name,
             description: r.description,

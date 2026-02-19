@@ -217,19 +217,18 @@ fn validate_file_content(data: &[u8], claimed_mime: &str) -> Result<String, Uplo
     }
 
     // Use magic byte detection for all other types
-    let detected = match infer::get(data) {
-        Some(kind) => kind.mime_type().to_string(),
-        None => {
-            // No magic bytes recognized — reject the file
-            tracing::warn!(
-                claimed_mime = %claimed_mime,
-                size = data.len(),
-                "File content does not match any known magic byte signature"
-            );
-            return Err(UploadError::InvalidMimeType {
-                mime_type: format!("{claimed_mime} (content unrecognizable)"),
-            });
-        }
+    let detected = if let Some(kind) = infer::get(data) {
+        kind.mime_type().to_string()
+    } else {
+        // No magic bytes recognized — reject the file
+        tracing::warn!(
+            claimed_mime = %claimed_mime,
+            size = data.len(),
+            "File content does not match any known magic byte signature"
+        );
+        return Err(UploadError::InvalidMimeType {
+            mime_type: format!("{claimed_mime} (content unrecognizable)"),
+        });
     };
 
     // Allow if detected type matches claimed type
