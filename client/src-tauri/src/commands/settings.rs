@@ -9,8 +9,7 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use tauri::command;
-use tauri::Manager;
+use tauri::{command, Manager};
 
 // ============================================================================
 // Settings Types
@@ -151,8 +150,8 @@ fn load_settings_from_file(path: &PathBuf) -> Settings {
 }
 
 fn save_settings_to_file(path: &PathBuf, settings: &Settings) -> Result<(), String> {
-    let json =
-        serde_json::to_string_pretty(settings).map_err(|e| format!("Failed to serialize settings: {e}"))?;
+    let json = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Failed to serialize settings: {e}"))?;
     std::fs::write(path, json).map_err(|e| format!("Failed to write settings file: {e}"))
 }
 
@@ -171,8 +170,8 @@ fn load_ui_state_from_file(path: &PathBuf) -> UiState {
 }
 
 fn save_ui_state_to_file(path: &PathBuf, state: &UiState) -> Result<(), String> {
-    let json =
-        serde_json::to_string_pretty(state).map_err(|e| format!("Failed to serialize UI state: {e}"))?;
+    let json = serde_json::to_string_pretty(state)
+        .map_err(|e| format!("Failed to serialize UI state: {e}"))?;
     std::fs::write(path, json).map_err(|e| format!("Failed to write UI state file: {e}"))
 }
 

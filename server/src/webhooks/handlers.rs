@@ -9,11 +9,9 @@ use sqlx::PgPool;
 use tracing::{info, instrument};
 use uuid::Uuid;
 
-use crate::auth::AuthUser;
-
-use super::queries;
-use super::signing;
 use super::types::*;
+use super::{queries, signing};
+use crate::auth::AuthUser;
 
 /// Verify application ownership and return application ID.
 async fn verify_ownership(pool: &PgPool, app_id: Uuid, user_id: Uuid) -> Result<(), WebhookError> {

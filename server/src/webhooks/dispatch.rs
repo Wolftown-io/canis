@@ -7,10 +7,9 @@ use sqlx::PgPool;
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use super::delivery;
 use super::events::BotEventType;
-use super::queries;
 use super::types::WebhookDeliveryItem;
+use super::{delivery, queries};
 
 /// Dispatch an event to all webhook subscribers for bots installed in a guild.
 ///

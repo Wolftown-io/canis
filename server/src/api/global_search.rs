@@ -15,8 +15,7 @@ use uuid::Uuid;
 use crate::api::AppState;
 use crate::auth::AuthUser;
 use crate::chat::dm;
-use crate::db;
-use crate::permissions;
+use crate::{db, permissions};
 
 // ============================================================================
 // Error Types

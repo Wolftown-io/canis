@@ -15,10 +15,8 @@ use fred::prelude::*;
 use sqlx::PgPool;
 use tracing::{error, info, warn};
 
-use super::queries;
-use super::signing;
-use super::ssrf;
 use super::types::WebhookDeliveryItem;
+use super::{queries, signing, ssrf};
 
 /// Redis key for the immediate webhook delivery queue.
 const DELIVERY_QUEUE_KEY: &str = "webhook:delivery:queue";

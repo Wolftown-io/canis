@@ -7,11 +7,12 @@
 
 mod helpers;
 
+use std::sync::Arc;
+
 use axum::body::Body;
 use axum::http::Method;
 use helpers::{body_to_json, create_test_user, generate_access_token, TestApp};
 use serial_test::serial;
-use std::sync::Arc;
 use uuid::Uuid;
 use vc_server::api::{create_router, AppState, AppStateConfig};
 use vc_server::voice::sfu::SfuServer;

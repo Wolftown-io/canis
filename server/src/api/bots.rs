@@ -8,13 +8,12 @@ use argon2::Argon2;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use tracing::instrument;
 use uuid::Uuid;
-
-use chrono::{DateTime, Utc};
 
 use crate::auth::AuthUser;
 
