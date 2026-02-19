@@ -18,6 +18,7 @@
 //! Sec-WebSocket-Protocol: access_token
 //! ```
 
+pub mod bot_events;
 pub mod bot_gateway;
 
 use std::collections::HashSet;

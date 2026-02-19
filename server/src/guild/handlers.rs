@@ -387,6 +387,40 @@ pub async fn join_guild(
     // Initialize read state for all text channels so pre-existing messages don't show as unread
     initialize_channel_read_state(&state.db, guild_id, auth.id).await?;
 
+    // Dispatch MemberJoined to bot ecosystem (non-blocking)
+    {
+        let db = state.db.clone();
+        let redis = state.redis.clone();
+        let gid = guild_id;
+        let uid = auth.id;
+        tokio::spawn(async move {
+            if let Ok(Some(user)) = crate::db::find_user_by_id(&db, uid).await {
+                crate::ws::bot_events::publish_member_joined(
+                    &db,
+                    &redis,
+                    gid,
+                    uid,
+                    &user.username,
+                    &user.display_name,
+                )
+                .await;
+                crate::webhooks::dispatch::dispatch_guild_event(
+                    &db,
+                    &redis,
+                    gid,
+                    crate::webhooks::events::BotEventType::MemberJoined,
+                    serde_json::json!({
+                        "guild_id": gid,
+                        "user_id": uid,
+                        "username": user.username,
+                        "display_name": user.display_name,
+                    }),
+                )
+                .await;
+            }
+        });
+    }
+
     Ok(StatusCode::OK)
 }
 
@@ -421,6 +455,25 @@ pub async fn leave_guild(
         .bind(auth.id)
         .execute(&state.db)
         .await?;
+
+    // Dispatch MemberLeft to bot ecosystem (non-blocking)
+    {
+        let db = state.db.clone();
+        let redis = state.redis.clone();
+        let gid = guild_id;
+        let uid = auth.id;
+        tokio::spawn(async move {
+            crate::ws::bot_events::publish_member_left(&db, &redis, gid, uid).await;
+            crate::webhooks::dispatch::dispatch_guild_event(
+                &db,
+                &redis,
+                gid,
+                crate::webhooks::events::BotEventType::MemberLeft,
+                serde_json::json!({ "guild_id": gid, "user_id": uid }),
+            )
+            .await;
+        });
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -495,6 +548,25 @@ pub async fn kick_member(
 
     if result.rows_affected() == 0 {
         return Err(GuildError::NotFound);
+    }
+
+    // Dispatch MemberLeft to bot ecosystem (non-blocking)
+    {
+        let db = state.db.clone();
+        let redis = state.redis.clone();
+        let gid = guild_id;
+        let uid = user_id;
+        tokio::spawn(async move {
+            crate::ws::bot_events::publish_member_left(&db, &redis, gid, uid).await;
+            crate::webhooks::dispatch::dispatch_guild_event(
+                &db,
+                &redis,
+                gid,
+                crate::webhooks::events::BotEventType::MemberLeft,
+                serde_json::json!({ "guild_id": gid, "user_id": uid }),
+            )
+            .await;
+        });
     }
 
     Ok(StatusCode::NO_CONTENT)

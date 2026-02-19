@@ -21,6 +21,7 @@ pub mod ratelimit;
 pub mod social;
 pub mod util;
 pub mod voice;
+pub mod webhooks;
 pub mod ws;
 
 #[cfg(test)]

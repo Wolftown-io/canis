@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production client builds now selectively strip `console.log` and `console.debug` while preserving `console.error` and `console.warn` for diagnostics (TD-09)
 
 ### Added
+- Webhook system for bot applications — developers can register up to 5 webhook endpoints per application to receive HTTP POST notifications for `message.created`, `member.joined`, `member.left`, and `command.invoked` events with HMAC-SHA256 signed payloads, automatic retry with exponential backoff (5 attempts), dead-letter storage for failed deliveries, and a delivery log for debugging
+- Bot gateway intents — bot applications can declare `messages`, `members`, and `commands` intents to filter which events they receive over the WebSocket gateway; `commands` is always enabled by default for backward compatibility
+- `MemberJoined` and `MemberLeft` gateway events — bots with the `members` intent now receive real-time notifications when users join, leave, or are kicked from guilds the bot is installed in
+- Webhook management UI — per-application webhook configuration page with create/edit/delete, event type selection, test ping, signing secret display (shown once on creation), and delivery log viewer
 - Guild content safety filters — guild managers can enable built-in filter categories (Slurs, Hate Speech, Spam, Abusive Language) or add custom keyword/regex patterns to automatically block, log, or warn on matching messages; includes dry-run test panel, paginated moderation log, and new Safety tab in Server Settings
   - Filters apply to guild text messages only; encrypted messages and DMs are not inspected
   - Uses Aho-Corasick for fast keyword matching + compiled regex for pattern rules

@@ -9502,6 +9502,7 @@ dependencies = [
  "fred",
  "futures",
  "hex",
+ "hmac",
  "http-body-util",
  "image",
  "infer 0.16.0",

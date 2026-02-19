@@ -576,9 +576,16 @@ pub async fn create(
                     return Ok((StatusCode::OK, Json(response)));
                 }
 
-                let commands = sqlx::query!(
-                    r#"
-                    SELECT ba.bot_user_id, sc.options, (sc.guild_id IS NOT NULL) AS "guild_scoped!"
+                #[derive(sqlx::FromRow)]
+                struct SlashCommandRow {
+                    bot_user_id: Option<Uuid>,
+                    application_id: Uuid,
+                    options: Option<serde_json::Value>,
+                    guild_scoped: bool,
+                }
+                let commands: Vec<SlashCommandRow> = sqlx::query_as(
+                    r"
+                    SELECT ba.bot_user_id, sc.application_id, sc.options, (sc.guild_id IS NOT NULL) AS guild_scoped
                     FROM slash_commands sc
                     JOIN bot_applications ba ON ba.id = sc.application_id
                     JOIN guild_bot_installations gbi ON gbi.application_id = sc.application_id
@@ -586,10 +593,10 @@ pub async fn create(
                       AND sc.name = $2
                       AND (sc.guild_id = $1 OR sc.guild_id IS NULL)
                     ORDER BY (sc.guild_id IS NOT NULL) DESC, sc.created_at ASC, sc.id ASC
-                    "#,
-                    guild_id,
-                    command_name,
+                    ",
                 )
+                .bind(guild_id)
+                .bind(&command_name)
                 .fetch_all(&state.db)
                 .await
                 .map_err(|e| {
@@ -723,6 +730,26 @@ pub async fn create(
                                     "Bot command routing unavailable".to_string(),
                                 )
                             })?;
+
+                        // Dispatch command.invoked to webhooks (non-blocking)
+                        {
+                            let wh_db = state.db.clone();
+                            let wh_redis = state.redis.clone();
+                            let wh_app_id = command.application_id;
+                            let wh_payload = serde_json::json!({
+                                "interaction_id": interaction_id,
+                                "command_name": command_name,
+                                "guild_id": guild_id,
+                                "channel_id": channel_id,
+                                "user_id": auth_user.id,
+                            });
+                            tokio::spawn(async move {
+                                crate::webhooks::dispatch::dispatch_command_event(
+                                    &wh_db, &wh_redis, wh_app_id, wh_payload,
+                                )
+                                .await;
+                            });
+                        }
 
                         // Spawn timeout relay
                         {
@@ -925,6 +952,38 @@ pub async fn create(
         .await
         {
             warn!(channel_id = %channel_id, error = %e, "Failed to broadcast new message event");
+        }
+    }
+
+    // Dispatch to bot ecosystem (non-blocking, fire-and-forget)
+    if let Some(guild_id) = channel.guild_id {
+        if !body.encrypted {
+            let db = state.db.clone();
+            let redis = state.redis.clone();
+            let msg_id = message.id;
+            let ch_id = channel_id;
+            let uid = auth_user.id;
+            let content = body.content.clone();
+            tokio::spawn(async move {
+                crate::ws::bot_events::publish_message_created(
+                    &db, &redis, guild_id, ch_id, msg_id, uid, &content,
+                )
+                .await;
+                crate::webhooks::dispatch::dispatch_guild_event(
+                    &db,
+                    &redis,
+                    guild_id,
+                    crate::webhooks::events::BotEventType::MessageCreated,
+                    serde_json::json!({
+                        "guild_id": guild_id,
+                        "channel_id": ch_id,
+                        "message_id": msg_id,
+                        "user_id": uid,
+                        "content": content,
+                    }),
+                )
+                .await;
+            });
         }
     }
 

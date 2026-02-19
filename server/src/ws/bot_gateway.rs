@@ -85,6 +85,24 @@ pub enum BotServerEvent {
         /// Guild ID.
         guild_id: Uuid,
     },
+    /// A member joined a guild the bot is installed in.
+    MemberJoined {
+        /// Guild ID.
+        guild_id: Uuid,
+        /// User ID of the new member.
+        user_id: Uuid,
+        /// Username of the new member.
+        username: String,
+        /// Display name of the new member.
+        display_name: String,
+    },
+    /// A member left a guild the bot is installed in.
+    MemberLeft {
+        /// Guild ID.
+        guild_id: Uuid,
+        /// User ID of the departing member.
+        user_id: Uuid,
+    },
     /// Error occurred.
     Error {
         /// Error code.
@@ -163,12 +181,21 @@ fn extract_bot_token(headers: &axum::http::HeaderMap) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Query parameters for the bot gateway.
+#[derive(Debug, Deserialize)]
+pub struct BotGatewayQuery {
+    /// Comma-separated list of intents (e.g., `messages,members,commands`).
+    #[serde(default)]
+    pub intents: Option<String>,
+}
+
 /// Bot gateway WebSocket handler.
-#[instrument(skip(state, ws, headers))]
+#[instrument(skip(state, ws, headers, query))]
 pub async fn bot_gateway_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     headers: HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<BotGatewayQuery>,
 ) -> Result<Response, (StatusCode, String)> {
     // Extract token from headers
     let token = extract_bot_token(&headers).ok_or_else(|| {
@@ -181,18 +208,54 @@ pub async fn bot_gateway_handler(
     // Authenticate bot
     let (bot_user_id, application_id) = authenticate_bot_token(&state.db, &token).await?;
 
+    // Parse intents from query parameter
+    let intents: Vec<String> = if let Some(intents_str) = query.intents {
+        intents_str
+            .split(',')
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else {
+        // Default: commands only (backward compatible)
+        vec!["commands".to_string()]
+    };
+
     info!(
         bot_user_id = %bot_user_id,
         application_id = %application_id,
+        ?intents,
         "Bot authenticated for gateway"
     );
 
     // Upgrade to WebSocket
-    Ok(ws.on_upgrade(move |socket| handle_bot_socket(socket, state, bot_user_id)))
+    Ok(ws.on_upgrade(move |socket| handle_bot_socket(socket, state, bot_user_id, intents)))
+}
+
+/// Check if an event should be forwarded based on declared intents.
+fn intent_permits_event(intents: &[String], event: &BotServerEvent) -> bool {
+    match event {
+        // Commands are always forwarded (default intent)
+        BotServerEvent::CommandInvoked { .. } => true,
+        // Messages require "messages" intent
+        BotServerEvent::MessageCreated { .. } => intents.iter().any(|i| i == "messages"),
+        // Member events require "members" intent
+        BotServerEvent::MemberJoined { .. } | BotServerEvent::MemberLeft { .. } => {
+            intents.iter().any(|i| i == "members")
+        }
+        // Lifecycle and error events are always forwarded
+        BotServerEvent::GuildJoined { .. }
+        | BotServerEvent::GuildLeft { .. }
+        | BotServerEvent::Error { .. } => true,
+    }
 }
 
 /// Handle bot WebSocket connection.
-async fn handle_bot_socket(socket: WebSocket, state: AppState, bot_user_id: Uuid) {
+async fn handle_bot_socket(
+    socket: WebSocket,
+    state: AppState,
+    bot_user_id: Uuid,
+    intents: Vec<String>,
+) {
     let (mut sender, mut receiver) = socket.split();
 
     // Create Redis subscriber for bot events
@@ -201,6 +264,7 @@ async fn handle_bot_socket(socket: WebSocket, state: AppState, bot_user_id: Uuid
 
     // Spawn subscriber task
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<BotServerEvent>();
+    let subscriber_intents = intents.clone();
     let subscriber_handle = tokio::spawn(async move {
         let subscriber = redis_client.clone_new();
         let _connect_handle = subscriber.connect();
@@ -226,6 +290,10 @@ async fn handle_bot_socket(socket: WebSocket, state: AppState, bot_user_id: Uuid
                 match String::from_utf8(raw.to_vec()) {
                     Ok(payload) => match serde_json::from_str::<BotServerEvent>(&payload) {
                         Ok(event) => {
+                            // Filter events based on declared intents
+                            if !intent_permits_event(&subscriber_intents, &event) {
+                                continue;
+                            }
                             if tx.send(event).is_err() {
                                 break; // Receiver dropped, connection closed
                             }

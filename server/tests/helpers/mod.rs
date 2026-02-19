@@ -699,3 +699,94 @@ pub async fn delete_guild(pool: &PgPool, guild_id: Uuid) {
         .await
         .ok();
 }
+
+// ============================================================================
+// Bot & Webhook helpers
+// ============================================================================
+
+/// Create a bot application, bot user, and return `(app_id, bot_user_id, token)`.
+pub async fn create_bot_application(pool: &PgPool, owner_id: Uuid) -> (Uuid, Uuid, String) {
+    let app_id = Uuid::now_v7();
+    let bot_user_id = Uuid::now_v7();
+    let bot_username = format!("bot_{}", &app_id.to_string()[..8]);
+
+    // Create bot user
+    sqlx::query(
+        "INSERT INTO users (id, username, display_name, password_hash, is_bot, bot_owner_id, status) VALUES ($1, $2, $3, 'bot_token_only', true, $4, 'offline')",
+    )
+    .bind(bot_user_id)
+    .bind(&bot_username)
+    .bind(format!("{bot_username} (Bot)"))
+    .bind(owner_id)
+    .execute(pool)
+    .await
+    .expect("Failed to create bot user");
+
+    // Create application with dummy token hash
+    let token = format!("{bot_user_id}.test_secret");
+    let token_hash = vc_server::auth::hash_token(&token);
+
+    sqlx::query(
+        "INSERT INTO bot_applications (id, owner_id, name, bot_user_id, token_hash, gateway_intents) VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(app_id)
+    .bind(owner_id)
+    .bind(&bot_username)
+    .bind(bot_user_id)
+    .bind(&token_hash)
+    .bind(&["commands".to_string()] as &[String])
+    .execute(pool)
+    .await
+    .expect("Failed to create bot application");
+
+    (app_id, bot_user_id, token)
+}
+
+/// Create a webhook for an application and return the webhook ID.
+pub async fn create_test_webhook(pool: &PgPool, app_id: Uuid, url: &str, events: &[&str]) -> Uuid {
+    let webhook_id = Uuid::now_v7();
+    let secret = "test_signing_secret_0123456789abcdef0123456789abcdef";
+
+    sqlx::query(
+        "INSERT INTO webhooks (id, application_id, url, signing_secret, subscribed_events, active) VALUES ($1, $2, $3, $4, $5::webhook_event_type[], true)",
+    )
+    .bind(webhook_id)
+    .bind(app_id)
+    .bind(url)
+    .bind(secret)
+    .bind(events)
+    .execute(pool)
+    .await
+    .expect("Failed to create test webhook");
+
+    webhook_id
+}
+
+/// Install a bot application in a guild.
+pub async fn install_bot_in_guild(pool: &PgPool, guild_id: Uuid, app_id: Uuid, user_id: Uuid) {
+    sqlx::query(
+        "INSERT INTO guild_bot_installations (guild_id, application_id, installed_by) VALUES ($1, $2, $3)",
+    )
+    .bind(guild_id)
+    .bind(app_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("Failed to install bot in guild");
+}
+
+/// Delete a bot application (cascades to webhooks, users, etc.).
+pub async fn delete_bot_application(pool: &PgPool, app_id: Uuid) {
+    // Delete guild installations first
+    sqlx::query("DELETE FROM guild_bot_installations WHERE application_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+    // Delete the application (cascades to webhooks, slash commands)
+    sqlx::query("DELETE FROM bot_applications WHERE id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+}

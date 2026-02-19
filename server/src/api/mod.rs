@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use axum::extract::{DefaultBodyLimit, FromRef, State};
 use axum::middleware::{from_fn, from_fn_with_state};
-use axum::routing::{delete, get, post, put};
+use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use fred::interfaces::ClientLike;
 use serde::Serialize;
@@ -34,7 +34,9 @@ use crate::email::EmailService;
 use crate::moderation::filter_cache::FilterCache;
 use crate::ratelimit::{rate_limit_by_user, with_category, RateLimitCategory, RateLimiter};
 use crate::voice::SfuServer;
-use crate::{admin, auth, chat, connectivity, crypto, guild, moderation, pages, social, voice, ws};
+use crate::{
+    admin, auth, chat, connectivity, crypto, guild, moderation, pages, social, voice, webhooks, ws,
+};
 
 /// Shared application state.
 #[derive(Clone)]
@@ -222,6 +224,30 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/applications/{id}/commands/{command_id}",
             delete(commands::delete_command),
+        )
+        // Webhooks
+        .route(
+            "/api/applications/{app_id}/webhooks",
+            get(webhooks::handlers::list_webhooks).post(webhooks::handlers::create_webhook),
+        )
+        .route(
+            "/api/applications/{app_id}/webhooks/{wh_id}",
+            get(webhooks::handlers::get_webhook)
+                .patch(webhooks::handlers::update_webhook)
+                .delete(webhooks::handlers::delete_webhook),
+        )
+        .route(
+            "/api/applications/{app_id}/webhooks/{wh_id}/test",
+            post(webhooks::handlers::test_webhook),
+        )
+        .route(
+            "/api/applications/{app_id}/webhooks/{wh_id}/deliveries",
+            get(webhooks::handlers::list_deliveries),
+        )
+        // Gateway intents
+        .route(
+            "/api/applications/{id}/intents",
+            put(bots::update_gateway_intents),
         )
         // Message reactions
         .route(

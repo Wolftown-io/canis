@@ -14,7 +14,35 @@ use thiserror::Error;
 use tracing::instrument;
 use uuid::Uuid;
 
+use chrono::{DateTime, Utc};
+
 use crate::auth::AuthUser;
+
+/// Database row for bot application queries (used with `sqlx::query_as`).
+#[derive(sqlx::FromRow)]
+struct ApplicationRow {
+    id: Uuid,
+    name: String,
+    description: Option<String>,
+    bot_user_id: Option<Uuid>,
+    public: bool,
+    gateway_intents: Vec<String>,
+    created_at: DateTime<Utc>,
+}
+
+impl From<ApplicationRow> for ApplicationResponse {
+    fn from(r: ApplicationRow) -> Self {
+        ApplicationResponse {
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            bot_user_id: r.bot_user_id,
+            public: r.public,
+            gateway_intents: r.gateway_intents,
+            created_at: r.created_at.to_rfc3339(),
+        }
+    }
+}
 
 /// Errors that can occur during bot operations.
 #[derive(Error, Debug)]
@@ -76,6 +104,8 @@ pub struct ApplicationResponse {
     pub bot_user_id: Option<Uuid>,
     /// Whether the bot is publicly listed.
     pub public: bool,
+    /// Gateway intents for event filtering.
+    pub gateway_intents: Vec<String>,
     /// When the application was created.
     pub created_at: String,
 }
@@ -111,31 +141,21 @@ pub async fn create_application(
         }
     }
 
-    let app = sqlx::query!(
-        r#"
+    let app: ApplicationRow = sqlx::query_as(
+        r"
         INSERT INTO bot_applications (owner_id, name, description)
         VALUES ($1, $2, $3)
-        RETURNING id, name, description, bot_user_id, public, created_at
-        "#,
-        claims.id,
-        req.name,
-        req.description
+        RETURNING id, name, description, bot_user_id, public, gateway_intents, created_at
+        ",
     )
+    .bind(claims.id)
+    .bind(&req.name)
+    .bind(&req.description)
     .fetch_one(&pool)
     .await
     .map_err(BotError::Database)?;
 
-    Ok((
-        StatusCode::CREATED,
-        Json(ApplicationResponse {
-            id: app.id,
-            name: app.name,
-            description: app.description,
-            bot_user_id: app.bot_user_id,
-            public: app.public,
-            created_at: app.created_at.to_rfc3339(),
-        }),
-    ))
+    Ok((StatusCode::CREATED, Json(app.into())))
 }
 
 /// List all applications owned by the current user.
@@ -144,32 +164,20 @@ pub async fn list_applications(
     State(pool): State<PgPool>,
     claims: AuthUser,
 ) -> Result<Json<Vec<ApplicationResponse>>, (StatusCode, String)> {
-    let apps = sqlx::query!(
-        r#"
-        SELECT id, name, description, bot_user_id, public, created_at
+    let apps: Vec<ApplicationRow> = sqlx::query_as(
+        r"
+        SELECT id, name, description, bot_user_id, public, gateway_intents, created_at
         FROM bot_applications
         WHERE owner_id = $1
         ORDER BY created_at DESC
-        "#,
-        claims.id
+        ",
     )
+    .bind(claims.id)
     .fetch_all(&pool)
     .await
     .map_err(BotError::Database)?;
 
-    let response = apps
-        .into_iter()
-        .map(|app| ApplicationResponse {
-            id: app.id,
-            name: app.name,
-            description: app.description,
-            bot_user_id: app.bot_user_id,
-            public: app.public,
-            created_at: app.created_at.to_rfc3339(),
-        })
-        .collect();
-
-    Ok(Json(response))
+    Ok(Json(apps.into_iter().map(Into::into).collect()))
 }
 
 /// Get a specific application by ID.
@@ -179,14 +187,26 @@ pub async fn get_application(
     Path(app_id): Path<Uuid>,
     claims: AuthUser,
 ) -> Result<Json<ApplicationResponse>, (StatusCode, String)> {
-    let app = sqlx::query!(
-        r#"
-        SELECT id, name, description, bot_user_id, public, created_at, owner_id
+    #[derive(sqlx::FromRow)]
+    struct AppWithOwner {
+        id: Uuid,
+        name: String,
+        description: Option<String>,
+        bot_user_id: Option<Uuid>,
+        public: bool,
+        gateway_intents: Vec<String>,
+        created_at: DateTime<Utc>,
+        owner_id: Uuid,
+    }
+
+    let app: AppWithOwner = sqlx::query_as(
+        r"
+        SELECT id, name, description, bot_user_id, public, gateway_intents, created_at, owner_id
         FROM bot_applications
         WHERE id = $1
-        "#,
-        app_id
+        ",
     )
+    .bind(app_id)
     .fetch_optional(&pool)
     .await
     .map_err(BotError::Database)?
@@ -203,6 +223,7 @@ pub async fn get_application(
         description: app.description,
         bot_user_id: app.bot_user_id,
         public: app.public,
+        gateway_intents: app.gateway_intents,
         created_at: app.created_at.to_rfc3339(),
     }))
 }
@@ -409,4 +430,65 @@ pub async fn delete_application(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Request to update gateway intents.
+#[derive(Debug, Deserialize)]
+pub struct UpdateIntentsRequest {
+    /// List of intent names (e.g., `["messages", "members", "commands"]`).
+    pub intents: Vec<String>,
+}
+
+/// Update gateway intents for an application.
+/// PUT /api/applications/{id}/intents
+#[instrument(skip(pool, claims))]
+pub async fn update_gateway_intents(
+    State(pool): State<PgPool>,
+    Path(app_id): Path<Uuid>,
+    claims: AuthUser,
+    Json(req): Json<UpdateIntentsRequest>,
+) -> Result<Json<ApplicationResponse>, (StatusCode, String)> {
+    // Validate intent names
+    for intent in &req.intents {
+        if !crate::webhooks::events::GatewayIntent::ALL.contains(&intent.as_str()) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "Invalid intent: '{}'. Valid intents: {}",
+                    intent,
+                    crate::webhooks::events::GatewayIntent::ALL.join(", ")
+                ),
+            ));
+        }
+    }
+
+    // Check ownership
+    let row: Option<(Uuid,)> =
+        sqlx::query_as("SELECT owner_id FROM bot_applications WHERE id = $1")
+            .bind(app_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(BotError::Database)?;
+
+    let (owner_id,) = row.ok_or_else(|| BotError::NotFound)?;
+    if owner_id != claims.id {
+        return Err(BotError::Forbidden.into());
+    }
+
+    // Update intents
+    let updated: ApplicationRow = sqlx::query_as(
+        r"
+        UPDATE bot_applications
+        SET gateway_intents = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING id, name, description, bot_user_id, public, gateway_intents, created_at
+        ",
+    )
+    .bind(&req.intents)
+    .bind(app_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(BotError::Database)?;
+
+    Ok(Json(updated.into()))
 }

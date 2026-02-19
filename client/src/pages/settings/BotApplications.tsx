@@ -214,7 +214,23 @@ const BotApplications: Component = () => {
                   >
                     Manage Commands
                   </A>
+                  <A
+                    href={`/settings/bots/${app.id}/webhooks`}
+                    class="px-3 py-1 text-sm bg-surface-700 hover:bg-surface-600 rounded transition-colors inline-block"
+                  >
+                    Webhooks
+                  </A>
                 </div>
+                <Show when={app.gateway_intents && app.gateway_intents.length > 0}>
+                  <div class="mt-2 flex items-center gap-1.5">
+                    <span class="text-xs text-[var(--text-secondary)]">Intents:</span>
+                    <For each={app.gateway_intents}>
+                      {(intent) => (
+                        <span class="text-xs px-1.5 py-0.5 bg-surface-700 rounded">{intent}</span>
+                      )}
+                    </For>
+                  </div>
+                </Show>
               </Show>
             </div>
           )}

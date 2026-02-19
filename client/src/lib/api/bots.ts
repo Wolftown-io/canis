@@ -12,6 +12,7 @@ export interface BotApplication {
   description?: string;
   bot_user_id?: string;
   public: boolean;
+  gateway_intents: string[];
   created_at: string;
 }
 
@@ -343,6 +344,34 @@ export async function listGuildCommands(guildId: string): Promise<GuildCommand[]
 
   if (!response.ok) {
     throw new Error('Failed to list guild commands');
+  }
+
+  return response.json();
+}
+
+/**
+ * Update gateway intents for an application.
+ */
+export async function updateGatewayIntents(
+  applicationId: string,
+  intents: string[]
+): Promise<BotApplication> {
+  const token = getAccessToken();
+  const response = await fetch(
+    `${API_BASE}/api/applications/${applicationId}/intents`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ intents }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Failed to update intents');
   }
 
   return response.json();

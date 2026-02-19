@@ -15,6 +15,7 @@ const PageViewRoute = lazy(() => import("./views/PageViewRoute"));
 const AdminDashboard = lazy(() => import("./views/AdminDashboard"));
 const ConnectionHistory = lazy(() => import("./pages/settings/ConnectionHistory"));
 const BotSlashCommands = lazy(() => import("./pages/settings/BotSlashCommands"));
+const BotWebhooks = lazy(() => import("./pages/settings/BotWebhooks"));
 
 // Components
 import AuthGuard from "./components/auth/AuthGuard";
@@ -149,6 +150,17 @@ const ProtectedBotCommands: Component = () => (
   </AuthGuard>
 );
 
+// Protected bot webhooks wrapper
+const ProtectedBotWebhooks: Component = () => (
+  <AuthGuard>
+    <LazyErrorBoundary name="BotWebhooks">
+      <Suspense fallback={<PageFallback />}>
+        <BotWebhooks />
+      </Suspense>
+    </LazyErrorBoundary>
+  </AuthGuard>
+);
+
 // Wrapped components for routes
 const LoginPage = () => <Layout><Login /></Layout>;
 const RegisterPage = () => <Layout><Register /></Layout>;
@@ -161,6 +173,7 @@ const PagePage = () => <Layout><ProtectedPageView /></Layout>;
 const AdminPage = () => <Layout><ProtectedAdmin /></Layout>;
 const ConnectionHistoryPage = () => <Layout><ProtectedConnectionHistory /></Layout>;
 const BotCommandsPage = () => <Layout><ProtectedBotCommands /></Layout>;
+const BotWebhooksPage = () => <Layout><ProtectedBotWebhooks /></Layout>;
 
 // Export routes as JSX Route elements
 export const AppRoutes = (): JSX.Element => (
@@ -176,6 +189,7 @@ export const AppRoutes = (): JSX.Element => (
     <Route path="/admin" component={AdminPage} />
     <Route path="/settings/connection" component={ConnectionHistoryPage} />
     <Route path="/settings/bots/:id/commands" component={BotCommandsPage} />
+    <Route path="/settings/bots/:id/webhooks" component={BotWebhooksPage} />
     <Route path="/*" component={MainPage} />
   </>
 );
