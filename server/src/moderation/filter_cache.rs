@@ -4,8 +4,9 @@
 //! for lock-free concurrent access. Engines are lazily built on first
 //! message and invalidated when filter config changes.
 //!
-//! A generation counter prevents stale engines from overwriting fresh
-//! invalidations (TOCTOU protection).
+//! Per-guild generation counters prevent stale engines from overwriting
+//! fresh invalidations (TOCTOU protection) without causing cross-guild
+//! cache misses.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -26,7 +27,9 @@ struct CachedEngine {
 /// Thread-safe cache of per-guild filter engines.
 pub struct FilterCache {
     engines: DashMap<Uuid, CachedEngine>,
-    generation: AtomicU64,
+    /// Per-guild generation counters. Incremented on invalidation so
+    /// in-flight builds from stale data are discarded on insert.
+    generations: DashMap<Uuid, Arc<AtomicU64>>,
 }
 
 impl Default for FilterCache {
@@ -40,8 +43,16 @@ impl FilterCache {
     pub fn new() -> Self {
         Self {
             engines: DashMap::new(),
-            generation: AtomicU64::new(0),
+            generations: DashMap::new(),
         }
+    }
+
+    /// Get or create the generation counter for a guild.
+    fn guild_generation(&self, guild_id: Uuid) -> Arc<AtomicU64> {
+        self.generations
+            .entry(guild_id)
+            .or_insert_with(|| Arc::new(AtomicU64::new(0)))
+            .clone()
     }
 
     /// Get the filter engine for a guild, building it if not cached.
@@ -56,8 +67,9 @@ impl FilterCache {
             return Ok(Arc::clone(&entry.engine));
         }
 
-        // Capture generation before DB reads
-        let gen_before = self.generation.load(Ordering::Acquire);
+        // Capture per-guild generation before DB reads
+        let gen = self.guild_generation(guild_id);
+        let gen_before = gen.load(Ordering::Acquire);
 
         // Slow path: build from database
         let configs = filter_queries::list_filter_configs(pool, guild_id)
@@ -70,10 +82,8 @@ impl FilterCache {
 
         let engine = Arc::new(FilterEngine::build(&configs, &patterns)?);
 
-        // Only insert if no invalidation happened since we started building.
-        // If generation changed, our data is potentially stale — skip insert
-        // and let the next caller rebuild with fresh data.
-        let gen_after = self.generation.load(Ordering::Acquire);
+        // Only insert if no invalidation happened for THIS guild since we started.
+        let gen_after = gen.load(Ordering::Acquire);
         if gen_before == gen_after {
             self.engines.insert(
                 guild_id,
@@ -109,10 +119,11 @@ impl FilterCache {
 
     /// Invalidate the cached engine for a guild.
     ///
-    /// Increments the generation counter so in-flight builds from stale
-    /// data will not overwrite the invalidation.
+    /// Increments the guild's generation counter so in-flight builds
+    /// from stale data will not overwrite the invalidation.
     pub fn invalidate(&self, guild_id: Uuid) {
-        self.generation.fetch_add(1, Ordering::Release);
+        self.guild_generation(guild_id)
+            .fetch_add(1, Ordering::Release);
         self.engines.remove(&guild_id);
     }
 }

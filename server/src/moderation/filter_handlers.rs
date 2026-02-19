@@ -244,27 +244,36 @@ async fn update_custom_pattern(
         }
     }
 
-    // Validate regex when is_regex is (or will be) true
-    if body.is_regex == Some(true) {
-        if let Some(ref pattern) = body.pattern {
-            // New pattern provided + is_regex=true: validate the new pattern
-            validate_regex(pattern)?;
-        } else {
-            // is_regex changed to true without new pattern: validate existing pattern text
-            let existing = filter_queries::get_custom_pattern(&state.db, pattern_id, guild_id)
-                .await?
-                .ok_or(FilterError::NotFound)?;
-            if !existing.is_regex {
-                validate_regex(&existing.pattern)?;
+    // Validate regex when the resulting pattern will be treated as regex.
+    // We need to check: will the DB row have is_regex=true after this update?
+    match body.is_regex {
+        Some(true) => {
+            // Explicitly enabling regex — validate whichever pattern text will be stored
+            if let Some(ref pattern) = body.pattern {
+                validate_regex(pattern)?;
+            } else {
+                // Changing is_regex to true without new pattern: validate existing text
+                let existing = filter_queries::get_custom_pattern(&state.db, pattern_id, guild_id)
+                    .await?
+                    .ok_or(FilterError::NotFound)?;
+                if !existing.is_regex {
+                    validate_regex(&existing.pattern)?;
+                }
             }
         }
-    } else if let Some(ref pattern) = body.pattern {
-        // New pattern text provided without explicit is_regex: check current DB state
-        let existing = filter_queries::get_custom_pattern(&state.db, pattern_id, guild_id)
-            .await?
-            .ok_or(FilterError::NotFound)?;
-        if existing.is_regex {
-            validate_regex(pattern)?;
+        Some(false) => {
+            // Explicitly disabling regex — no regex validation needed
+        }
+        None => {
+            // is_regex not changing — validate new pattern text if the existing row is regex
+            if let Some(ref pattern) = body.pattern {
+                let existing = filter_queries::get_custom_pattern(&state.db, pattern_id, guild_id)
+                    .await?
+                    .ok_or(FilterError::NotFound)?;
+                if existing.is_regex {
+                    validate_regex(pattern)?;
+                }
+            }
         }
     }
 

@@ -9,7 +9,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount } from "solid-js";
-import { ShieldAlert, Plus, Trash2, Pencil, FlaskConical, ScrollText, ToggleLeft, ToggleRight } from "lucide-solid";
+import { ShieldAlert, Plus, Trash2, FlaskConical, ToggleLeft, ToggleRight } from "lucide-solid";
 import {
   listFilterConfigs,
   updateFilterConfigs,
