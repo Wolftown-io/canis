@@ -13,6 +13,7 @@ import { mfaSetup, mfaVerify } from "@/lib/tauri";
 import type { MfaSetupResponse } from "@/lib/tauri";
 import { showToast } from "@/components/ui/Toast";
 import BackupCodesDisplay from "./BackupCodesDisplay";
+import QRCode from "qrcode";
 
 type Step = "qr" | "verify" | "backup";
 
@@ -28,6 +29,7 @@ const MfaSetupModal: Component<MfaSetupModalProps> = (props) => {
   const [backupCodes, setBackupCodes] = createSignal<string[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [qrDataUrl, setQrDataUrl] = createSignal<string | null>(null);
 
   // Start setup on mount
   const startSetup = async () => {
@@ -36,6 +38,9 @@ const MfaSetupModal: Component<MfaSetupModalProps> = (props) => {
     try {
       const data = await mfaSetup();
       setSetupData(data);
+      // Generate QR code client-side to avoid leaking the TOTP secret to external services
+      const dataUrl = await QRCode.toDataURL(data.qr_code_url, { width: 200, margin: 1 });
+      setQrDataUrl(dataUrl);
       setStep("qr");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -117,14 +122,19 @@ const MfaSetupModal: Component<MfaSetupModalProps> = (props) => {
                   </div>
                 }>
                   <div class="flex flex-col items-center gap-4">
-                    {/* QR Code - use the otpauth:// URL to generate a QR code via img tag */}
+                    {/* QR Code - generated client-side to keep TOTP secret local */}
                     <div class="p-4 bg-white rounded-xl">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupData()!.qr_code_url)}`}
-                        alt="MFA QR Code"
-                        class="w-48 h-48"
-                        loading="eager"
-                      />
+                      <Show when={qrDataUrl()} fallback={
+                        <div class="w-48 h-48 flex items-center justify-center">
+                          <span class="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        </div>
+                      }>
+                        <img
+                          src={qrDataUrl()!}
+                          alt="MFA QR Code"
+                          class="w-48 h-48"
+                        />
+                      </Show>
                     </div>
 
                     <div class="w-full">

@@ -15,7 +15,7 @@ use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 use validator::Validate;
 
-use super::backup_codes::{find_matching_backup_code, generate_backup_codes};
+use super::backup_codes::{find_matching_backup_code, generate_backup_codes, BACKUP_CODE_COUNT};
 use super::error::{AuthError, AuthResult};
 use super::jwt::{generate_token_pair, validate_refresh_token};
 use super::mfa_crypto::{decrypt_mfa_secret, encrypt_mfa_secret};
@@ -24,8 +24,9 @@ use super::oidc::{append_collision_suffix, generate_username_from_claims, OidcFl
 use super::password::{hash_password, verify_password};
 use crate::api::AppState;
 use crate::db::{
-    self, count_unused_mfa_backup_codes, create_password_reset_token, create_session,
-    delete_mfa_backup_codes, delete_session_by_token_hash, email_exists,
+    self, count_all_mfa_backup_codes, count_unused_mfa_backup_codes,
+    create_password_reset_token, create_session, delete_mfa_backup_codes,
+    delete_session_by_token_hash, email_exists,
     find_session_by_token_hash, find_user_by_email, find_user_by_external_id, find_user_by_id,
     find_user_by_username, find_valid_reset_token, get_auth_methods_allowed,
     get_unused_mfa_backup_codes, invalidate_user_reset_tokens, is_setup_complete,
@@ -1029,6 +1030,13 @@ pub async fn mfa_verify(
     let secret_str = decrypt_mfa_secret(&encrypted_secret, &key_bytes)
         .map_err(|e| AuthError::Internal(format!("Failed to decrypt MFA secret: {e}")))?;
 
+    // Count all backup codes (used + unused) BEFORE verification to detect first-time setup.
+    // This must happen before any backup code is consumed, otherwise exhausting the last
+    // code would be indistinguishable from never having had codes.
+    let total_codes_before = count_all_mfa_backup_codes(&state.db, auth_user.id)
+        .await
+        .map_err(AuthError::Database)?;
+
     // Parse the secret
     let secret = Secret::Encoded(secret_str);
 
@@ -1073,12 +1081,10 @@ pub async fn mfa_verify(
         }
     }
 
-    // Check if this is the first verification (setup completion) — no backup codes exist yet
-    let existing_code_count = count_unused_mfa_backup_codes(&state.db, auth_user.id)
-        .await
-        .map_err(AuthError::Database)?;
-
-    if existing_code_count == 0 {
+    // Auto-generate backup codes only on first-time setup completion.
+    // We use total_codes_before (counted before verification) to distinguish
+    // "never had codes" from "used the last code in this request".
+    if total_codes_before == 0 {
         // First-time verify after setup — auto-generate backup codes
         let (plaintext_codes, hashes) = generate_backup_codes()
             .map_err(|e| AuthError::Internal(format!("Failed to generate backup codes: {e}")))?;
@@ -1203,7 +1209,7 @@ pub async fn mfa_backup_code_count(
         .ok_or(AuthError::UserNotFound)?;
 
     if user.mfa_secret.is_none() {
-        return Err(AuthError::Internal("MFA is not enabled".to_string()));
+        return Err(AuthError::Validation("MFA is not enabled".to_string()));
     }
 
     let remaining = count_unused_mfa_backup_codes(&state.db, auth_user.id)
@@ -1212,7 +1218,7 @@ pub async fn mfa_backup_code_count(
 
     Ok(Json(MfaBackupCodeCountResponse {
         remaining,
-        total: 10,
+        total: BACKUP_CODE_COUNT as i64,
     }))
 }
 
