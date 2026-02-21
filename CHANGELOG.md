@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Milestone: Phase 5 - Ecosystem & SaaS Readiness
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
+### Security
+- Channel creation, member operations, and file uploads now enforce guild membership and permission checks — previously these endpoints could be accessed without proper authorization (#217, #218)
+- Guild join endpoint now requires a valid invite — previously any authenticated user could join any guild directly (#219)
+- E2EE device registration is now limited to 10 devices per user to prevent ghost device attacks (#221)
+- E2EE identity key fallback that produced permanently undecryptable messages has been replaced with a proper error — clients now surface a clear re-verification prompt instead of silently losing messages (#222)
+- Logout now verifies refresh token ownership — previously any valid token could revoke another user's session (#224)
+- MFA setup now requires TOTP verification before activation — previously MFA was activated immediately on secret generation without confirming the user had configured their authenticator (#225)
+- E2EE local key store is now encrypted with AES-256-GCM using SQLCipher — previously session data was stored in plaintext SQLite (#226)
+- Server now validates uploaded E2EE public keys are valid Curve25519 points — previously any byte string was accepted (#227)
+- E2EE key backup overwrites now require password re-authentication — previously backups could be silently replaced (#228)
+- Guild admins can now manage custom emoji regardless of uploader — previously only the original uploader could update or delete emoji (#229)
+- Webhook delivery now resolves DNS and validates the target IP at delivery time to prevent SSRF via DNS rebinding (#230)
+- Webhook signing secrets are now encrypted at rest using AES-256-GCM — previously stored as plaintext in the database (#231)
+- Refresh token rotation now uses atomic database operations to prevent race condition token reuse (#232)
+- E2EE local key store encryption now uses Argon2id key derivation instead of single-pass SHA-256 (#233)
+
 ### Fixed
 - Admin dashboard now correctly shows whether the current session is elevated — previously `is_elevated` was always reported as `false` regardless of actual elevation state (TD-17)
 - Revealed spoilers now stay revealed when scrolling away and back in the message list — previously clicking `||spoiler||` text to reveal it would reset when the message re-rendered (TD-22)
