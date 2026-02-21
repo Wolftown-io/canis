@@ -108,6 +108,11 @@ pub struct DeviceKeys {
 /// Prevents denial-of-service attacks by limiting the amount of work per request.
 const MAX_PREKEYS_PER_UPLOAD: usize = 100;
 
+/// Maximum number of devices a single user can register.
+/// Prevents ghost device attacks where an attacker registers many devices
+/// to intercept E2EE messages.
+const MAX_DEVICES_PER_USER: i64 = 10;
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -149,6 +154,33 @@ pub async fn upload_keys(
         return Err(AuthError::Validation(format!(
             "Cannot upload more than {MAX_PREKEYS_PER_UPLOAD} prekeys at once"
         )));
+    }
+
+    // Check device count limit before inserting a new device.
+    // We only enforce this for genuinely new devices (not updates to existing ones).
+    let existing_device: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM user_devices WHERE user_id = $1 AND identity_key_curve25519 = $2",
+    )
+    .bind(user_id)
+    .bind(&req.identity_key_curve25519)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(AuthError::Database)?;
+
+    if existing_device.is_none() {
+        let device_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM user_devices WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(AuthError::Database)?;
+
+        if device_count >= MAX_DEVICES_PER_USER {
+            return Err(AuthError::Validation(format!(
+                "Maximum of {MAX_DEVICES_PER_USER} devices per user exceeded"
+            )));
+        }
     }
 
     // Insert or update device
