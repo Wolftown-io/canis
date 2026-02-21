@@ -5,7 +5,7 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 use super::types::{
@@ -49,10 +49,13 @@ fn get_encryption_key(state: &AppState) -> Result<Vec<u8>, WebhookError> {
         WebhookError::Validation("Server encryption key misconfigured".to_string())
     })?;
     if key.len() != 32 {
-        return Err(WebhookError::Validation(format!(
-            "Server encryption key must be 32 bytes, got {}",
-            key.len()
-        )));
+        tracing::error!(
+            actual_len = key.len(),
+            "MFA_ENCRYPTION_KEY has wrong length (expected 32 bytes)"
+        );
+        return Err(WebhookError::Validation(
+            "Server encryption key misconfigured".to_string(),
+        ));
     }
     Ok(key)
 }
@@ -294,10 +297,12 @@ pub async fn test_webhook(
     }
 
     // Decrypt signing secret (fall back to plaintext for pre-encryption legacy webhooks)
-    let signing_secret = match get_encryption_key(&state) {
-        Ok(key) => decrypt_mfa_secret(&webhook.signing_secret, &key)
-            .unwrap_or_else(|_| webhook.signing_secret.clone()),
-        Err(_) => webhook.signing_secret.clone(),
+    let signing_secret = {
+        let key = get_encryption_key(&state)?;
+        decrypt_mfa_secret(&webhook.signing_secret, &key).unwrap_or_else(|_| {
+            warn!(webhook_id = %wh_id, "Signing secret not encrypted, using plaintext (legacy webhook)");
+            webhook.signing_secret.clone()
+        })
     };
 
     // SSRF check at delivery time (DNS rebinding protection)

@@ -165,8 +165,9 @@ const SALT_FILE: &str = "kdf_salt";
 ///
 /// The salt is stored in `{data_dir}/kdf_salt` and generated on first use.
 /// For existing installations without a salt file, falls back to SHA-256 for
-/// backward compatibility.
-fn derive_encryption_key(input: &str, data_dir: &std::path::Path) -> [u8; 32] {
+/// backward compatibility. Note: legacy installs remain on SHA-256 until a
+/// future migration re-encrypts the database under an Argon2id-derived key.
+fn derive_encryption_key(input: &str, data_dir: &std::path::Path) -> Result<[u8; 32], String> {
     let salt_path = data_dir.join(SALT_FILE);
     let db_path = data_dir.join("keys.db");
 
@@ -182,31 +183,32 @@ fn derive_encryption_key(input: &str, data_dir: &std::path::Path) -> [u8; 32] {
     if db_path.exists() {
         // Existing database without salt file — use legacy SHA-256 for backward compat
         warn!("Using legacy SHA-256 key derivation for existing key store (no salt file)");
-        return derive_with_sha256(input);
+        return Ok(derive_with_sha256(input));
     }
 
     // New installation — generate salt and use Argon2id
     let mut salt = [0u8; 16];
-    getrandom::getrandom(&mut salt).expect("Failed to generate KDF salt");
-    if let Err(e) = std::fs::write(&salt_path, &salt) {
+    getrandom::getrandom(&mut salt).map_err(|e| format!("Failed to generate KDF salt: {e}"))?;
+    if let Err(e) = std::fs::write(&salt_path, salt) {
         warn!("Failed to write KDF salt file, falling back to SHA-256: {e}");
-        return derive_with_sha256(input);
+        return Ok(derive_with_sha256(input));
     }
     info!("Generated new Argon2id KDF salt for E2EE key store");
     derive_with_argon2id(input, &salt)
 }
 
 /// Derive key using Argon2id (secure KDF).
-fn derive_with_argon2id(input: &str, salt: &[u8; 16]) -> [u8; 32] {
+fn derive_with_argon2id(input: &str, salt: &[u8; 16]) -> Result<[u8; 32], String> {
     // Parameters: 32 MiB memory, 2 iterations, 1 parallelism
-    let params = Params::new(32768, 2, 1, Some(32)).expect("Invalid Argon2 params");
+    let params =
+        Params::new(32768, 2, 1, Some(32)).map_err(|e| format!("Invalid Argon2 params: {e}"))?;
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let mut output = [0u8; 32];
     argon2
         .hash_password_into(input.as_bytes(), salt, &mut output)
-        .expect("Argon2id key derivation failed");
-    output
+        .map_err(|e| format!("Argon2id key derivation failed: {e}"))?;
+    Ok(output)
 }
 
 /// Legacy key derivation using SHA-256 (for backward compatibility only).
@@ -494,7 +496,7 @@ pub async fn init_e2ee(
     let data_dir = get_e2ee_data_dir(&app_handle, &user_id_str)?;
 
     // Derive encryption key from input using Argon2id (or SHA-256 for legacy stores)
-    let key = derive_encryption_key(&encryption_key, &data_dir);
+    let key = derive_encryption_key(&encryption_key, &data_dir)?;
 
     // Initialize crypto manager
     let manager =
@@ -782,24 +784,24 @@ mod tests {
     #[test]
     fn test_argon2id_deterministic() {
         let salt = [42u8; 16];
-        let key1 = derive_with_argon2id("test_password", &salt);
-        let key2 = derive_with_argon2id("test_password", &salt);
+        let key1 = derive_with_argon2id("test_password", &salt).unwrap();
+        let key2 = derive_with_argon2id("test_password", &salt).unwrap();
         assert_eq!(key1, key2);
         assert_ne!(key1, [0u8; 32]);
     }
 
     #[test]
     fn test_argon2id_different_salts() {
-        let key1 = derive_with_argon2id("same_password", &[1u8; 16]);
-        let key2 = derive_with_argon2id("same_password", &[2u8; 16]);
+        let key1 = derive_with_argon2id("same_password", &[1u8; 16]).unwrap();
+        let key2 = derive_with_argon2id("same_password", &[2u8; 16]).unwrap();
         assert_ne!(key1, key2);
     }
 
     #[test]
     fn test_argon2id_different_inputs() {
         let salt = [0u8; 16];
-        let key1 = derive_with_argon2id("password_a", &salt);
-        let key2 = derive_with_argon2id("password_b", &salt);
+        let key1 = derive_with_argon2id("password_a", &salt).unwrap();
+        let key2 = derive_with_argon2id("password_b", &salt).unwrap();
         assert_ne!(key1, key2);
     }
 
@@ -817,7 +819,7 @@ mod tests {
         let salt_path = dir.path().join("kdf_salt");
 
         // No keys.db, no salt file → should create salt and use Argon2id
-        let key = derive_encryption_key("my_key", dir.path());
+        let key = derive_encryption_key("my_key", dir.path()).unwrap();
         assert_eq!(key.len(), 32);
 
         // Salt file should now exist
@@ -826,7 +828,7 @@ mod tests {
         assert_eq!(salt.len(), 16);
 
         // Same input should produce same key (deterministic with stored salt)
-        let key2 = derive_encryption_key("my_key", dir.path());
+        let key2 = derive_encryption_key("my_key", dir.path()).unwrap();
         assert_eq!(key, key2);
     }
 
@@ -836,11 +838,40 @@ mod tests {
         // Create a fake keys.db but no salt file → legacy path
         std::fs::write(dir.path().join("keys.db"), b"fake").unwrap();
 
-        let key = derive_encryption_key("my_key", dir.path());
+        let key = derive_encryption_key("my_key", dir.path()).unwrap();
         let expected = derive_with_sha256("my_key");
         assert_eq!(key, expected);
 
         // Salt file should NOT have been created
         assert!(!dir.path().join("kdf_salt").exists());
+    }
+
+    #[test]
+    fn test_derive_corrupted_salt_with_existing_db() {
+        let dir = tempdir().unwrap();
+        // Write a corrupted salt file (wrong length)
+        std::fs::write(dir.path().join("kdf_salt"), b"too_short").unwrap();
+        // Create existing DB
+        std::fs::write(dir.path().join("keys.db"), b"fake").unwrap();
+
+        // Should fall through to SHA-256 legacy path
+        let key = derive_encryption_key("my_key", dir.path()).unwrap();
+        let expected = derive_with_sha256("my_key");
+        assert_eq!(key, expected);
+    }
+
+    #[test]
+    fn test_derive_corrupted_salt_without_db() {
+        let dir = tempdir().unwrap();
+        // Write a corrupted salt file (wrong length), no DB
+        std::fs::write(dir.path().join("kdf_salt"), b"short").unwrap();
+
+        // Should generate new salt and overwrite the corrupted one
+        let key = derive_encryption_key("my_key", dir.path()).unwrap();
+        assert_eq!(key.len(), 32);
+
+        // Salt file should now be correct (16 bytes)
+        let salt = std::fs::read(dir.path().join("kdf_salt")).unwrap();
+        assert_eq!(salt.len(), 16);
     }
 }
