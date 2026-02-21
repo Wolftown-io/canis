@@ -31,7 +31,7 @@ use crate::db::{
     find_user_by_username, find_valid_reset_token, get_auth_methods_allowed,
     get_unused_mfa_backup_codes, invalidate_user_reset_tokens, is_setup_complete,
     mark_mfa_backup_code_used, set_mfa_secret, store_mfa_backup_codes, update_user_avatar,
-    update_user_profile, username_exists,
+    update_user_profile, username_exists, Session,
 };
 use crate::ratelimit::NormalizedIp;
 use crate::util::format_file_size;
@@ -601,6 +601,10 @@ pub async fn login(
 /// Refresh access token using refresh token.
 ///
 /// POST /auth/refresh
+///
+/// Uses a database transaction with `FOR UPDATE` row locking to prevent
+/// race conditions where concurrent refresh requests could both succeed,
+/// defeating token rotation security.
 #[tracing::instrument(skip(state, body))]
 pub async fn refresh_token(
     State(state): State<AppState>,
@@ -611,14 +615,29 @@ pub async fn refresh_token(
     // Validate the refresh token (JWT validation)
     let claims = validate_refresh_token(&body.refresh_token, &state.config.jwt_public_key)?;
 
-    // Check if session exists in database (not revoked)
-    let token_hash = hash_token(&body.refresh_token);
-    let session = find_session_by_token_hash(&state.db, &token_hash)
-        .await?
-        .ok_or(AuthError::InvalidToken)?;
-
     // Parse user ID
     let user_id: Uuid = claims.sub.parse().map_err(|_| AuthError::InvalidToken)?;
+
+    let token_hash = hash_token(&body.refresh_token);
+
+    // Wrap session lookup, deletion, and creation in a transaction with FOR UPDATE
+    // to prevent race conditions in token rotation.
+    let mut tx = state.db.begin().await?;
+
+    // Lock the session row to prevent concurrent refresh
+    let session: Option<Session> = sqlx::query_as(
+        r"
+        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
+        FROM sessions
+        WHERE token_hash = $1 AND expires_at > NOW()
+        FOR UPDATE
+        ",
+    )
+    .bind(&token_hash)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let session = session.ok_or(AuthError::InvalidToken)?;
 
     // Verify session belongs to the user in the token
     if session.user_id != user_id {
@@ -630,8 +649,11 @@ pub async fn refresh_token(
         .await?
         .ok_or(AuthError::UserNotFound)?;
 
-    // Delete old session (token rotation)
-    delete_session_by_token_hash(&state.db, &token_hash).await?;
+    // Delete old session within the transaction
+    sqlx::query("DELETE FROM sessions WHERE token_hash = $1")
+        .bind(&token_hash)
+        .execute(&mut *tx)
+        .await?;
 
     // Generate new token pair
     let new_tokens = generate_token_pair(
@@ -641,20 +663,27 @@ pub async fn refresh_token(
         state.config.jwt_refresh_expiry,
     )?;
 
-    // Store new refresh token session
+    // Store new refresh token session within the transaction
     let new_token_hash = hash_token(&new_tokens.refresh_token);
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
-    create_session(
-        &state.db,
-        user_id,
-        &new_token_hash,
-        expires_at,
-        Some(&addr.ip().to_string()),
-        user_agent.as_deref(),
+    sqlx::query(
+        r"
+        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
+        VALUES ($1, $2, $3, $4::inet, $5)
+        ",
     )
+    .bind(user_id)
+    .bind(&new_token_hash)
+    .bind(expires_at)
+    .bind(addr.ip().to_string())
+    .bind(user_agent.as_deref())
+    .execute(&mut *tx)
     .await?;
+
+    // Commit the transaction — this is the atomic point
+    tx.commit().await?;
 
     // Check if setup is complete
     let setup_complete = is_setup_complete(&state.db).await?;
@@ -679,8 +708,16 @@ pub async fn logout(
     auth_user: AuthUser,
     Json(body): Json<LogoutRequest>,
 ) -> AuthResult<()> {
-    // Delete the session associated with the provided refresh token
+    // Verify the session belongs to the authenticated user before deleting
     let token_hash = hash_token(&body.refresh_token);
+    let session = find_session_by_token_hash(&state.db, &token_hash)
+        .await?
+        .ok_or(AuthError::InvalidToken)?;
+
+    if session.user_id != auth_user.id {
+        return Err(AuthError::InvalidToken);
+    }
+
     delete_session_by_token_hash(&state.db, &token_hash).await?;
 
     tracing::info!(user_id = %auth_user.id, "User logged out");
@@ -939,6 +976,10 @@ pub async fn update_profile(
 /// Setup MFA (TOTP).
 ///
 /// POST /auth/mfa/setup
+///
+/// Stores the TOTP secret as pending in Redis (5-minute TTL).
+/// MFA is only activated once the user verifies a valid TOTP code via
+/// `POST /auth/mfa/verify`, which moves the secret to permanent DB storage.
 pub async fn mfa_setup(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -968,10 +1009,20 @@ pub async fn mfa_setup(
     let encrypted_secret = encrypt_mfa_secret(&secret_str, &key_bytes)
         .map_err(|e| AuthError::Internal(format!("Failed to encrypt MFA secret: {e}")))?;
 
-    // Store encrypted secret in database
-    set_mfa_secret(&state.db, auth_user.id, Some(&encrypted_secret))
+    // Store as pending in Redis (5-minute TTL) instead of directly in DB.
+    // The secret is only persisted to the DB after successful TOTP verification.
+    let redis_key = format!("mfa:pending:{}", auth_user.id);
+    state
+        .redis
+        .set::<(), _, _>(
+            &redis_key,
+            &encrypted_secret,
+            Some(Expiration::EX(300)),
+            None,
+            false,
+        )
         .await
-        .map_err(|e| AuthError::Internal(format!("Failed to store MFA secret: {e}")))?;
+        .map_err(|e| AuthError::Internal(format!("Failed to store pending MFA secret: {e}")))?;
 
     // Create TOTP instance for QR code
     let totp = TOTP::new(
@@ -1021,10 +1072,20 @@ pub async fn mfa_verify(
         .map_err(|_| AuthError::Internal("Database error".to_string()))?
         .ok_or(AuthError::UserNotFound)?;
 
-    // Check if MFA is enabled
-    let encrypted_secret = user
-        .mfa_secret
-        .ok_or_else(|| AuthError::Internal("MFA not enabled".to_string()))?;
+    // Check if MFA is enabled — either permanently (DB) or pending setup (Redis).
+    let (encrypted_secret, is_pending_setup) = if let Some(secret) = user.mfa_secret {
+        (secret, false)
+    } else {
+        // Check for pending MFA secret in Redis (from mfa_setup)
+        let redis_key = format!("mfa:pending:{}", auth_user.id);
+        let pending: Option<String> = state.redis.get(&redis_key).await.map_err(|e| {
+            AuthError::Internal(format!("Failed to check pending MFA secret: {e}"))
+        })?;
+        match pending {
+            Some(secret) => (secret, true),
+            None => return Err(AuthError::Validation("MFA not enabled".to_string())),
+        }
+    };
 
     // Decrypt the secret
     let secret_str = decrypt_mfa_secret(&encrypted_secret, &key_bytes)
@@ -1079,6 +1140,16 @@ pub async fn mfa_verify(
         } else {
             return Err(AuthError::InvalidMfaCode);
         }
+    }
+
+    // If this was a pending setup, persist the secret to DB and clean up Redis.
+    if is_pending_setup {
+        set_mfa_secret(&state.db, auth_user.id, Some(&encrypted_secret))
+            .await
+            .map_err(|e| AuthError::Internal(format!("Failed to persist MFA secret: {e}")))?;
+
+        let redis_key = format!("mfa:pending:{}", auth_user.id);
+        let _ = state.redis.del::<(), _>(&redis_key).await;
     }
 
     // Auto-generate backup codes only on first-time setup completion.

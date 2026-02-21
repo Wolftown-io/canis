@@ -72,23 +72,37 @@ fn is_v4_mapped_private(v6: &std::net::Ipv6Addr) -> bool {
     }
 }
 
+/// Verified URL with pinned resolved addresses to prevent DNS rebinding.
+pub struct VerifiedUrl {
+    /// The original hostname from the URL.
+    pub host: String,
+    /// The first verified (non-private) socket address.
+    pub addr: std::net::SocketAddr,
+}
+
 /// Resolve a URL's hostname and verify the resolved IP is not private/reserved.
-/// Returns `Ok(())` if safe, `Err(message)` if blocked.
-pub async fn verify_resolved_ip(url: &str) -> Result<(), String> {
+/// Returns the verified host and a pinned socket address to use for delivery,
+/// preventing DNS rebinding (TOCTOU) attacks.
+pub async fn verify_resolved_ip(url: &str) -> Result<VerifiedUrl, String> {
     let parsed = reqwest::Url::parse(url).map_err(|e| format!("Invalid URL: {e}"))?;
     let host = parsed
         .host_str()
-        .ok_or_else(|| "URL has no host".to_string())?;
+        .ok_or_else(|| "URL has no host".to_string())?
+        .to_string();
+
+    let port = parsed.port_or_known_default().unwrap_or(443);
 
     // C4: Always validate raw IPs at delivery time (defense-in-depth against DNS rebinding)
     if let Ok(ip) = host.parse::<IpAddr>() {
         if is_private_ip(&ip) {
             return Err(format!("URL contains private IP address: {ip}"));
         }
-        return Ok(());
+        return Ok(VerifiedUrl {
+            host: host.clone(),
+            addr: std::net::SocketAddr::new(ip, port),
+        });
     }
 
-    let port = parsed.port_or_known_default().unwrap_or(443);
     let addr_str = format!("{host}:{port}");
 
     let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host(&addr_str)
@@ -109,7 +123,10 @@ pub async fn verify_resolved_ip(url: &str) -> Result<(), String> {
         }
     }
 
-    Ok(())
+    Ok(VerifiedUrl {
+        host,
+        addr: addrs[0],
+    })
 }
 
 #[cfg(test)]

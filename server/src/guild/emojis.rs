@@ -362,7 +362,7 @@ pub async fn update_emoji(
         return Err(EmojiError::Validation(e.to_string()));
     }
 
-    // Check ownership/permissions
+    // Check ownership or MANAGE_GUILD permission
     let emoji = sqlx::query_as::<_, GuildEmoji>(
         "SELECT * FROM guild_emojis WHERE id = $1 AND guild_id = $2",
     )
@@ -373,7 +373,15 @@ pub async fn update_emoji(
     .ok_or(EmojiError::EmojiNotFound)?;
 
     if emoji.uploaded_by != auth_user.id {
-        return Err(EmojiError::Forbidden);
+        // Fallback: allow guild admins with MANAGE_GUILD permission
+        crate::permissions::require_guild_permission(
+            &state.db,
+            guild_id,
+            auth_user.id,
+            crate::permissions::GuildPermissions::MANAGE_GUILD,
+        )
+        .await
+        .map_err(|_| EmojiError::Forbidden)?;
     }
 
     let updated = sqlx::query_as::<_, GuildEmoji>(
@@ -435,7 +443,7 @@ pub async fn delete_emoji(
     Path((guild_id, emoji_id)): Path<(Uuid, Uuid)>,
     auth_user: AuthUser,
 ) -> Result<StatusCode, EmojiError> {
-    // Check existence and fetch details for S3 deletion
+    // Check existence and ownership or MANAGE_GUILD permission
     let emoji = sqlx::query_as::<_, GuildEmoji>(
         "SELECT * FROM guild_emojis WHERE id = $1 AND guild_id = $2",
     )
@@ -446,7 +454,14 @@ pub async fn delete_emoji(
     .ok_or(EmojiError::EmojiNotFound)?;
 
     if emoji.uploaded_by != auth_user.id {
-        return Err(EmojiError::Forbidden);
+        crate::permissions::require_guild_permission(
+            &state.db,
+            guild_id,
+            auth_user.id,
+            crate::permissions::GuildPermissions::MANAGE_GUILD,
+        )
+        .await
+        .map_err(|_| EmojiError::Forbidden)?;
     }
 
     // Delete from DB
