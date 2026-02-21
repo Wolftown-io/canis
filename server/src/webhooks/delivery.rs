@@ -8,6 +8,7 @@
 //! - Failed deliveries are scheduled into `RETRY_ZSET_KEY` (sorted set, score = Unix timestamp).
 //! - The worker loop polls both: immediate queue and due retries.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use fred::interfaces::{ListInterface, LuaInterface, SortedSetsInterface};
@@ -17,6 +18,7 @@ use tracing::{error, info, warn};
 
 use super::types::WebhookDeliveryItem;
 use super::{queries, signing, ssrf};
+use crate::auth::mfa_crypto::decrypt_mfa_secret;
 
 /// Redis key for the immediate webhook delivery queue.
 const DELIVERY_QUEUE_KEY: &str = "webhook:delivery:queue";
@@ -110,7 +112,12 @@ async fn promote_due_retries(redis: &Client) {
 }
 
 /// Spawn the background delivery worker.
-pub async fn spawn_delivery_worker(db: PgPool, redis: Client, http_client: reqwest::Client) {
+pub async fn spawn_delivery_worker(
+    db: PgPool,
+    redis: Client,
+    http_client: reqwest::Client,
+    encryption_key: Option<Arc<Vec<u8>>>,
+) {
     info!("Webhook delivery worker started");
 
     // H7: Track consecutive BRPOP errors for exponential backoff
@@ -168,13 +175,14 @@ pub async fn spawn_delivery_worker(db: PgPool, redis: Client, http_client: reqwe
         let db = db.clone();
         let redis = redis.clone();
         let client = http_client.clone();
+        let enc_key = encryption_key.clone();
 
         // C2: Spawn delivery with panic-catching wrapper
         tokio::spawn(async move {
             let webhook_id = item.webhook_id;
             let event_id = item.event_id;
             let handle = tokio::spawn(async move {
-                process_delivery(&db, &redis, &client, item).await;
+                process_delivery(&db, &redis, &client, item, enc_key.as_deref()).await;
             });
             if let Err(e) = handle.await {
                 error!(
@@ -193,6 +201,7 @@ async fn process_delivery(
     redis: &Client,
     client: &reqwest::Client,
     item: WebhookDeliveryItem,
+    encryption_key: Option<&Vec<u8>>,
 ) {
     // SSRF protection: verify resolved IP is not private/reserved
     if let Err(e) = ssrf::verify_resolved_ip(&item.url).await {
@@ -222,7 +231,7 @@ async fn process_delivery(
     }
 
     // Look up signing secret from database (not stored in Redis queue)
-    let signing_secret = match queries::get_signing_secret(db, item.webhook_id).await {
+    let encrypted_secret = match queries::get_signing_secret(db, item.webhook_id).await {
         Ok(Some(secret)) => secret,
         Ok(None) => {
             warn!(webhook_id = %item.webhook_id, "Webhook deleted or deactivated before delivery, skipping");
@@ -234,6 +243,21 @@ async fn process_delivery(
             handle_retry(db, redis, item, &format!("DB error: {e}")).await;
             return;
         }
+    };
+
+    // Decrypt signing secret if encryption key is available
+    let signing_secret = if let Some(key) = encryption_key {
+        match decrypt_mfa_secret(&encrypted_secret, key) {
+            Ok(secret) => secret,
+            Err(e) => {
+                error!(webhook_id = %item.webhook_id, error = %e, "Failed to decrypt signing secret");
+                handle_retry(db, redis, item, &format!("Decryption error: {e}")).await;
+                return;
+            }
+        }
+    } else {
+        // No encryption key configured — use value as-is (backward compat)
+        encrypted_secret
     };
 
     // Build CloudEvents 1.0 envelope

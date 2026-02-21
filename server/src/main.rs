@@ -254,10 +254,18 @@ async fn main() -> Result<()> {
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .expect("Failed to build webhook HTTP client");
+    // Pass encryption key for decrypting webhook signing secrets at delivery time
+    let webhook_encryption_key = config
+        .mfa_encryption_key
+        .as_ref()
+        .and_then(|hex_str| hex::decode(hex_str).ok())
+        .filter(|k| k.len() == 32)
+        .map(|k| std::sync::Arc::new(k));
     let webhook_worker_handle = tokio::spawn(vc_server::webhooks::delivery::spawn_delivery_worker(
         db_pool.clone(),
         redis.clone(),
         webhook_http_client,
+        webhook_encryption_key,
     ));
     info!("Webhook delivery worker started");
 

@@ -3,12 +3,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use argon2::{Argon2, Params};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{command, Manager, State};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 use vc_crypto::olm::EncryptedMessage;
 use vc_crypto::{EncryptedBackup, RecoveryKey};
@@ -157,8 +158,59 @@ pub struct E2EEContentOutput {
     pub recipients: HashMap<String, HashMap<String, EncryptedMessageOutput>>,
 }
 
-/// Derive a 32-byte encryption key from a string using SHA-256.
-fn derive_encryption_key(input: &str) -> [u8; 32] {
+/// Salt file name stored alongside the E2EE database.
+const SALT_FILE: &str = "kdf_salt";
+
+/// Derive a 32-byte encryption key from a string using Argon2id with a random salt.
+///
+/// The salt is stored in `{data_dir}/kdf_salt` and generated on first use.
+/// For existing installations without a salt file, falls back to SHA-256 for
+/// backward compatibility.
+fn derive_encryption_key(input: &str, data_dir: &std::path::Path) -> [u8; 32] {
+    let salt_path = data_dir.join(SALT_FILE);
+    let db_path = data_dir.join("keys.db");
+
+    if let Ok(salt_bytes) = std::fs::read(&salt_path) {
+        if salt_bytes.len() == 16 {
+            // Salt exists — use Argon2id
+            let mut salt = [0u8; 16];
+            salt.copy_from_slice(&salt_bytes);
+            return derive_with_argon2id(input, &salt);
+        }
+    }
+
+    if db_path.exists() {
+        // Existing database without salt file — use legacy SHA-256 for backward compat
+        warn!("Using legacy SHA-256 key derivation for existing key store (no salt file)");
+        return derive_with_sha256(input);
+    }
+
+    // New installation — generate salt and use Argon2id
+    let mut salt = [0u8; 16];
+    getrandom::getrandom(&mut salt).expect("Failed to generate KDF salt");
+    if let Err(e) = std::fs::write(&salt_path, &salt) {
+        warn!("Failed to write KDF salt file, falling back to SHA-256: {e}");
+        return derive_with_sha256(input);
+    }
+    info!("Generated new Argon2id KDF salt for E2EE key store");
+    derive_with_argon2id(input, &salt)
+}
+
+/// Derive key using Argon2id (secure KDF).
+fn derive_with_argon2id(input: &str, salt: &[u8; 16]) -> [u8; 32] {
+    // Parameters: 32 MiB memory, 2 iterations, 1 parallelism
+    let params = Params::new(32768, 2, 1, Some(32)).expect("Invalid Argon2 params");
+    let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+
+    let mut output = [0u8; 32];
+    argon2
+        .hash_password_into(input.as_bytes(), salt, &mut output)
+        .expect("Argon2id key derivation failed");
+    output
+}
+
+/// Legacy key derivation using SHA-256 (for backward compatibility only).
+fn derive_with_sha256(input: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(input.as_bytes());
     let result = hasher.finalize();
@@ -441,8 +493,8 @@ pub async fn init_e2ee(
     // Get data directory
     let data_dir = get_e2ee_data_dir(&app_handle, &user_id_str)?;
 
-    // Derive encryption key from input
-    let key = derive_encryption_key(&encryption_key);
+    // Derive encryption key from input using Argon2id (or SHA-256 for legacy stores)
+    let key = derive_encryption_key(&encryption_key, &data_dir);
 
     // Initialize crypto manager
     let manager =

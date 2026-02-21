@@ -66,6 +66,8 @@ sysinfo = "0.34"
 # Clipboard
 arboard = "3"
 sha2 = "0.10"
+argon2.workspace = true
+getrandom = "0.2"
 
 # Zeroize
 zeroize.workspace = true
