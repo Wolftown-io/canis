@@ -36,6 +36,10 @@ pub enum CryptoManagerError {
     /// Account not initialized.
     #[error("Crypto account not initialized")]
     NotInitialized,
+
+    /// No one-time prekey available for recipient device.
+    #[error("No one-time prekey available for device {device_key} — recipient must replenish prekeys")]
+    NoOneTimePrekey { device_key: String },
 }
 
 /// Crypto manager result type.
@@ -341,14 +345,15 @@ impl CryptoManager {
             // Need to create a new outbound session
             let mut account = store.load_account()?;
 
-            // Get the one-time prekey if available
+            // A one-time prekey is required to establish a secure session.
+            // Without it, Olm cannot produce a decryptable pre-key message.
             let one_time_key = if let Some(ref prekey) = claimed.one_time_prekey {
                 Curve25519PublicKey::from_base64(&prekey.public_key)
                     .map_err(|e| CryptoManagerError::InvalidKey(e.to_string()))?
             } else {
-                // Fallback: use identity key as one-time key (less secure, but allows
-                // communication when no one-time keys are available)
-                recipient_identity_key
+                return Err(CryptoManagerError::NoOneTimePrekey {
+                    device_key: claimed.identity_key_curve25519.clone(),
+                });
             };
 
             let session = account.create_outbound_session(&recipient_identity_key, &one_time_key);
@@ -694,22 +699,9 @@ mod tests {
     }
 
     #[test]
-    fn test_crypto_manager_identity_key_fallback() {
-        // Test the fallback code path when no one-time prekey is available.
-        //
-        // KNOWN LIMITATION: The current fallback implementation (lines 340-345) attempts
-        // to use the identity key as a one-time key, but this doesn't work with vodozemac.
-        // When vodozemac creates an inbound session, it expects to find the referenced
-        // one-time key in the account's published keys. Since the identity key is not
-        // a one-time key, decryption fails.
-        //
-        // FUTURE FIX: Implement proper fallback key support using vodozemac's fallback key
-        // mechanism. This requires:
-        // 1. Bob generating and publishing a fallback key alongside one-time keys
-        // 2. Server returning the fallback key when no one-time keys are available
-        // 3. Using the fallback key for session creation (works like a one-time key)
-        //
-        // This test verifies the CURRENT behavior (encryption succeeds, decryption fails).
+    fn test_crypto_manager_no_prekey_returns_error() {
+        // Encrypting without a one-time prekey must fail immediately rather than
+        // silently producing an undecryptable message.
         let dir = tempdir().unwrap();
         let encryption_key = [0u8; 32];
 
@@ -719,42 +711,30 @@ mod tests {
         let alice_user_id = Uuid::now_v7();
         let alice = CryptoManager::init(alice_dir, alice_user_id, encryption_key).unwrap();
 
-        // Create Bob but mark all keys as published (simulating no available one-time keys)
+        // Create Bob
         let bob_dir = dir.path().join("bob");
         std::fs::create_dir(&bob_dir).unwrap();
         let bob_user_id = Uuid::now_v7();
         let bob = CryptoManager::init(bob_dir, bob_user_id, encryption_key).unwrap();
 
-        // Get Bob's identity keys only (no one-time prekeys)
         let bob_identity = bob.get_identity_keys().unwrap();
 
-        // Alice encrypts to Bob WITHOUT a one-time prekey (fallback path)
+        // Attempt to encrypt without a one-time prekey
         let claimed = ClaimedPrekey {
             device_id: bob.device_id(),
             identity_key_ed25519: bob_identity.ed25519.clone(),
             identity_key_curve25519: bob_identity.curve25519.clone(),
-            one_time_prekey: None, // No one-time prekey available - triggers fallback
+            one_time_prekey: None,
         };
 
-        let plaintext = "Hello via fallback!";
+        let result = alice.encrypt_for_device(bob_user_id, &claimed, "Hello!");
 
-        // Encryption succeeds (Alice can create an outbound session)
-        let ciphertext = alice
-            .encrypt_for_device(bob_user_id, &claimed, plaintext)
-            .unwrap();
-        assert!(ciphertext.is_prekey());
-
-        // Decryption fails because the identity key isn't a valid one-time key.
-        // Bob's account doesn't recognize the key embedded in the prekey message.
-        let alice_curve25519 = alice.our_curve25519_key().unwrap();
-        let result = bob.decrypt_message(alice_user_id, &alice_curve25519, &ciphertext);
-
-        // Current behavior: decryption fails with "unknown one-time key" error
+        // Must fail with NoOneTimePrekey error
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
-            matches!(err, CryptoManagerError::Crypto(_)),
-            "Expected Crypto error, got: {err:?}"
+            matches!(err, CryptoManagerError::NoOneTimePrekey { .. }),
+            "Expected NoOneTimePrekey error, got: {err:?}"
         );
     }
 

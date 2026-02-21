@@ -629,8 +629,7 @@ pub async fn get_audit_log(
 ///
 /// `POST /api/admin/elevate`
 ///
-/// If MFA is not enabled on the user account, elevation is allowed without MFA
-/// (for development/testing purposes).
+/// MFA must be enrolled on the admin account. Returns `MfaRequired` if not.
 #[tracing::instrument(skip(state, body))]
 pub async fn elevate_session(
     State(state): State<AppState>,
@@ -643,48 +642,48 @@ pub async fn elevate_session(
         .await?
         .ok_or(AdminError::NotAdmin)?;
 
-    // Only verify MFA if the user has it enabled
-    if let Some(mfa_secret_encrypted) = user.mfa_secret {
-        // Validate MFA code format (6 digits)
-        if body.mfa_code.len() != 6 || !body.mfa_code.chars().all(|c| c.is_ascii_digit()) {
-            return Err(AdminError::InvalidMfaCode);
-        }
+    // MFA is required for admin session elevation
+    let mfa_secret_encrypted = user.mfa_secret.ok_or(AdminError::MfaRequired)?;
 
-        // Get and validate encryption key
-        let encryption_key =
-            state.config.mfa_encryption_key.as_ref().ok_or_else(|| {
-                AdminError::Validation("MFA encryption not configured".to_string())
-            })?;
+    // Validate MFA code format (6 digits)
+    if body.mfa_code.len() != 6 || !body.mfa_code.chars().all(|c| c.is_ascii_digit()) {
+        return Err(AdminError::InvalidMfaCode);
+    }
 
-        let key_bytes = hex::decode(encryption_key)
-            .map_err(|_| AdminError::Validation("Invalid MFA encryption key".to_string()))?;
+    // Get and validate encryption key
+    let encryption_key = state
+        .config
+        .mfa_encryption_key
+        .as_ref()
+        .ok_or_else(|| AdminError::Validation("MFA encryption not configured".to_string()))?;
 
-        // Decrypt MFA secret
-        let mfa_secret = decrypt_mfa_secret(&mfa_secret_encrypted, &key_bytes)
-            .map_err(|_| AdminError::InvalidMfaCode)?;
+    let key_bytes = hex::decode(encryption_key)
+        .map_err(|_| AdminError::Validation("Invalid MFA encryption key".to_string()))?;
 
-        // Verify TOTP code
-        let totp = totp_rs::TOTP::new(
-            totp_rs::Algorithm::SHA1,
-            6,
-            1,
-            30,
-            totp_rs::Secret::Encoded(mfa_secret)
-                .to_bytes()
-                .map_err(|_| AdminError::InvalidMfaCode)?,
-            Some("VoiceChat".to_string()),
-            admin.username.clone(),
-        )
+    // Decrypt MFA secret
+    let mfa_secret = decrypt_mfa_secret(&mfa_secret_encrypted, &key_bytes)
         .map_err(|_| AdminError::InvalidMfaCode)?;
 
-        if !totp
-            .check_current(&body.mfa_code)
-            .map_err(|_| AdminError::InvalidMfaCode)?
-        {
-            return Err(AdminError::InvalidMfaCode);
-        }
+    // Verify TOTP code
+    let totp = totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(mfa_secret)
+            .to_bytes()
+            .map_err(|_| AdminError::InvalidMfaCode)?,
+        Some("VoiceChat".to_string()),
+        admin.username.clone(),
+    )
+    .map_err(|_| AdminError::InvalidMfaCode)?;
+
+    if !totp
+        .check_current(&body.mfa_code)
+        .map_err(|_| AdminError::InvalidMfaCode)?
+    {
+        return Err(AdminError::InvalidMfaCode);
     }
-    // If MFA is not enabled, skip verification (dev/testing mode)
 
     // Find or create a session for this user
     // We need a valid session_id that references sessions table
