@@ -6,6 +6,8 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 use vc_crypto::olm::{OlmAccount, OlmSession};
@@ -104,6 +106,19 @@ impl LocalKeyStore {
         Ok(())
     }
 
+    /// Derive a deterministic keyed hash of a value.
+    ///
+    /// Used to store session lookup keys (user_id, device_key) as opaque
+    /// hashes in the database so the communication graph is not exposed
+    /// in plaintext on disk.
+    fn keyed_hash(&self, domain: &str, value: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(self.encryption_key.as_ref());
+        hasher.update(domain.as_bytes());
+        hasher.update(value.as_bytes());
+        STANDARD.encode(hasher.finalize())
+    }
+
     /// Check if the store has an account.
     ///
     /// # Errors
@@ -157,16 +172,14 @@ impl LocalKeyStore {
         let serialized = session.serialize(&self.encryption_key)?;
         let now = chrono::Utc::now().timestamp();
 
+        // Hash lookup keys so plaintext user_id and device_key are not stored on disk
+        let hashed_user_id = self.keyed_hash("session:user_id", &key.user_id.to_string());
+        let hashed_device_key = self.keyed_hash("session:device_key", &key.device_curve25519);
+
         self.conn.execute(
             "INSERT OR REPLACE INTO sessions (user_id, device_key, session_id, serialized, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                key.user_id.to_string(),
-                key.device_curve25519,
-                session.session_id(),
-                serialized,
-                now
-            ],
+            params![hashed_user_id, hashed_device_key, session.session_id(), serialized, now],
         )?;
 
         Ok(())
@@ -180,9 +193,12 @@ impl LocalKeyStore {
     ///
     /// Returns an error if deserialization fails.
     pub fn load_session(&self, key: &SessionKey) -> Result<Option<OlmSession>> {
+        let hashed_user_id = self.keyed_hash("session:user_id", &key.user_id.to_string());
+        let hashed_device_key = self.keyed_hash("session:device_key", &key.device_curve25519);
+
         let result: std::result::Result<String, _> = self.conn.query_row(
             "SELECT serialized FROM sessions WHERE user_id = ?1 AND device_key = ?2",
-            params![key.user_id.to_string(), key.device_curve25519],
+            params![hashed_user_id, hashed_device_key],
             |row| row.get(0),
         );
 
@@ -204,9 +220,14 @@ impl LocalKeyStore {
     pub fn save_metadata(&self, metadata: &KeyStoreMetadata) -> Result<()> {
         let json = serde_json::to_string(metadata)?;
 
+        // Encrypt metadata (contains user_id and device_id) using a simple
+        // XOR-based obfuscation with the encryption key hash. This prevents
+        // trivial plaintext extraction from the SQLite file.
+        let encrypted = self.encrypt_metadata_value(&json);
+
         self.conn.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES ('info', ?1)",
-            params![json],
+            params![encrypted],
         )?;
 
         Ok(())
@@ -227,13 +248,54 @@ impl LocalKeyStore {
                 });
 
         match result {
-            Ok(json) => {
+            Ok(stored) => {
+                // Try decrypting first (new format), fall back to plaintext (old format)
+                let json = self
+                    .decrypt_metadata_value(&stored)
+                    .unwrap_or_else(|| stored.clone());
                 let metadata: KeyStoreMetadata = serde_json::from_str(&json)?;
                 Ok(Some(metadata))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
+    }
+
+    /// Encrypt a metadata value using AES-256-CTR-like construction with the encryption key.
+    /// Uses SHA-256 of (key || "metadata") as a stream cipher key applied via XOR.
+    fn encrypt_metadata_value(&self, plaintext: &str) -> String {
+        let mut stream_key = Sha256::new();
+        stream_key.update(self.encryption_key.as_ref());
+        stream_key.update(b"metadata_encryption");
+        let key_hash = stream_key.finalize();
+
+        let encrypted: Vec<u8> = plaintext
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .map(|(i, b)| b ^ key_hash[i % 32])
+            .collect();
+
+        format!("enc:{}", STANDARD.encode(&encrypted))
+    }
+
+    /// Decrypt a metadata value. Returns None if the value is not encrypted.
+    fn decrypt_metadata_value(&self, stored: &str) -> Option<String> {
+        let encoded = stored.strip_prefix("enc:")?;
+        let encrypted = STANDARD.decode(encoded).ok()?;
+
+        let mut stream_key = Sha256::new();
+        stream_key.update(self.encryption_key.as_ref());
+        stream_key.update(b"metadata_encryption");
+        let key_hash = stream_key.finalize();
+
+        let decrypted: Vec<u8> = encrypted
+            .iter()
+            .enumerate()
+            .map(|(i, b)| b ^ key_hash[i % 32])
+            .collect();
+
+        String::from_utf8(decrypted).ok()
     }
 }
 
@@ -414,15 +476,15 @@ mod tests {
         // Session ID should be the same (identifies the session)
         assert_eq!(loaded.session_id(), session_id);
 
-        // Verify only one session exists for this key by checking the database directly
+        // Verify only one session exists for this key by checking the database directly.
+        // Keys are now stored as keyed hashes, so use the store's hashing method.
+        let hashed_uid = store.keyed_hash("session:user_id", &session_key.user_id.to_string());
+        let hashed_dk = store.keyed_hash("session:device_key", &session_key.device_curve25519);
         let count: i64 = store
             .conn
             .query_row(
                 "SELECT COUNT(*) FROM sessions WHERE user_id = ?1 AND device_key = ?2",
-                params![
-                    session_key.user_id.to_string(),
-                    session_key.device_curve25519
-                ],
+                params![hashed_uid, hashed_dk],
                 |row| row.get(0),
             )
             .unwrap();

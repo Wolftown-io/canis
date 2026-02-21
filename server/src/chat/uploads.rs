@@ -709,8 +709,17 @@ pub async fn upload_message_with_file(
 /// GET /api/messages/attachments/:id
 pub async fn get_attachment(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<AttachmentResponse>, UploadError> {
+    let has_access = db::check_attachment_access(&state.db, id, auth_user.id)
+        .await
+        .map_err(UploadError::Database)?;
+
+    if !has_access {
+        return Err(UploadError::Forbidden);
+    }
+
     let attachment = db::find_file_attachment_by_id(&state.db, id)
         .await?
         .ok_or(UploadError::NotFound)?;

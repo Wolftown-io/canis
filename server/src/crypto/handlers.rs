@@ -135,16 +135,11 @@ pub async fn upload_keys(
             ));
         }
     }
-    if req.identity_key_ed25519.len() > 64 {
-        return Err(AuthError::Validation(
-            "identity_key_ed25519 must be 64 characters or less".to_string(),
-        ));
-    }
-    if req.identity_key_curve25519.len() > 64 {
-        return Err(AuthError::Validation(
-            "identity_key_curve25519 must be 64 characters or less".to_string(),
-        ));
-    }
+    // Validate identity keys are valid base64-encoded curve points
+    vc_crypto::types::Ed25519PublicKey::from_base64(&req.identity_key_ed25519)
+        .map_err(|_| AuthError::Validation("Invalid Ed25519 identity key".to_string()))?;
+    vc_crypto::types::Curve25519PublicKey::from_base64(&req.identity_key_curve25519)
+        .map_err(|_| AuthError::Validation("Invalid Curve25519 identity key".to_string()))?;
     if req.one_time_prekeys.len() > MAX_PREKEYS_PER_UPLOAD {
         return Err(AuthError::Validation(format!(
             "Cannot upload more than {MAX_PREKEYS_PER_UPLOAD} prekeys at once"
@@ -173,8 +168,10 @@ pub async fn upload_keys(
     let mut prekeys_uploaded = 0;
     let mut prekeys_skipped = 0;
     for prekey in &req.one_time_prekeys {
-        // Validate prekey lengths
-        if prekey.key_id.len() > 64 || prekey.public_key.len() > 64 {
+        // Validate prekey is a valid Curve25519 public key
+        if prekey.key_id.len() > 64
+            || vc_crypto::types::Curve25519PublicKey::from_base64(&prekey.public_key).is_err()
+        {
             prekeys_skipped += 1;
             continue;
         }
@@ -427,7 +424,8 @@ pub async fn upload_backup(
         return Err(AuthError::Validation("Ciphertext too large".into()));
     }
 
-    sqlx::query(
+    // Enforce version monotonicity — new version must be strictly greater than existing
+    let result = sqlx::query(
         r"
         INSERT INTO key_backups (user_id, salt, nonce, ciphertext, version)
         VALUES ($1, $2, $3, $4, $5)
@@ -437,6 +435,7 @@ pub async fn upload_backup(
             ciphertext = EXCLUDED.ciphertext,
             version = EXCLUDED.version,
             created_at = NOW()
+        WHERE key_backups.version < EXCLUDED.version
         ",
     )
     .bind(user_id)
@@ -447,6 +446,26 @@ pub async fn upload_backup(
     .execute(&state.db)
     .await
     .map_err(AuthError::Database)?;
+
+    if result.rows_affected() == 0 {
+        // Either version is not greater than existing, or the insert conflicted
+        // Check if a backup already exists with a higher or equal version
+        let existing_version: Option<i32> = sqlx::query_scalar(
+            "SELECT version FROM key_backups WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(AuthError::Database)?;
+
+        if let Some(v) = existing_version {
+            if req.version <= v {
+                return Err(AuthError::Validation(format!(
+                    "Backup version must be greater than current version ({v})"
+                )));
+            }
+        }
+    }
 
     tracing::info!(user_id = %user_id, version = req.version, "Key backup uploaded");
 

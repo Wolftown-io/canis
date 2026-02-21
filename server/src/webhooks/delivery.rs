@@ -191,35 +191,39 @@ pub async fn spawn_delivery_worker(db: PgPool, redis: Client, http_client: reqwe
 async fn process_delivery(
     db: &PgPool,
     redis: &Client,
-    client: &reqwest::Client,
+    _client: &reqwest::Client,
     item: WebhookDeliveryItem,
 ) {
-    // SSRF protection: verify resolved IP is not private/reserved
-    if let Err(e) = ssrf::verify_resolved_ip(&item.url).await {
-        warn!(
-            webhook_id = %item.webhook_id,
-            url = %item.url,
-            error = %e,
-            "Webhook delivery blocked by SSRF protection"
-        );
-        if let Err(log_err) = queries::log_delivery(
-            db,
-            item.webhook_id,
-            item.event_type,
-            item.event_id,
-            None,
-            false,
-            item.attempt as i32,
-            Some(&format!("SSRF blocked: {e}")),
-            Some(0),
-        )
-        .await
-        {
-            error!("Failed to log SSRF-blocked delivery: {}", log_err);
+    // SSRF protection: verify resolved IP is not private/reserved.
+    // Returns the pinned address to prevent DNS rebinding between check and delivery.
+    let verified = match ssrf::verify_resolved_ip(&item.url).await {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(
+                webhook_id = %item.webhook_id,
+                url = %item.url,
+                error = %e,
+                "Webhook delivery blocked by SSRF protection"
+            );
+            if let Err(log_err) = queries::log_delivery(
+                db,
+                item.webhook_id,
+                item.event_type,
+                item.event_id,
+                None,
+                false,
+                item.attempt as i32,
+                Some(&format!("SSRF blocked: {e}")),
+                Some(0),
+            )
+            .await
+            {
+                error!("Failed to log SSRF-blocked delivery: {}", log_err);
+            }
+            // Do NOT retry SSRF-blocked deliveries — the URL itself is the problem
+            return;
         }
-        // Do NOT retry SSRF-blocked deliveries — the URL itself is the problem
-        return;
-    }
+    };
 
     // Look up signing secret from database (not stored in Redis queue)
     let signing_secret = match queries::get_signing_secret(db, item.webhook_id).await {
@@ -262,8 +266,23 @@ async fn process_delivery(
     let signature = signing::sign_payload(&signing_secret, &payload_bytes);
     let timestamp = chrono::Utc::now().timestamp().to_string();
 
+    // Build a per-request client that pins the resolved IP to prevent DNS rebinding.
+    // This ensures the HTTP request goes to the same IP that passed SSRF validation.
+    let pinned_client = match reqwest::Client::builder()
+        .resolve(&verified.host, verified.addr)
+        .timeout(Duration::from_secs(10))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            error!(webhook_id = %item.webhook_id, error = %e, "Failed to build pinned HTTP client");
+            handle_retry(db, redis, item, &format!("Client build error: {e}")).await;
+            return;
+        }
+    };
+
     let start = std::time::Instant::now();
-    let result = client
+    let result = pinned_client
         .post(&item.url)
         .header("Content-Type", "application/json")
         .header("X-Webhook-Signature", format!("sha256={signature}"))
