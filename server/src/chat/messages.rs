@@ -301,7 +301,7 @@ pub struct UpdateMessageRequest {
 /// Use the `next_cursor` value as `before` parameter to fetch the next page.
 #[utoipa::path(
     get,
-    path = "/api/channels/{channel_id}/messages",
+    path = "/api/messages/channel/{channel_id}",
     tag = "chat",
     params(
         ("channel_id" = Uuid, Path, description = "Channel ID"),
@@ -378,7 +378,7 @@ pub async fn list(
 /// POST /`api/messages/channel/:channel_id`
 #[utoipa::path(
     post,
-    path = "/api/channels/{channel_id}/messages",
+    path = "/api/messages/channel/{channel_id}",
     tag = "chat",
     params(
         ("channel_id" = Uuid, Path, description = "Channel ID"),
@@ -1035,11 +1035,10 @@ pub async fn create(
 /// PATCH /api/messages/:id
 #[utoipa::path(
     patch,
-    path = "/api/channels/{channel_id}/messages/{message_id}",
+    path = "/api/messages/{id}",
     tag = "chat",
     params(
-        ("channel_id" = Uuid, Path, description = "Channel ID"),
-        ("message_id" = Uuid, Path, description = "Message ID"),
+        ("id" = Uuid, Path, description = "Message ID"),
     ),
     request_body = UpdateMessageRequest,
     responses(
@@ -1196,11 +1195,10 @@ pub async fn update(
 /// DELETE /api/messages/:id
 #[utoipa::path(
     delete,
-    path = "/api/channels/{channel_id}/messages/{message_id}",
+    path = "/api/messages/{id}",
     tag = "chat",
     params(
-        ("channel_id" = Uuid, Path, description = "Channel ID"),
-        ("message_id" = Uuid, Path, description = "Message ID"),
+        ("id" = Uuid, Path, description = "Message ID"),
     ),
     responses(
         (status = 204, description = "Message deleted"),
@@ -1581,11 +1579,10 @@ async fn build_batch_thread_infos(
 /// `GET /api/messages/{parent_id}/thread`
 #[utoipa::path(
     get,
-    path = "/api/channels/{channel_id}/messages/{message_id}/thread",
+    path = "/api/messages/{parent_id}/thread",
     tag = "chat",
     params(
-        ("channel_id" = Uuid, Path, description = "Channel ID"),
-        ("message_id" = Uuid, Path, description = "Parent message ID"),
+        ("parent_id" = Uuid, Path, description = "Parent message ID"),
     ),
     responses(
         (status = 200, description = "Thread replies", body = CursorPaginatedMessageResponse),
@@ -1653,11 +1650,10 @@ pub async fn list_thread_replies(
 /// `POST /api/messages/{parent_id}/thread/read`
 #[utoipa::path(
     post,
-    path = "/api/channels/{channel_id}/messages/{message_id}/thread/read",
+    path = "/api/messages/{parent_id}/thread/read",
     tag = "chat",
     params(
-        ("channel_id" = Uuid, Path, description = "Channel ID"),
-        ("message_id" = Uuid, Path, description = "Parent message ID"),
+        ("parent_id" = Uuid, Path, description = "Parent message ID"),
     ),
     responses(
         (status = 204, description = "Thread marked as read"),

@@ -148,7 +148,7 @@ async fn verify_dm_participant(
 /// GET /api/dm/{id}/call - Get current call state
 #[utoipa::path(
     get,
-    path = "/dm/{id}/call",
+    path = "/api/dm/{id}/call",
     tag = "voice",
     params(
         ("id" = Uuid, Path, description = "DM channel ID"),
@@ -190,7 +190,7 @@ async fn get_username(state: &AppState, user_id: Uuid) -> Result<String, CallHan
 /// POST /api/dm/{id}/call/start - Start a new call
 #[utoipa::path(
     post,
-    path = "/dm/{id}/call/start",
+    path = "/api/dm/{id}/call/start",
     tag = "voice",
     params(
         ("id" = Uuid, Path, description = "DM channel ID"),
@@ -267,7 +267,7 @@ pub async fn start_call(
 /// POST /api/dm/{id}/call/join - Join an active call
 #[utoipa::path(
     post,
-    path = "/dm/{id}/call/join",
+    path = "/api/dm/{id}/call/join",
     tag = "voice",
     params(
         ("id" = Uuid, Path, description = "DM channel ID"),
@@ -328,7 +328,7 @@ pub async fn join_call(
 /// POST /api/dm/{id}/call/decline - Decline a call
 #[utoipa::path(
     post,
-    path = "/dm/{id}/call/decline",
+    path = "/api/dm/{id}/call/decline",
     tag = "voice",
     params(
         ("id" = Uuid, Path, description = "DM channel ID"),
@@ -397,7 +397,7 @@ pub async fn decline_call(
 /// POST /api/dm/{id}/call/leave - Leave an active call
 #[utoipa::path(
     post,
-    path = "/dm/{id}/call/leave",
+    path = "/api/dm/{id}/call/leave",
     tag = "voice",
     params(
         ("id" = Uuid, Path, description = "DM channel ID"),

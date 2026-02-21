@@ -844,7 +844,7 @@ pub async fn reorder_channels(
 /// `POST /api/guilds/:guild_id/bots/:bot_id/add`
 #[utoipa::path(
     post,
-    path = "/api/guilds/{id}/bots/{bot_id}",
+    path = "/api/guilds/{id}/bots/{bot_id}/add",
     tag = "guilds",
     params(
         ("id" = Uuid, Path, description = "Guild ID"),
