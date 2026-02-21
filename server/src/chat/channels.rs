@@ -369,12 +369,12 @@ pub async fn list_members(
 /// POST /api/channels/:id/members
 #[utoipa::path(
     post,
-    path = "/api/channels/{id}/members/{user_id}",
+    path = "/api/channels/{id}/members",
     tag = "chat",
     params(
         ("id" = Uuid, Path, description = "Channel ID"),
-        ("user_id" = Uuid, Path, description = "User ID to add"),
     ),
+    request_body = AddMemberRequest,
     responses(
         (status = 201, description = "Member added"),
         (status = 400, description = "Validation error"),

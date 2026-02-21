@@ -1341,7 +1341,7 @@ pub async fn create_announcement(
 /// `GET /api/admin/users/:id/details`
 #[utoipa::path(
     get,
-    path = "/api/admin/users/{id}",
+    path = "/api/admin/users/{id}/details",
     tag = "admin",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "User ID")),
@@ -1428,7 +1428,7 @@ pub async fn get_user_details(
 /// `GET /api/admin/guilds/:id/details`
 #[utoipa::path(
     get,
-    path = "/api/admin/guilds/{id}",
+    path = "/api/admin/guilds/{id}/details",
     tag = "admin",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Guild ID")),
@@ -1523,7 +1523,7 @@ pub async fn get_guild_details(
 /// `GET /api/admin/users/export`
 #[utoipa::path(
     get,
-    path = "/api/admin/users/export/csv",
+    path = "/api/admin/users/export",
     tag = "admin",
     security(("BearerAuth" = [])),
     params(PaginationParams),
@@ -1596,7 +1596,7 @@ pub async fn export_users_csv(
 /// `GET /api/admin/guilds/export`
 #[utoipa::path(
     get,
-    path = "/api/admin/guilds/export/csv",
+    path = "/api/admin/guilds/export",
     tag = "admin",
     security(("BearerAuth" = [])),
     params(PaginationParams),
@@ -1934,7 +1934,7 @@ pub struct UpdateAuthSettingsRequest {
 /// GET /api/admin/auth-settings
 #[utoipa::path(
     get,
-    path = "/api/admin/auth/settings",
+    path = "/api/admin/auth-settings",
     tag = "admin",
     security(("BearerAuth" = [])),
     responses(
@@ -1965,7 +1965,7 @@ pub async fn get_auth_settings(
 /// PUT /api/admin/auth-settings
 #[utoipa::path(
     put,
-    path = "/api/admin/auth/settings",
+    path = "/api/admin/auth-settings",
     tag = "admin",
     security(("BearerAuth" = [])),
     request_body = UpdateAuthSettingsRequest,
@@ -2060,7 +2060,7 @@ impl From<crate::db::OidcProviderRow> for OidcProviderResponse {
 /// GET /api/admin/oidc-providers
 #[utoipa::path(
     get,
-    path = "/api/admin/auth/oidc-providers",
+    path = "/api/admin/oidc-providers",
     tag = "admin",
     security(("BearerAuth" = [])),
     responses(
@@ -2098,7 +2098,7 @@ pub struct CreateOidcProviderRequest {
 /// POST /api/admin/oidc-providers
 #[utoipa::path(
     post,
-    path = "/api/admin/auth/oidc-providers",
+    path = "/api/admin/oidc-providers",
     tag = "admin",
     security(("BearerAuth" = [])),
     request_body = CreateOidcProviderRequest,
@@ -2203,7 +2203,7 @@ pub struct UpdateOidcProviderRequest {
 /// PUT /api/admin/oidc-providers/:id
 #[utoipa::path(
     put,
-    path = "/api/admin/auth/oidc-providers/{id}",
+    path = "/api/admin/oidc-providers/{id}",
     tag = "admin",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "OIDC provider ID")),
@@ -2267,7 +2267,7 @@ pub async fn update_oidc_provider(
 /// DELETE /api/admin/oidc-providers/:id
 #[utoipa::path(
     delete,
-    path = "/api/admin/auth/oidc-providers/{id}",
+    path = "/api/admin/oidc-providers/{id}",
     tag = "admin",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "OIDC provider ID")),
