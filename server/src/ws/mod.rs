@@ -1474,16 +1474,12 @@ async fn handle_pubsub(redis: Client, params: HandlePubsubParams) {
                             // Filter events from blocked users
                             let blocked = params.blocked_users.read().await;
                             let should_filter = match &event {
-                                ServerEvent::MessageNew { message, .. } => {
-                                    message
-                                        .get("author")
-                                        .and_then(|a| a.get("id"))
-                                        .and_then(|id| id.as_str())
-                                        .and_then(|id| Uuid::parse_str(id).ok())
-                                        .is_some_and(|author_id| {
-                                            blocked.contains(&author_id)
-                                        })
-                                }
+                                ServerEvent::MessageNew { message, .. } => message
+                                    .get("author")
+                                    .and_then(|a| a.get("id"))
+                                    .and_then(|id| id.as_str())
+                                    .and_then(|id| Uuid::parse_str(id).ok())
+                                    .is_some_and(|author_id| blocked.contains(&author_id)),
                                 ServerEvent::TypingStart { user_id: uid, .. }
                                 | ServerEvent::TypingStop { user_id: uid, .. }
                                 | ServerEvent::VoiceUserJoined { user_id: uid, .. }
