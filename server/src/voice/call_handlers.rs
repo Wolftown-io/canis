@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::api::AppState;
@@ -193,11 +194,21 @@ pub async fn start_call(
 
     // Check if any participant has blocked the other
     for &target_id in &target_users {
-        if block_cache::is_blocked_either_direction(&state.redis, auth.id, target_id)
-            .await
-            .unwrap_or(!state.config.block_check_fail_open)
-        {
-            return Err(CallHandlerError::Blocked);
+        match block_cache::is_blocked_either_direction(&state.redis, auth.id, target_id).await {
+            Ok(true) => return Err(CallHandlerError::Blocked),
+            Ok(false) => {}
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    user_id = %auth.id,
+                    %target_id,
+                    fail_open = state.config.block_check_fail_open,
+                    "Redis block check failed, using failsafe policy"
+                );
+                if !state.config.block_check_fail_open {
+                    return Err(CallHandlerError::Blocked);
+                }
+            }
         }
     }
 
@@ -247,12 +258,25 @@ pub async fn join_call(
 
     // Check block status with other participants
     for &participant_id in &participants {
-        if participant_id != auth.id
-            && block_cache::is_blocked_either_direction(&state.redis, auth.id, participant_id)
+        if participant_id != auth.id {
+            match block_cache::is_blocked_either_direction(&state.redis, auth.id, participant_id)
                 .await
-                .unwrap_or(!state.config.block_check_fail_open)
-        {
-            return Err(CallHandlerError::Blocked);
+            {
+                Ok(true) => return Err(CallHandlerError::Blocked),
+                Ok(false) => {}
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        user_id = %auth.id,
+                        target_id = %participant_id,
+                        fail_open = state.config.block_check_fail_open,
+                        "Redis block check failed, using failsafe policy"
+                    );
+                    if !state.config.block_check_fail_open {
+                        return Err(CallHandlerError::Blocked);
+                    }
+                }
+            }
         }
     }
 

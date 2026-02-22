@@ -298,14 +298,35 @@ pub async fn create_dm(
     }
 
     // For 1:1 DMs, check if either user has blocked the other
-    if body.participant_ids.len() == 1
-        && block_cache::is_blocked_either_direction(&state.redis, auth.id, body.participant_ids[0])
-            .await
-            .unwrap_or(!state.config.block_check_fail_open)
-    {
-        return Err(ChannelError::Validation(
-            "Cannot create DM with this user".to_string(),
-        ));
+    if body.participant_ids.len() == 1 {
+        match block_cache::is_blocked_either_direction(
+            &state.redis,
+            auth.id,
+            body.participant_ids[0],
+        )
+        .await
+        {
+            Ok(true) => {
+                return Err(ChannelError::Validation(
+                    "Cannot create DM with this user".to_string(),
+                ));
+            }
+            Ok(false) => {}
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    user_id = %auth.id,
+                    target_id = %body.participant_ids[0],
+                    fail_open = state.config.block_check_fail_open,
+                    "Redis block check failed, using failsafe policy"
+                );
+                if !state.config.block_check_fail_open {
+                    return Err(ChannelError::Validation(
+                        "Cannot create DM with this user".to_string(),
+                    ));
+                }
+            }
+        }
     }
 
     let channel = if body.participant_ids.len() == 1 {
