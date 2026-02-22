@@ -45,9 +45,8 @@ fn get_encryption_key(state: &AppState) -> Result<Vec<u8>, WebhookError> {
             "Server encryption key not configured (MFA_ENCRYPTION_KEY)".to_string(),
         )
     })?;
-    let key = hex::decode(key_hex).map_err(|_| {
-        WebhookError::Validation("Server encryption key misconfigured".to_string())
-    })?;
+    let key = hex::decode(key_hex)
+        .map_err(|_| WebhookError::Validation("Server encryption key misconfigured".to_string()))?;
     if key.len() != 32 {
         tracing::error!(
             actual_len = key.len(),

@@ -163,13 +163,12 @@ pub async fn upload_keys(
     .map_err(AuthError::Database)?;
 
     if existing_device.is_none() {
-        let device_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM user_devices WHERE user_id = $1",
-        )
-        .bind(user_id)
-        .fetch_one(&state.db)
-        .await
-        .map_err(AuthError::Database)?;
+        let device_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM user_devices WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_one(&state.db)
+                .await
+                .map_err(AuthError::Database)?;
 
         if device_count >= MAX_DEVICES_PER_USER {
             return Err(AuthError::Validation(format!(
@@ -482,13 +481,12 @@ pub async fn upload_backup(
     if result.rows_affected() == 0 {
         // Either version is not greater than existing, or the insert conflicted
         // Check if a backup already exists with a higher or equal version
-        let existing_version: Option<i32> = sqlx::query_scalar(
-            "SELECT version FROM key_backups WHERE user_id = $1",
-        )
-        .bind(user_id)
-        .fetch_optional(&state.db)
-        .await
-        .map_err(AuthError::Database)?;
+        let existing_version: Option<i32> =
+            sqlx::query_scalar("SELECT version FROM key_backups WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_optional(&state.db)
+                .await
+                .map_err(AuthError::Database)?;
 
         if let Some(v) = existing_version {
             if req.version <= v {

@@ -472,13 +472,12 @@ pub async fn count_unused_mfa_backup_codes(pool: &PgPool, user_id: Uuid) -> sqlx
 /// Count all MFA backup codes for a user (used and unused).
 /// Used to detect whether backup codes were ever generated (first-time setup detection).
 pub async fn count_all_mfa_backup_codes(pool: &PgPool, user_id: Uuid) -> sqlx::Result<i64> {
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM mfa_backup_codes WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await
-    .map_err(db_error!("count_all_mfa_backup_codes", user_id = %user_id))?;
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM mfa_backup_codes WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .map_err(db_error!("count_all_mfa_backup_codes", user_id = %user_id))?;
     Ok(count)
 }
 
