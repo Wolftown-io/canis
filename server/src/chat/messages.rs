@@ -309,10 +309,16 @@ pub async fn list(
     // Load combined block set for filtering
     let blocked_ids = block_cache::load_blocked_users(&state.db, &state.redis, auth_user.id)
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|e| {
+            warn!(user_id = %auth_user.id, error = %e, "Failed to load blocked users, message filtering may be incomplete");
+            Default::default()
+        });
     let blocked_by_ids = block_cache::load_blocked_by(&state.db, &state.redis, auth_user.id)
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|e| {
+            warn!(user_id = %auth_user.id, error = %e, "Failed to load blocked-by users, message filtering may be incomplete");
+            Default::default()
+        });
     let combined_block_set: std::collections::HashSet<Uuid> =
         blocked_ids.union(&blocked_by_ids).copied().collect();
 
@@ -388,16 +394,29 @@ pub async fn create(
         .map_err(MessageError::Database)?;
 
         for &participant_id in &participants {
-            if participant_id != auth_user.id
-                && block_cache::is_blocked_either_direction(
+            if participant_id != auth_user.id {
+                match block_cache::is_blocked_either_direction(
                     &state.redis,
                     auth_user.id,
                     participant_id,
                 )
                 .await
-                .unwrap_or(!state.config.block_check_fail_open)
-            {
-                return Err(MessageError::Blocked);
+                {
+                    Ok(true) => return Err(MessageError::Blocked),
+                    Ok(false) => {}
+                    Err(e) => {
+                        warn!(
+                            error = %e,
+                            user_id = %auth_user.id,
+                            target_id = %participant_id,
+                            fail_open = state.config.block_check_fail_open,
+                            "Redis block check failed, using failsafe policy"
+                        );
+                        if !state.config.block_check_fail_open {
+                            return Err(MessageError::Blocked);
+                        }
+                    }
+                }
             }
         }
     }
@@ -1526,10 +1545,16 @@ pub async fn list_thread_replies(
     // Load block set for filtering
     let blocked_ids = block_cache::load_blocked_users(&state.db, &state.redis, auth_user.id)
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|e| {
+            warn!(user_id = %auth_user.id, error = %e, "Failed to load blocked users, message filtering may be incomplete");
+            Default::default()
+        });
     let blocked_by_ids = block_cache::load_blocked_by(&state.db, &state.redis, auth_user.id)
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|e| {
+            warn!(user_id = %auth_user.id, error = %e, "Failed to load blocked-by users, message filtering may be incomplete");
+            Default::default()
+        });
     let combined_block_set: std::collections::HashSet<Uuid> =
         blocked_ids.union(&blocked_by_ids).copied().collect();
 

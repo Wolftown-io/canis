@@ -168,7 +168,17 @@ pub async fn try_start_screen_share(
     let key = format!("screenshare:limit:{channel_id}");
 
     // Get current count first
-    let current: i64 = redis.get(&key).await.unwrap_or(0);
+    let current: i64 = match redis.get(&key).await {
+        Ok(val) => val,
+        Err(e) => {
+            error!(
+                %channel_id,
+                error = %e,
+                "Redis GET failed for screen share count, denying request"
+            );
+            return Err(ScreenShareError::InternalError);
+        }
+    };
 
     // Check if we would exceed limit
     if current >= i64::from(max_shares) {

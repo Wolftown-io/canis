@@ -34,11 +34,21 @@ pub async fn send_friend_request(
     }
 
     // Check block in either direction via Redis cache
-    if matches!(
-        block_cache::is_blocked_either_direction(&state.redis, auth.id, target_id).await,
-        Ok(true)
-    ) {
-        return Err(SocialError::Blocked);
+    match block_cache::is_blocked_either_direction(&state.redis, auth.id, target_id).await {
+        Ok(true) => return Err(SocialError::Blocked),
+        Ok(false) => {}
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                user_id = %auth.id,
+                %target_id,
+                fail_open = state.config.block_check_fail_open,
+                "Redis block check failed, using failsafe policy"
+            );
+            if !state.config.block_check_fail_open {
+                return Err(SocialError::Blocked);
+            }
+        }
     }
 
     // Check if friendship already exists (in either direction)
