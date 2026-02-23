@@ -61,8 +61,11 @@ pub fn router() -> Router<AppState> {
     path = "/api/guilds/{id}/filters",
     tag = "moderation",
     params(("id" = Uuid, Path, description = "Guild ID")),
-    responses((status = 200, description = "List of filters")),
-    security(("bearer_auth" = []))
+    responses(
+        (status = 200, description = "List of filters", body = Vec<GuildFilterConfig>),
+        (status = 403, description = "Missing MANAGE_GUILD permission"),
+    ),
+    security(("bearer_auth" = [])),
 )]
 #[tracing::instrument(skip(state, auth_user))]
 pub(crate) async fn list_filter_configs(
@@ -94,6 +97,7 @@ pub(crate) async fn list_filter_configs(
     request_body = UpdateFilterConfigsRequest,
     responses(
         (status = 200, description = "Updated filter configs", body = Vec<GuildFilterConfig>),
+        (status = 400, description = "Validation error"),
         (status = 403, description = "Missing MANAGE_GUILD permission"),
     ),
     security(("bearer_auth" = [])),
@@ -187,6 +191,7 @@ async fn list_custom_patterns(
     request_body = CreatePatternRequest,
     responses(
         (status = 201, description = "Pattern created", body = GuildFilterPattern),
+        (status = 400, description = "Invalid pattern or limit exceeded"),
         (status = 403, description = "Missing MANAGE_GUILD permission"),
     ),
     security(("bearer_auth" = [])),
@@ -273,6 +278,7 @@ pub(crate) async fn create_custom_pattern(
     request_body = UpdatePatternRequest,
     responses(
         (status = 200, description = "Pattern updated", body = GuildFilterPattern),
+        (status = 400, description = "Invalid pattern"),
         (status = 403, description = "Missing MANAGE_GUILD permission"),
         (status = 404, description = "Pattern not found"),
     ),
@@ -475,6 +481,7 @@ async fn list_moderation_log(
     request_body = TestFilterRequest,
     responses(
         (status = 200, description = "Filter test result", body = TestFilterResponse),
+        (status = 400, description = "Invalid test input"),
         (status = 403, description = "Missing MANAGE_GUILD permission"),
     ),
     security(("bearer_auth" = [])),

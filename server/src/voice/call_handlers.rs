@@ -194,6 +194,7 @@ async fn get_username(state: &AppState, user_id: Uuid) -> Result<String, CallHan
     params(("id" = Uuid, Path, description = "DM conversation ID")),
     responses(
         (status = 201, description = "Call initiated", body = CallStateResponse),
+        (status = 400, description = "Invalid call request"),
         (status = 403, description = "Not a participant or blocked"),
         (status = 404, description = "DM channel not found"),
         (status = 409, description = "Call already exists"),
@@ -281,6 +282,7 @@ pub async fn start_call(
         (status = 200, description = "Joined call", body = CallStateResponse),
         (status = 403, description = "Not a participant or blocked"),
         (status = 404, description = "DM channel or call not found"),
+        (status = 409, description = "Invalid state transition"),
     ),
     security(("bearer_auth" = [])),
 )]
@@ -353,6 +355,7 @@ pub async fn join_call(
         (status = 200, description = "Call declined", body = CallStateResponse),
         (status = 403, description = "Not a participant of this DM"),
         (status = 404, description = "DM channel or call not found"),
+        (status = 409, description = "Invalid state transition"),
     ),
     security(("bearer_auth" = [])),
 )]
@@ -420,6 +423,7 @@ pub async fn decline_call(
         (status = 200, description = "Left call (may end call if last participant)", body = CallStateResponse),
         (status = 403, description = "Not a participant of this DM"),
         (status = 404, description = "DM channel or call not found"),
+        (status = 409, description = "Invalid state transition"),
     ),
     security(("bearer_auth" = [])),
 )]

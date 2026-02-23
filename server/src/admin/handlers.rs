@@ -965,12 +965,15 @@ pub async fn ban_user(
 ///
 /// `DELETE /api/admin/users/:id/ban`
 #[utoipa::path(
-    post,
-    path = "/api/admin/users/{id}/unban",
+    delete,
+    path = "/api/admin/users/{id}/ban",
     tag = "admin",
     params(("id" = Uuid, Path, description = "User ID")),
-    responses((status = 200, description = "User unbanned")),
-    security(("bearer_auth" = []))
+    responses(
+        (status = 200, description = "User unbanned"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("bearer_auth" = [])),
 )]
 #[tracing::instrument(skip(state))]
 pub async fn unban_user(
@@ -1117,12 +1120,15 @@ pub async fn suspend_guild(
 ///
 /// `DELETE /api/admin/guilds/:id/suspend`
 #[utoipa::path(
-    post,
-    path = "/api/admin/guilds/{id}/unsuspend",
+    delete,
+    path = "/api/admin/guilds/{id}/suspend",
     tag = "admin",
     params(("id" = Uuid, Path, description = "Guild ID")),
-    responses((status = 200, description = "Guild unsuspended")),
-    security(("bearer_auth" = []))
+    responses(
+        (status = 200, description = "Guild unsuspended"),
+        (status = 404, description = "Guild not found"),
+    ),
+    security(("bearer_auth" = [])),
 )]
 #[tracing::instrument(skip(state))]
 pub async fn unsuspend_guild(

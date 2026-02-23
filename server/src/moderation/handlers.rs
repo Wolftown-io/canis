@@ -17,8 +17,13 @@ use crate::ws::{broadcast_admin_event, ServerEvent};
     path = "/api/reports",
     tag = "moderation",
     request_body = CreateReportRequest,
-    responses((status = 201, body = ReportResponse)),
-    security(("bearer_auth" = []))
+    responses(
+        (status = 201, description = "Report created", body = ReportResponse),
+        (status = 400, description = "Validation error"),
+        (status = 409, description = "Duplicate report"),
+        (status = 429, description = "Rate limited (max 5 reports per hour)"),
+    ),
+    security(("bearer_auth" = [])),
 )]
 pub async fn create_report(
     State(state): State<AppState>,

@@ -2,7 +2,10 @@
 //!
 //! Central `OpenAPI` definition using utoipa. Serves Swagger UI at `/api/docs`.
 
-#![allow(clippy::needless_for_each)]
+#![expect(
+    clippy::needless_for_each,
+    reason = "triggered by utoipa OpenApi derive macro"
+)]
 
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::{Modify, OpenApi};
