@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::events::BotEventType;
 
 /// Webhook configuration for an application (includes signing secret for delivery).
-#[derive(Debug, Clone, Serialize, sqlx::FromRow, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Webhook {
     pub id: Uuid,
     pub application_id: Uuid,

@@ -325,7 +325,7 @@ use utoipa::{Modify, OpenApi};
         crate::db::UserStatus,
         crate::db::ChannelType,
         crate::db::Channel,
-        crate::db::User,
+        // Note: db::User intentionally excluded — contains password_hash, mfa_secret
         crate::db::Message,
         crate::db::Role,
         crate::db::FileAttachment,
@@ -483,16 +483,15 @@ struct SecurityAddon;
 
 impl Modify for SecurityAddon {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-        if let Some(components) = openapi.components.as_mut() {
-            components.add_security_scheme(
-                "bearer_auth",
-                SecurityScheme::Http(
-                    HttpBuilder::new()
-                        .scheme(HttpAuthScheme::Bearer)
-                        .bearer_format("JWT")
-                        .build(),
-                ),
-            );
-        }
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer_auth",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
     }
 }

@@ -455,6 +455,7 @@ pub async fn register(
     responses(
         (status = 200, description = "Login successful", body = AuthResponse),
         (status = 401, description = "Invalid credentials"),
+        (status = 403, description = "MFA verification required or auth method disabled"),
     ),
     security(()),
 )]
@@ -1471,6 +1472,7 @@ pub async fn oidc_providers(State(state): State<AppState>) -> AuthResult<Json<se
         (status = 307, description = "Redirect to provider authorization URL"),
         (status = 400, description = "OIDC not configured or auth method disabled"),
     ),
+    security(()),
 )]
 pub async fn oidc_authorize(
     State(state): State<AppState>,
@@ -1875,7 +1877,8 @@ pub struct ResetPasswordRequest {
     tag = "auth",
     request_body = ForgotPasswordRequest,
     responses(
-        (status = 200, description = "Password reset email sent (always returns success)"),
+        (status = 200, description = "Password reset email sent (returns success regardless of whether account exists)"),
+        (status = 503, description = "Email service not configured"),
     ),
     security(()),
 )]

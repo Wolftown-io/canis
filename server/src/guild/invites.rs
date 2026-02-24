@@ -43,7 +43,7 @@ fn parse_expiry(expires_in: &str) -> Option<Duration> {
     path = "/api/guilds/{id}/invites",
     tag = "invites",
     params(("id" = Uuid, Path, description = "Guild ID")),
-    responses((status = 200, body = Vec<InviteResponse>)),
+    responses((status = 200, body = Vec<GuildInvite>)),
     security(("bearer_auth" = []))
 )]
 #[tracing::instrument(skip(state))]
@@ -84,7 +84,7 @@ pub async fn list_invites(
     tag = "invites",
     params(("id" = Uuid, Path, description = "Guild ID")),
     request_body = CreateInviteRequest,
-    responses((status = 200, body = InviteResponse)),
+    responses((status = 200, body = GuildInvite)),
     security(("bearer_auth" = []))
 )]
 #[tracing::instrument(skip(state))]

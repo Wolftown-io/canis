@@ -23,6 +23,7 @@ use crate::ws::{broadcast_to_channel, ServerEvent};
 pub struct CallStateResponse {
     pub channel_id: Uuid,
     #[serde(flatten)]
+    #[schema(inline)]
     pub state: CallState,
     pub capabilities: Vec<String>,
 }

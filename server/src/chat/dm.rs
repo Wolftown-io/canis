@@ -783,7 +783,7 @@ pub async fn upload_dm_icon(
     tag = "dm",
     params(("id" = Uuid, Path, description = "DM conversation ID")),
     responses(
-        (status = 302, description = "Redirect to icon URL"),
+        (status = 307, description = "Redirect to icon URL"),
     ),
     security(("bearer_auth" = [])),
 )]

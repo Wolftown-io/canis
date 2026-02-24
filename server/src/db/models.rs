@@ -6,7 +6,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 /// User model.
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct User {
     /// Unique user ID.
     pub id: Uuid,
@@ -244,7 +244,7 @@ pub struct PasswordResetToken {
 }
 
 /// OIDC/OAuth2 provider configuration stored in the database.
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct OidcProviderRow {
     /// Unique provider ID.
     pub id: Uuid,

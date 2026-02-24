@@ -230,7 +230,7 @@ pub async fn get_emoji(
     path = "/api/guilds/{id}/emojis",
     tag = "emojis",
     params(("id" = Uuid, Path, description = "Guild ID")),
-    request_body = CreateEmojiRequest,
+    request_body(content = Vec<u8>, content_type = "multipart/form-data"),
     responses((status = 200, body = GuildEmoji)),
     security(("bearer_auth" = []))
 )]
