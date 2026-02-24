@@ -6,7 +6,7 @@ import { Component, Show, For, createSignal } from "solid-js";
 import { Users } from "lucide-solid";
 import type { DiscoverableGuild } from "@/lib/types";
 import { joinDiscoverable } from "@/lib/tauri";
-import { loadGuilds, selectGuild } from "@/stores/guilds";
+import { loadGuilds } from "@/stores/guilds";
 import { showToast } from "@/components/ui/Toast";
 
 interface GuildCardProps {
@@ -46,18 +46,11 @@ const GuildCard: Component<GuildCardProps> = (props) => {
       } else {
         setLocalJoined(true);
         showToast({ type: "success", title: "Joined!", message: `You've joined ${result.guild_name}.` });
-        // Post-join UI refresh in separate try/catch (Issue #4)
+        // Refresh guild list so sidebar shows the new guild (stay in discovery view)
         try {
           await loadGuilds();
-          await selectGuild(result.guild_id);
         } catch (refreshErr) {
           console.error("Failed to refresh guild list after join:", refreshErr);
-          showToast({
-            type: "warning",
-            title: "Refresh Needed",
-            message: "You've joined the server but the sidebar didn't update. Try restarting the app.",
-            duration: 10000,
-          });
         }
       }
     } catch (err) {

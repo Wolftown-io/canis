@@ -21,7 +21,8 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
   const [tagInput, setTagInput] = createSignal("");
   const [bannerUrl, setBannerUrl] = createSignal("");
   const [loading, setLoading] = createSignal(true);
-  const [saving, setSaving] = createSignal(false);
+  const [savingCount, setSavingCount] = createSignal(0);
+  const saving = () => savingCount() > 0;
   const [bannerLoadError, setBannerLoadError] = createSignal(false);
 
   const isValidBannerUrl = createMemo(() => {
@@ -47,7 +48,7 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
   });
 
   const saveSetting = async (patch: Parameters<typeof updateGuildSettings>[1]) => {
-    setSaving(true);
+    setSavingCount((c) => c + 1);
     try {
       await updateGuildSettings(props.guildId, patch);
     } catch (err) {
@@ -55,7 +56,7 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
       showToast({ type: "error", title: "Update Failed", message: "Could not update settings.", duration: 8000 });
       throw err;
     } finally {
-      setSaving(false);
+      setSavingCount((c) => c - 1);
     }
   };
 
