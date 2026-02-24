@@ -65,6 +65,45 @@ pub async fn get_server_settings(State(state): State<AppState>) -> Json<ServerSe
     })
 }
 
+/// Instance resource limits response (public).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct InstanceLimitsResponse {
+    pub max_guilds_per_user: i64,
+    pub max_members_per_guild: i64,
+    pub max_channels_per_guild: i64,
+    pub max_roles_per_guild: i64,
+    pub max_emojis_per_guild: i64,
+    pub max_bots_per_guild: i64,
+    pub max_webhooks_per_app: i64,
+    pub max_upload_size: usize,
+}
+
+/// Get instance resource limits (public endpoint).
+///
+/// Returns the configured resource limits so clients can display them.
+///
+/// GET /api/config/limits
+#[utoipa::path(
+    get,
+    path = "/api/config/limits",
+    tag = "settings",
+    responses(
+        (status = 200, body = InstanceLimitsResponse),
+    ),
+)]
+pub async fn get_instance_limits(State(state): State<AppState>) -> Json<InstanceLimitsResponse> {
+    Json(InstanceLimitsResponse {
+        max_guilds_per_user: state.config.max_guilds_per_user,
+        max_members_per_guild: state.config.max_members_per_guild,
+        max_channels_per_guild: state.config.max_channels_per_guild,
+        max_roles_per_guild: state.config.max_roles_per_guild,
+        max_emojis_per_guild: state.config.max_emojis_per_guild,
+        max_bots_per_guild: state.config.max_bots_per_guild,
+        max_webhooks_per_app: state.config.max_webhooks_per_app,
+        max_upload_size: state.config.max_upload_size,
+    })
+}
+
 /// File upload size limits response.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UploadLimitsResponse {

@@ -105,7 +105,23 @@ export interface Guild {
   discoverable: boolean;
   tags: string[];
   banner_url: string | null;
+  plan: string;
   created_at: string;
+}
+
+export interface UsageStat {
+  current: number;
+  limit: number;
+}
+
+export interface GuildUsageStats {
+  guild_id: string;
+  plan: string;
+  members: UsageStat;
+  channels: UsageStat;
+  roles: UsageStat;
+  emojis: UsageStat;
+  bots: UsageStat;
 }
 
 export interface GuildSettings {

@@ -6,6 +6,7 @@ pub mod categories;
 pub mod emojis;
 pub mod handlers;
 pub mod invites;
+pub mod limits;
 pub mod roles;
 pub mod search;
 pub mod types;
@@ -35,6 +36,7 @@ pub fn router() -> Router<AppState> {
             "/{id}/bots/{bot_id}",
             delete(handlers::remove_bot_from_guild),
         )
+        .route("/{id}/usage", get(handlers::get_guild_usage))
         .route("/{id}/channels", get(handlers::list_channels))
         .route("/{id}/channels/reorder", post(handlers::reorder_channels))
         .route("/{id}/read-all", post(handlers::mark_all_channels_read))

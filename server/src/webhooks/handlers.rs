@@ -133,7 +133,7 @@ pub async fn create_webhook(
     let count = queries::count_webhooks(&state.db, app_id)
         .await
         .map_err(WebhookError::Database)?;
-    if count >= 5 {
+    if count >= state.config.max_webhooks_per_app {
         return Err(WebhookError::MaxWebhooksReached.into());
     }
 

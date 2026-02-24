@@ -127,6 +127,31 @@ pub struct Config {
     ///
     /// Defaults to `true`. Override via `ENABLE_GUILD_DISCOVERY` env var.
     pub enable_guild_discovery: bool,
+
+    // ========================================================================
+    // Resource Limits
+    // ========================================================================
+
+    /// Maximum number of guilds a single user can own (default: 100)
+    pub max_guilds_per_user: i64,
+
+    /// Maximum number of members per guild (default: 1000)
+    pub max_members_per_guild: i64,
+
+    /// Maximum number of channels per guild (default: 200)
+    pub max_channels_per_guild: i64,
+
+    /// Maximum number of roles per guild (default: 50)
+    pub max_roles_per_guild: i64,
+
+    /// Maximum number of custom emojis per guild (default: 50)
+    pub max_emojis_per_guild: i64,
+
+    /// Maximum number of bot installations per guild (default: 10)
+    pub max_bots_per_guild: i64,
+
+    /// Maximum number of webhooks per bot application (default: 5)
+    pub max_webhooks_per_app: i64,
 }
 
 impl Config {
@@ -215,6 +240,41 @@ impl Config {
                 .ok()
                 .map(|v| v.to_lowercase() == "true" || v == "1")
                 .unwrap_or(true),
+            max_guilds_per_user: env::var("MAX_GUILDS_PER_USER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(100)
+                .max(1),
+            max_members_per_guild: env::var("MAX_MEMBERS_PER_GUILD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1000)
+                .max(1),
+            max_channels_per_guild: env::var("MAX_CHANNELS_PER_GUILD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(200)
+                .max(1),
+            max_roles_per_guild: env::var("MAX_ROLES_PER_GUILD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50)
+                .max(1),
+            max_emojis_per_guild: env::var("MAX_EMOJIS_PER_GUILD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50)
+                .max(1),
+            max_bots_per_guild: env::var("MAX_BOTS_PER_GUILD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10)
+                .max(1),
+            max_webhooks_per_app: env::var("MAX_WEBHOOKS_PER_APP")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5)
+                .max(1),
         })
     }
 
@@ -288,6 +348,13 @@ impl Config {
             smtp_tls: "starttls".into(),
             enable_api_docs: true,
             enable_guild_discovery: true,
+            max_guilds_per_user: 100,
+            max_members_per_guild: 1000,
+            max_channels_per_guild: 200,
+            max_roles_per_guild: 50,
+            max_emojis_per_guild: 50,
+            max_bots_per_guild: 10,
+            max_webhooks_per_app: 5,
         }
     }
 }

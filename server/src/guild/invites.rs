@@ -246,12 +246,42 @@ pub async fn join_via_invite(
         }));
     }
 
-    // Add as member
-    sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
-        .bind(invite.guild_id)
-        .bind(auth.id)
-        .execute(&state.db)
-        .await?;
+    // Check member limit (best-effort; concurrent joins may overshoot by a small
+    // bounded amount due to TOCTOU, but the denormalized member_count self-corrects).
+    let member_count =
+        crate::guild::limits::get_member_count(&state.db, invite.guild_id).await?;
+    if member_count >= state.config.max_members_per_guild {
+        return Err(GuildError::LimitExceeded(format!(
+            "Guild has reached the maximum number of members ({})",
+            state.config.max_members_per_guild
+        )));
+    }
+
+    // Add as member (ON CONFLICT DO NOTHING to handle duplicate join attempts)
+    let result =
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+            .bind(invite.guild_id)
+            .bind(auth.id)
+            .execute(&state.db)
+            .await?;
+
+    // If no rows affected, user was already a member (race with the earlier check)
+    if result.rows_affected() == 0 {
+        let guild_name: (String,) = sqlx::query_as("SELECT name FROM guilds WHERE id = $1")
+            .bind(invite.guild_id)
+            .fetch_one(&state.db)
+            .await?;
+
+        return Ok(Json(InviteResponse {
+            id: invite.id,
+            code: invite.code,
+            guild_id: invite.guild_id,
+            guild_name: guild_name.0,
+            expires_at: invite.expires_at,
+            use_count: invite.use_count,
+            created_at: invite.created_at,
+        }));
+    }
 
     // Initialize read state for all text channels so pre-existing messages don't show as unread
     super::handlers::initialize_channel_read_state(&state.db, invite.guild_id, auth.id).await?;

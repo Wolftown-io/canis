@@ -313,6 +313,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/config/upload-limits",
             get(settings::get_upload_limits),
         )
+        .route("/api/config/limits", get(settings::get_instance_limits))
         // Setup routes (status and config are public, complete requires auth)
         .route("/api/setup/status", get(setup::status))
         .route("/api/setup/config", get(setup::get_config))

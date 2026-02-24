@@ -26,6 +26,8 @@ pub enum DiscoveryError {
     NotFound,
     #[error("Validation error: {0}")]
     Validation(String),
+    #[error("Limit exceeded: {0}")]
+    LimitExceeded(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -44,6 +46,7 @@ impl IntoResponse for DiscoveryError {
                 "Guild not found or not discoverable".to_string(),
             ),
             Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
+            Self::LimitExceeded(msg) => (StatusCode::FORBIDDEN, "LIMIT_EXCEEDED", msg.clone()),
             Self::Database(err) => {
                 tracing::error!(%err, "Discovery endpoint database error");
                 (
@@ -260,6 +263,15 @@ pub async fn join_discoverable(
 
     // TODO: Check guild_bans table here when the ban system is implemented.
     // Discovery join is frictionless (no invite code), so banned users must be blocked.
+
+    // Check member limit before attempting insert
+    let member_count = crate::guild::limits::get_member_count(&state.db, guild_id).await?;
+    if member_count >= state.config.max_members_per_guild {
+        return Err(DiscoveryError::LimitExceeded(format!(
+            "Guild has reached the maximum number of members ({})",
+            state.config.max_members_per_guild
+        )));
+    }
 
     // Atomic insert with ON CONFLICT to avoid TOCTOU race
     let result = sqlx::query(
