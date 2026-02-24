@@ -20,6 +20,7 @@ pub struct Guild {
     pub discoverable: bool,
     pub tags: Vec<String>,
     pub banner_url: Option<String>,
+    pub plan: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 

@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production client builds now selectively strip `console.log` and `console.debug` while preserving `console.error` and `console.warn` for diagnostics (TD-09)
 
 ### Added
+- Guild resource limits — configurable per-instance limits for guilds per user, members, channels, roles, emojis, bots per guild, and webhooks per app; enforced server-side with `LIMIT_EXCEEDED` (403) errors; limits configurable via environment variables (`MAX_GUILDS_PER_USER`, `MAX_MEMBERS_PER_GUILD`, etc.) with sensible defaults
+- Guild usage stats endpoint (`GET /api/guilds/{id}/usage`) — shows current resource counts vs limits for members, channels, roles, emojis, and bots; requires guild membership
+- Instance limits endpoint (`GET /api/config/limits`) — public endpoint returning all configured resource limits for client display
+- Guild plan column — `plan` field on guilds (default: "free") preparing for future tier/boost system
+- Usage tab in guild settings — visual progress bars showing resource usage with color-coded thresholds (green/yellow/red) and plan badge
 - Guild discovery — public browsing of discoverable guilds with full-text search, tag filtering, and sort by popularity or newest; guilds opt in via a new "Discoverable" toggle in Server Settings with up to 5 tags and an optional banner URL; unauthenticated users can browse, authenticated users can join directly without an invite code; controlled by `ENABLE_GUILD_DISCOVERY` server config
 - Onboarding wizard — 5-step first-time experience for new users: display name, theme selection with live preview, microphone/speaker setup, server discovery or invite code join, and welcome summary; skippable at any step; re-triggerable from Appearance Settings
 - Interactive API documentation (Swagger UI) at `/api/docs` — covers all REST endpoints with schemas, auth requirements, and tag grouping. Controlled via `ENABLE_API_DOCS` env var.

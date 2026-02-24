@@ -237,6 +237,33 @@ impl TestApp {
         }
     }
 
+    /// Create a test app with a custom config (for limit testing).
+    pub async fn with_config(config: Config) -> Self {
+        let pool = shared_pool().await.clone();
+        let redis = shared_redis().await.clone();
+        let sfu =
+            SfuServer::new(Arc::new(config.clone()), None).expect("Failed to create SfuServer");
+
+        let state = AppState::new(AppStateConfig {
+            db: pool.clone(),
+            redis,
+            config: config.clone(),
+            s3: None,
+            sfu,
+            rate_limiter: None,
+            email: None,
+            oidc_manager: None,
+        });
+        let router = create_router(state);
+        let config = Arc::new(config);
+
+        Self {
+            router,
+            pool,
+            config,
+        }
+    }
+
     /// Build an HTTP request with the given method and URI.
     pub fn request(method: Method, uri: &str) -> http::request::Builder {
         Request::builder().method(method).uri(uri)

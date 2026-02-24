@@ -66,12 +66,13 @@ import type {
   AdminOidcProvider,
   UiState,
   GuildSettings,
+  GuildUsageStats,
   DiscoverResponse,
   JoinDiscoverableResponse,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, GlobalSearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider, GuildSettings, DiscoverResponse, JoinDiscoverableResponse };
+export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, GlobalSearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider, GuildSettings, GuildUsageStats, DiscoverResponse, JoinDiscoverableResponse };
 
 /**
  * Unread aggregation types
@@ -1225,6 +1226,13 @@ export async function getGuildChannels(guildId: string): Promise<ChannelWithUnre
  */
 export async function getGuildSettings(guildId: string): Promise<GuildSettings> {
   return fetchApi<GuildSettings>(`/api/guilds/${guildId}/settings`);
+}
+
+/**
+ * Get guild resource usage stats (members, channels, roles, emojis, bots).
+ */
+export async function getGuildUsage(guildId: string): Promise<GuildUsageStats> {
+  return fetchApi<GuildUsageStats>(`/api/guilds/${guildId}/usage`);
 }
 
 /**

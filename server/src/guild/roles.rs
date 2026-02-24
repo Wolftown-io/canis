@@ -33,6 +33,9 @@ pub enum RoleError {
     #[error("Validation failed: {0}")]
     Validation(String),
 
+    #[error("Limit exceeded: {0}")]
+    LimitExceeded(String),
+
     #[error("Database error")]
     Database(#[from] sqlx::Error),
 }
@@ -83,6 +86,10 @@ impl IntoResponse for RoleError {
             Self::Validation(msg) => (
                 StatusCode::BAD_REQUEST,
                 serde_json::json!({"error": "VALIDATION_ERROR", "message": msg}),
+            ),
+            Self::LimitExceeded(msg) => (
+                StatusCode::FORBIDDEN,
+                serde_json::json!({"error": "LIMIT_EXCEEDED", "message": msg}),
             ),
             Self::Database(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -196,6 +203,15 @@ pub async fn create_role(
                 PermissionError::NotGuildMember => RoleError::NotMember,
                 other => RoleError::Permission(other),
             })?;
+
+    // Check role limit
+    let role_count = super::limits::count_guild_roles(&state.db, guild_id).await?;
+    if role_count >= state.config.max_roles_per_guild {
+        return Err(RoleError::LimitExceeded(format!(
+            "Maximum number of roles per guild reached ({})",
+            state.config.max_roles_per_guild
+        )));
+    }
 
     // Check if trying to grant permissions we don't have
     let new_perms = GuildPermissions::from_bits_truncate(body.permissions.unwrap_or(0));

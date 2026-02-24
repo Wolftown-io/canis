@@ -43,6 +43,8 @@ pub enum EmojiError {
     Storage(String),
     #[error("Validation error: {0}")]
     Validation(String),
+    #[error("Limit exceeded: {0}")]
+    LimitExceeded(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -94,6 +96,9 @@ impl IntoResponse for EmojiError {
                 ),
                 Self::Validation(msg) => {
                     (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.as_str())
+                }
+                Self::LimitExceeded(msg) => {
+                    (StatusCode::FORBIDDEN, "LIMIT_EXCEEDED", msg.as_str())
                 }
                 Self::Database(err) => {
                     tracing::error!("Database error: {}", err);
@@ -243,6 +248,15 @@ pub async fn create_emoji(
 ) -> Result<Json<GuildEmoji>, EmojiError> {
     if !check_guild_membership(&state.db, guild_id, auth_user.id).await? {
         return Err(EmojiError::GuildNotFound);
+    }
+
+    // Check emoji limit before processing multipart upload
+    let emoji_count = super::limits::count_guild_emojis(&state.db, guild_id).await?;
+    if emoji_count >= state.config.max_emojis_per_guild {
+        return Err(EmojiError::LimitExceeded(format!(
+            "Maximum number of emojis per guild reached ({})",
+            state.config.max_emojis_per_guild
+        )));
     }
 
     let s3 = state

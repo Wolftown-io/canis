@@ -131,6 +131,7 @@ use utoipa::{Modify, OpenApi};
         crate::guild::handlers::list_guild_commands,
         crate::guild::handlers::get_guild_settings,
         crate::guild::handlers::update_guild_settings,
+        crate::guild::handlers::get_guild_usage,
         // Roles
         crate::guild::roles::list_roles,
         crate::guild::roles::create_role,
@@ -298,6 +299,7 @@ use utoipa::{Modify, OpenApi};
         // Settings
         crate::api::settings::get_server_settings,
         crate::api::settings::get_upload_limits,
+        crate::api::settings::get_instance_limits,
         // Setup
         crate::api::setup::status,
         crate::api::setup::get_config,
@@ -397,6 +399,8 @@ use utoipa::{Modify, OpenApi};
         crate::guild::types::GuildSettings,
         crate::guild::types::UpdateGuildSettingsRequest,
         crate::guild::types::GuildCommandInfo,
+        crate::guild::handlers::UsageStat,
+        crate::guild::handlers::GuildUsageStats,
         crate::guild::handlers::ChannelWithUnread,
         crate::guild::handlers::InstalledBot,
         crate::guild::handlers::ChannelPosition,
@@ -484,6 +488,8 @@ use utoipa::{Modify, OpenApi};
         crate::api::bots::CreateApplicationRequest,
         crate::api::bots::ApplicationResponse,
         crate::api::bots::BotTokenResponse,
+        // Settings
+        crate::api::settings::InstanceLimitsResponse,
     ))
 )]
 pub struct ApiDoc;

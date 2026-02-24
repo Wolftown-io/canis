@@ -13,6 +13,7 @@ use super::types::{
     CreateGuildRequest, Guild, GuildCommandInfo, GuildMember, GuildSettings, GuildWithMemberCount,
     UpdateGuildRequest, UpdateGuildSettingsRequest,
 };
+use super::limits;
 use crate::api::AppState;
 use crate::auth::AuthUser;
 use crate::db::{self, ChannelType};
@@ -74,6 +75,7 @@ pub enum GuildError {
     Forbidden,
     Permission(PermissionError),
     Validation(String),
+    LimitExceeded(String),
     Database(sqlx::Error),
 }
 
@@ -92,6 +94,7 @@ impl IntoResponse for GuildError {
             ),
             Self::Permission(e) => (StatusCode::FORBIDDEN, "PERMISSION_DENIED", e.to_string()),
             Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
+            Self::LimitExceeded(msg) => (StatusCode::FORBIDDEN, "LIMIT_EXCEEDED", msg.clone()),
             Self::Database(err) => {
                 tracing::error!(%err, "Guild endpoint database error");
                 (
@@ -138,12 +141,21 @@ pub async fn create_guild(
     body.validate()
         .map_err(|e| GuildError::Validation(e.to_string()))?;
 
+    // Check guild creation limit
+    let owned_count = super::limits::count_user_owned_guilds(&state.db, auth.id).await?;
+    if owned_count >= state.config.max_guilds_per_user {
+        return Err(GuildError::LimitExceeded(format!(
+            "Maximum number of guilds reached ({})",
+            state.config.max_guilds_per_user
+        )));
+    }
+
     // Insert guild
     let guild_id = Uuid::now_v7();
     let guild = sqlx::query_as::<_, Guild>(
         r"INSERT INTO guilds (id, name, owner_id, description)
            VALUES ($1, $2, $3, $4)
-           RETURNING id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, created_at",
+           RETURNING id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, plan, created_at",
     )
     .bind(guild_id)
     .bind(&body.name)
@@ -195,12 +207,13 @@ pub async fn list_guilds(
         bool,
         Vec<String>,
         Option<String>,
+        String,
         chrono::DateTime<chrono::Utc>,
         i64,
     )> = sqlx::query_as(
         r"SELECT
             g.id, g.name, g.owner_id, g.icon_url, g.description, g.threads_enabled,
-            g.discoverable, g.tags, g.banner_url, g.created_at,
+            g.discoverable, g.tags, g.banner_url, g.plan, g.created_at,
             g.member_count::bigint
            FROM guilds g
            INNER JOIN guild_members gm ON g.id = gm.guild_id
@@ -224,6 +237,7 @@ pub async fn list_guilds(
                 discoverable,
                 tags,
                 banner_url,
+                plan,
                 created_at,
                 member_count,
             )| {
@@ -238,6 +252,7 @@ pub async fn list_guilds(
                         discoverable,
                         tags,
                         banner_url,
+                        plan,
                         created_at,
                     },
                     member_count,
@@ -271,7 +286,7 @@ pub async fn get_guild(
     }
 
     let guild = sqlx::query_as::<_, Guild>(
-        "SELECT id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, created_at FROM guilds WHERE id = $1",
+        "SELECT id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, plan, created_at FROM guilds WHERE id = $1",
     )
     .bind(guild_id)
     .fetch_optional(&state.db)
@@ -340,7 +355,7 @@ pub async fn update_guild(
     builder.push(" WHERE id = ");
     builder.push_bind(guild_id);
     builder
-        .push(" RETURNING id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, created_at");
+        .push(" RETURNING id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, plan, created_at");
 
     let updated_guild = builder
         .build_query_as::<Guild>()
@@ -761,6 +776,15 @@ pub async fn add_bot_to_guild(
                 other => GuildError::Permission(other),
             })?;
 
+    // Check bot installation limit
+    let bot_count = super::limits::count_guild_bots(&state.db, guild_id).await?;
+    if bot_count >= state.config.max_bots_per_guild {
+        return Err(GuildError::LimitExceeded(format!(
+            "Maximum number of bots per guild reached ({})",
+            state.config.max_bots_per_guild
+        )));
+    }
+
     let bot_exists = sqlx::query!(
         "SELECT id FROM users WHERE id = $1 AND is_bot = true",
         bot_id
@@ -1180,5 +1204,93 @@ pub async fn update_guild_settings(
         discoverable,
         tags,
         banner_url,
+    }))
+}
+
+// ============================================================================
+// Guild Usage Stats
+// ============================================================================
+
+/// A single resource usage metric (current count vs limit).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct UsageStat {
+    pub current: i64,
+    pub limit: i64,
+}
+
+/// Guild resource usage statistics.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct GuildUsageStats {
+    pub guild_id: Uuid,
+    pub plan: String,
+    pub members: UsageStat,
+    pub channels: UsageStat,
+    pub roles: UsageStat,
+    pub emojis: UsageStat,
+    pub bots: UsageStat,
+}
+
+/// Get guild resource usage stats.
+/// GET /api/guilds/{id}/usage
+#[utoipa::path(
+    get,
+    path = "/api/guilds/{id}/usage",
+    tag = "guilds",
+    params(("id" = Uuid, Path, description = "Guild ID")),
+    responses((status = 200, body = GuildUsageStats)),
+    security(("bearer_auth" = []))
+)]
+#[tracing::instrument(skip(state))]
+pub async fn get_guild_usage(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<GuildUsageStats>, GuildError> {
+    // Verify membership
+    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
+    if !is_member {
+        return Err(GuildError::Forbidden);
+    }
+
+    // Fetch plan
+    let (plan,): (String,) =
+        sqlx::query_as("SELECT plan FROM guilds WHERE id = $1")
+            .bind(guild_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(GuildError::NotFound)?;
+
+    // Run count queries in parallel
+    let (members, channels, roles, emojis, bots) = tokio::join!(
+        limits::get_member_count(&state.db, guild_id),
+        limits::count_guild_channels(&state.db, guild_id),
+        limits::count_guild_roles(&state.db, guild_id),
+        limits::count_guild_emojis(&state.db, guild_id),
+        limits::count_guild_bots(&state.db, guild_id),
+    );
+
+    Ok(Json(GuildUsageStats {
+        guild_id,
+        plan,
+        members: UsageStat {
+            current: members?,
+            limit: state.config.max_members_per_guild,
+        },
+        channels: UsageStat {
+            current: channels?,
+            limit: state.config.max_channels_per_guild,
+        },
+        roles: UsageStat {
+            current: roles?,
+            limit: state.config.max_roles_per_guild,
+        },
+        emojis: UsageStat {
+            current: emojis?,
+            limit: state.config.max_emojis_per_guild,
+        },
+        bots: UsageStat {
+            current: bots?,
+            limit: state.config.max_bots_per_guild,
+        },
     }))
 }
