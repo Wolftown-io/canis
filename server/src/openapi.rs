@@ -408,6 +408,7 @@ use utoipa::{Modify, OpenApi};
         crate::guild::categories::ReorderRequest,
         crate::guild::categories::CategoryPosition,
         // Discovery
+        crate::discovery::types::DiscoverSort,
         crate::discovery::types::DiscoverableGuild,
         crate::discovery::types::DiscoverResponse,
         crate::discovery::types::JoinDiscoverableResponse,

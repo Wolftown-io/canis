@@ -13,6 +13,9 @@ use super::types::{
 use crate::api::AppState;
 use crate::auth::AuthUser;
 
+static TAG_REGEX: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"^[a-zA-Z0-9-]+$").expect("valid tag regex"));
+
 // ============================================================================
 // Error Types
 // ============================================================================
@@ -93,7 +96,7 @@ pub async fn browse_guilds(
         }
     }
 
-    // Validate tag filter content and count
+    // Validate tag filter content and count (same rules as tag creation)
     if let Some(ref tags) = query.tags {
         if tags.len() > 10 {
             return Err(DiscoveryError::Validation(
@@ -106,6 +109,11 @@ pub async fn browse_guilds(
                     "Each filter tag must be at most 32 characters".to_string(),
                 ));
             }
+            if !TAG_REGEX.is_match(tag) {
+                return Err(DiscoveryError::Validation(
+                    "Tags may only contain letters, numbers, and hyphens".to_string(),
+                ));
+            }
         }
     }
 
@@ -116,13 +124,14 @@ pub async fn browse_guilds(
     let has_search = query.q.as_ref().is_some_and(|q| !q.trim().is_empty());
     let has_tags = query.tags.as_ref().is_some_and(|t| !t.is_empty());
 
-    // Single query with COUNT(*) OVER() window function for atomic total
+    // Use denormalized member_count column (maintained by trigger) to avoid
+    // a LEFT JOIN + GROUP BY that would scan the entire guild_members table.
+    // COUNT(*) OVER() provides the total count atomically with the page data.
     let mut builder: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
         r"SELECT g.id, g.name, g.icon_url, g.banner_url, g.description, g.tags, g.created_at,
-                 COUNT(gm.user_id) as member_count,
+                 g.member_count::bigint,
                  COUNT(*) OVER() as total_count
           FROM guilds g
-          LEFT JOIN guild_members gm ON g.id = gm.guild_id
           WHERE g.discoverable = true AND g.suspended_at IS NULL",
     );
 
@@ -137,14 +146,10 @@ pub async fn browse_guilds(
         builder.push_bind(query.tags.as_ref().unwrap().clone());
     }
 
-    builder.push(
-        " GROUP BY g.id, g.name, g.icon_url, g.banner_url, g.description, g.tags, g.created_at",
-    );
-
     // Sort
     match query.sort {
         DiscoverSort::Members => {
-            builder.push(" ORDER BY member_count DESC, g.created_at DESC");
+            builder.push(" ORDER BY g.member_count DESC, g.created_at DESC");
         }
         DiscoverSort::Newest => {
             builder.push(" ORDER BY g.created_at DESC");
@@ -205,6 +210,7 @@ pub async fn browse_guilds(
     params(("id" = Uuid, Path, description = "Guild ID")),
     responses(
         (status = 200, description = "Joined the guild", body = JoinDiscoverableResponse),
+        (status = 401, description = "Authentication required"),
         (status = 404, description = "Guild not found or not discoverable"),
     ),
     security(("bearer_auth" = []))
@@ -229,7 +235,10 @@ pub async fn join_discoverable(
 
     let guild_name = guild.ok_or(DiscoveryError::NotFound)?.0;
 
-    // Atomic insert with ON CONFLICT to avoid TOCTOU race (Issue #3)
+    // TODO: Check guild_bans table here when the ban system is implemented.
+    // Discovery join is frictionless (no invite code), so banned users must be blocked.
+
+    // Atomic insert with ON CONFLICT to avoid TOCTOU race
     let result = sqlx::query(
         "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
     )
@@ -266,7 +275,8 @@ pub async fn join_discoverable(
         let redis = state.redis.clone();
         let gid = guild_id;
         let uid = auth.id;
-        tokio::spawn(async move {
+        let span = tracing::info_span!("discovery_member_joined_broadcast", guild_id = %gid, user_id = %uid);
+        let handle = tokio::spawn(tracing::Instrument::instrument(async move {
             let user_info: Option<(String, String)> =
                 match sqlx::query_as("SELECT username, display_name FROM users WHERE id = $1")
                     .bind(uid)
@@ -314,6 +324,11 @@ pub async fn join_discoverable(
                     guild_id = %gid,
                     "Skipping MemberJoined broadcast: user not found"
                 );
+            }
+        }, span));
+        tokio::spawn(async move {
+            if let Err(err) = handle.await {
+                tracing::error!("MemberJoined broadcast task panicked: {err}");
             }
         });
     }
