@@ -201,13 +201,10 @@ pub async fn list_guilds(
         r"SELECT
             g.id, g.name, g.owner_id, g.icon_url, g.description, g.threads_enabled,
             g.discoverable, g.tags, g.banner_url, g.created_at,
-            COUNT(gm2.user_id) as member_count
+            g.member_count::bigint
            FROM guilds g
            INNER JOIN guild_members gm ON g.id = gm.guild_id
-           LEFT JOIN guild_members gm2 ON g.id = gm2.guild_id
            WHERE gm.user_id = $1
-           GROUP BY g.id, g.name, g.owner_id, g.icon_url, g.description, g.threads_enabled,
-                    g.discoverable, g.tags, g.banner_url, g.created_at
            ORDER BY g.created_at",
     )
     .bind(auth.id)
@@ -1151,6 +1148,7 @@ pub async fn update_guild_settings(
             has_changes = true;
         }
         if let Some(tags) = body.tags {
+            let tags: Vec<String> = tags.into_iter().map(|t| t.to_lowercase()).collect();
             sep.push("tags = ").push_bind_unseparated(tags);
             has_changes = true;
         }

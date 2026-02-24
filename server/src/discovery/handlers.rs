@@ -141,8 +141,9 @@ pub async fn browse_guilds(
     }
 
     if has_tags {
+        let lower_tags: Vec<String> = query.tags.as_ref().unwrap().iter().map(|t| t.to_lowercase()).collect();
         builder.push(" AND g.tags && ");
-        builder.push_bind(query.tags.as_ref().unwrap().clone());
+        builder.push_bind(lower_tags);
     }
 
     // Sort
@@ -172,8 +173,31 @@ pub async fn browse_guilds(
         i64,
     )> = builder.build_query_as().fetch_all(&state.db).await?;
 
-    // Extract total from the first row's window function, or 0 if no rows
-    let total = rows.first().map_or(0, |r| r.8);
+    // Extract total from the first row's window function.
+    // When offset exceeds total rows, the query returns 0 rows and OVER() can't report the count,
+    // so we fall back to a separate count query.
+    let total = if let Some(first) = rows.first() {
+        first.8
+    } else if offset > 0 {
+        // Past-the-end page: re-run the WHERE clause with COUNT(*) only
+        let mut count_builder: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
+            "SELECT COUNT(*) FROM guilds g WHERE g.discoverable = true AND g.suspended_at IS NULL",
+        );
+        if has_search {
+            count_builder.push(" AND g.search_vector @@ websearch_to_tsquery('english', ");
+            count_builder.push_bind(query.q.as_ref().unwrap().trim().to_string());
+            count_builder.push(")");
+        }
+        if has_tags {
+            let lower_tags: Vec<String> = query.tags.as_ref().unwrap().iter().map(|t| t.to_lowercase()).collect();
+            count_builder.push(" AND g.tags && ");
+            count_builder.push_bind(lower_tags);
+        }
+        let (count,): (i64,) = count_builder.build_query_as().fetch_one(&state.db).await?;
+        count
+    } else {
+        0
+    };
 
     let guilds = rows
         .into_iter()
@@ -325,9 +349,15 @@ pub async fn join_discoverable(
                 );
             }
         }, span));
+        let watcher_gid = guild_id;
+        let watcher_uid = auth.id;
         tokio::spawn(async move {
             if let Err(err) = handle.await {
-                tracing::error!("MemberJoined broadcast task panicked: {err}");
+                tracing::error!(
+                    guild_id = %watcher_gid,
+                    user_id = %watcher_uid,
+                    "MemberJoined broadcast task panicked: {err}",
+                );
             }
         });
     }

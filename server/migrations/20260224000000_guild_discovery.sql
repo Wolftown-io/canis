@@ -1,7 +1,7 @@
 -- Guild Discovery: add columns for public guild browsing and full-text search
 
 ALTER TABLE guilds ADD COLUMN discoverable BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE guilds ADD COLUMN tags TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE guilds ADD COLUMN tags TEXT[] NOT NULL DEFAULT '{}' CHECK (array_length(tags, 1) IS NULL OR array_length(tags, 1) <= 5);
 ALTER TABLE guilds ADD COLUMN banner_url TEXT;
 ALTER TABLE guilds ADD COLUMN member_count INTEGER NOT NULL DEFAULT 0 CHECK (member_count >= 0);
 ALTER TABLE guilds ADD COLUMN search_vector tsvector
