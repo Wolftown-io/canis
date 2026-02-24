@@ -157,6 +157,7 @@ const ServerRail: Component = () => {
           onMouseEnter={() => setHoveredServerId("discover")}
           onMouseLeave={() => setHoveredServerId(null)}
           onClick={() => selectDiscovery()}
+          aria-label="Explore Servers"
           title="Explore Servers"
         >
           <Compass class="w-5 h-5 text-accent-primary" />

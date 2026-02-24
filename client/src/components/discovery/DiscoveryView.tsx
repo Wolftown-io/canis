@@ -19,6 +19,7 @@ const DiscoveryView: Component = () => {
   const [offset, setOffset] = createSignal(0);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
+  const [isPermanentError, setIsPermanentError] = createSignal(false);
 
   let debounceTimer: ReturnType<typeof setTimeout>;
   let requestId = 0;
@@ -29,6 +30,7 @@ const DiscoveryView: Component = () => {
     const thisRequest = ++requestId;
     setLoading(true);
     setError(null);
+    setIsPermanentError(false);
     try {
       const result = await discoverGuilds({
         q: query() || undefined,
@@ -39,10 +41,15 @@ const DiscoveryView: Component = () => {
       if (thisRequest !== requestId) return; // stale response
       setGuilds(result.guilds);
       setTotal(result.total);
-    } catch (err) {
+    } catch (err: unknown) {
       if (thisRequest !== requestId) return;
       console.error("Failed to discover guilds:", err);
-      setError("Could not load guilds. Please try again.");
+      // Distinguish discovery-disabled from transient failures
+      const isDisabled = err instanceof Error && err.message.includes("DISCOVERY_DISABLED");
+      setIsPermanentError(isDisabled);
+      setError(isDisabled
+        ? "Guild discovery is not enabled on this server."
+        : "Could not load guilds. Please try again.");
     } finally {
       if (thisRequest === requestId) setLoading(false);
     }
@@ -59,8 +66,11 @@ const DiscoveryView: Component = () => {
     on(query, () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        setOffset(0);
-        fetchGuilds();
+        if (offset() !== 0) {
+          setOffset(0); // triggers the [sort, offset] effect which calls fetchGuilds
+        } else {
+          fetchGuilds(); // offset already 0, effect won't fire, so fetch directly
+        }
       }, 300);
     }, { defer: true }),
   );
@@ -134,12 +144,14 @@ const DiscoveryView: Component = () => {
         <Show when={error() && !loading()}>
           <div class="flex flex-col items-center justify-center py-16 text-center">
             <p class="text-text-secondary text-sm">{error()}</p>
-            <button
-              onClick={fetchGuilds}
-              class="mt-3 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-hover"
-            >
-              Retry
-            </button>
+            <Show when={!isPermanentError()}>
+              <button
+                onClick={fetchGuilds}
+                class="mt-3 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-hover"
+              >
+                Retry
+              </button>
+            </Show>
           </div>
         </Show>
 

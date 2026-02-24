@@ -179,7 +179,7 @@ export async function selectHome(): Promise<void> {
  * Get the currently active guild
  */
 export function getActiveGuild(): Guild | null {
-  if (!guildsState.activeGuildId) return null;
+  if (!guildsState.activeGuildId || guildsState.activeGuildId === DISCOVERY_SENTINEL) return null;
   return guildsState.guilds.find((g) => g.id === guildsState.activeGuildId) ?? null;
 }
 
@@ -465,12 +465,28 @@ export async function selectDiscovery(): Promise<void> {
   const previousGuildId = guildsState.activeGuildId;
   setGuildsState({ activeGuildId: DISCOVERY_SENTINEL });
 
-  // Disconnect from voice if in a guild voice channel
+  // Disconnect from voice only if in a guild voice channel (preserve DM calls)
   if (previousGuildId && previousGuildId !== DISCOVERY_SENTINEL) {
     const { voiceState } = await import("./voice");
+    const { channelsState } = await import("./channels");
+
     if (voiceState.channelId) {
-      const { leaveVoice } = await import("./voice");
-      await leaveVoice();
+      const currentChannel = channelsState.channels.find(
+        (c) => c.id === voiceState.channelId
+      );
+      if (currentChannel && currentChannel.guild_id !== null) {
+        try {
+          const { leaveVoice } = await import("./voice");
+          await leaveVoice();
+        } catch (err) {
+          console.error("Failed to leave voice when switching to discovery:", err);
+          showToast({
+            type: "warning",
+            title: "Voice Disconnect Failed",
+            message: "Could not disconnect from voice. You may still be in the voice channel.",
+          });
+        }
+      }
     }
   }
 }

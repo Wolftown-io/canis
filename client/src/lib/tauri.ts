@@ -1259,8 +1259,8 @@ export async function discoverGuilds(params?: {
   if (params?.q) searchParams.set("q", params.q);
   if (params?.tags?.length) searchParams.set("tags", params.tags.join(","));
   if (params?.sort) searchParams.set("sort", params.sort);
-  if (params?.limit) searchParams.set("limit", String(params.limit));
-  if (params?.offset) searchParams.set("offset", String(params.offset));
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset != null) searchParams.set("offset", String(params.offset));
   const qs = searchParams.toString();
   return fetchApi<DiscoverResponse>(`/api/discover/guilds${qs ? `?${qs}` : ""}`);
 }
