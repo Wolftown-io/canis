@@ -15,7 +15,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
-| **Expansion** | **Phase 5** | 🔄 In Progress | 76% (13/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding |
+| **Expansion** | **Phase 5** | 🔄 In Progress | 82% (14/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits |
 | **Expansion** | **Phase 6** | 📋 Planned | 0% | Mobile, personal workspaces, sovereign guild model, live session toolkits |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
@@ -424,9 +424,15 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - **Cost:** ~5,700 lines server + ~430 lines client rewrite (different programming model).
   - **Trigger:** Migrate when a security fix forces action on webrtc-rs, when hitting a performance wall requiring tighter I/O control, or during major voice architecture changes (e.g., MLS E2EE).
   - mediasoup (C++ FFI) ruled out due to `unsafe_code = "forbid"` policy.
-- [ ] **[SaaS] Limits & Monetization Logic** ([Design](../plans/2026-02-15-phase-5-limits-monetization-design.md), [Implementation](../plans/2026-02-15-phase-5-limits-monetization-implementation.md))
-  - Enforce limits (storage, members) per Guild.
-  - Prepare "Boost" logic for lifting limits.
+- [x] **[SaaS] Limits & Monetization Logic** ✅ (PR #247) ([Design](../plans/2026-02-15-phase-5-limits-monetization-design.md), [Implementation](../plans/2026-02-15-phase-5-limits-monetization-implementation.md))
+  - ✅ Configurable per-instance resource limits: guilds per user, members/channels/roles/emojis/bots per guild, webhooks per app
+  - ✅ Server-side enforcement at 8 code points with `LIMIT_EXCEEDED` (403) errors
+  - ✅ Guild usage stats endpoint (`GET /api/guilds/{id}/usage`) with parallel count queries
+  - ✅ Public instance limits endpoint (`GET /api/config/limits`)
+  - ✅ `plan` column on guilds (default: "free") preparing for tier/boost system
+  - ✅ Frontend Usage tab in guild settings with progress bars and color-coded thresholds
+  - ✅ 10 integration tests covering all enforcement points
+  - [ ] Implement "Boost" logic for lifting limits per guild (future billing integration)
 - [x] **[Safety] Advanced Moderation & Safety Filters** ✅ (PR #206) ([Design](../plans/2026-02-15-phase-5-moderation-filters-design.md), [Implementation](../plans/2026-02-15-phase-5-moderation-filters-implementation.md))
   - Guild-configurable content filters with Aho-Corasick keyword matching and regex pattern support.
   - Built-in filter categories: Slurs, Hate Speech, Spam, Abusive Language — each with configurable actions (Block, Log, Warn).
@@ -665,6 +671,7 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 ## Recent Changes
 
 ### 2026-02-24
+- **Guild Resource Limits & Usage Stats** (PR #247) — Configurable per-instance resource limits enforced server-side at 8 code points (guild creation, member join via invite/discovery, channel/role/emoji/bot/webhook creation) with `LIMIT_EXCEEDED` (403) errors. Limits loaded from environment variables with sensible defaults, clamped to >= 1. New endpoints: `GET /api/guilds/{id}/usage` (member-only usage stats with parallel count queries via `tokio::join!`) and `GET /api/config/limits` (public instance limits). Database migration adds `plan` column to guilds (default: "free") for future tier/boost system. Frontend Usage tab in guild settings with progress bars and color-coded thresholds (green <70%, yellow 70-90%, red >90%). 10 integration tests. Two code review rounds addressed TOCTOU race on invite join (switched to `ON CONFLICT DO NOTHING`), config validation (`.max(1)` clamp), and missing test coverage (emoji limit, discovery join limit).
 - **Guild Discovery & Onboarding Wizard** (PRs #244, #245, #246) — Three stacked PRs delivering guild discovery backend, frontend UI, and onboarding wizard. Backend: PostgreSQL migration with `discoverable`, `tags`, `banner_url` columns, full-text `search_vector` (tsvector), denormalized `member_count` with trigger, public browse/join API with rate limiting and WebSocket broadcast, server config flag. Frontend: `DiscoveryView` with search/sort/pagination, `GuildCard` with banner/tags/join, Compass icon in ServerRail, guild settings extension (discoverable toggle, tags editor, banner URL). Onboarding: 5-step wizard (Welcome → Theme → Mic Setup → Join Server → Done), extracted `MicTestPanel`, ARIA-compliant tabs with focus trap, re-triggerable from settings. Seven code review rounds addressed 40+ issues including denormalized queries, case-insensitive tags, past-end pagination, focus trap, `createUniqueId()` for element IDs, parent-level joined tracking, and AudioContext error handling.
 
 ### 2026-02-19
