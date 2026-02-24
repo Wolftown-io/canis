@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 5 (Ecosystem & SaaS Readiness) - In Progress
 
-**Last Updated:** 2026-02-19
+**Last Updated:** 2026-02-24
 
 ## Quick Status Overview
 
@@ -15,7 +15,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 2** | ✅ Complete | 100% | Voice Island, VAD, Speaking Indicators, Command Palette, File Attachments, Theme System, Code Highlighting |
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
-| **Expansion** | **Phase 5** | 🔄 In Progress | 59% (10/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters |
+| **Expansion** | **Phase 5** | 🔄 In Progress | 76% (13/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding |
 | **Expansion** | **Phase 6** | 📋 Planned | 0% | Mobile, personal workspaces, sovereign guild model, live session toolkits |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
@@ -56,7 +56,7 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 ### Expansion (In Progress / Next)
 - Developer ecosystem growth (bot platform maturation, webhooks, gateway improvements).
 - Safety maturity (✅ advanced moderation filters, policy tooling, operator workflows).
-- Growth and onboarding (guild discovery, first-time experience, activation/retention UX).
+- Growth and onboarding (✅ guild discovery, ✅ first-time experience, activation/retention UX).
 - Voice/media maturity (multi-stream completion, simulcast, advanced media processing).
 - Mobile strategy execution (Android-first path and shared Rust core evolution).
 
@@ -437,20 +437,14 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - Integrated into message create, edit, and file upload flows; skips encrypted and DM messages.
   - Frontend Safety tab in Guild Settings with category toggles, custom pattern CRUD, test panel, and moderation log viewer.
   - 17 integration tests + 9 unit tests covering config CRUD, message blocking, encrypted/DM skip, log actions, permissions, and cache invalidation.
-- [ ] **[Ecosystem] Webhooks & Bot Gateway** ([Design](../plans/2026-02-15-phase-5-webhooks-bot-gateway-design.md), [Implementation](../plans/2026-02-15-phase-5-webhooks-bot-gateway-implementation.md))
-  - **Context:** Expand the platform's utility with third-party integrations.
-  - **Implementation:**
-    - **Webhooks:**
-      - Create `Webhooks` service to handle outgoing POST requests
-      - Implement retry logic with exponential backoff
-      - Add webhook delivery queue with Redis
-      - Support event filtering and payload customization
-      - Add webhook management UI in Guild Settings
-    - **Bot Gateway:**
-      - Implement separate `BotGateway` WebSocket endpoint
-      - Isolate bot traffic from user-facing real-time performance
-      - Add rate limiting specific to bot connections
-      - Support Gateway intents for event filtering
+- [x] **[Ecosystem] Webhooks & Bot Gateway** ✅ (PR #208) ([Design](../plans/2026-02-15-phase-5-webhooks-bot-gateway-design.md), [Implementation](../plans/2026-02-15-phase-5-webhooks-bot-gateway-implementation.md))
+  - ✅ Webhook system with HMAC-SHA256 signed payloads and automatic retry with exponential backoff (5 attempts)
+  - ✅ Event types: `message.created`, `member.joined`, `member.left`, `command.invoked`
+  - ✅ Dead-letter storage for failed deliveries and delivery log for debugging
+  - ✅ Webhook management UI with create/edit/delete, event type selection, test ping, and delivery log viewer
+  - ✅ Bot gateway intents (`messages`, `members`, `commands`) for event filtering
+  - ✅ `MemberJoined` and `MemberLeft` gateway events for bots with `members` intent
+  - ✅ DNS rebinding SSRF protection and webhook signing secrets encrypted at rest
 - [x] **[Ecosystem] Slash Command Reliability & /ping Reference Command** ✅ ([Design](../plans/2026-02-16-slash-command-reliability-design.md), [Implementation](../plans/2026-02-16-slash-command-reliability-implementation.md))
   - ✅ Global command uniqueness index and batch duplicate detection (409 Conflict)
   - ✅ Guild command listing shows all providers with `is_ambiguous` flag (removed DISTINCT ON)
@@ -482,19 +476,26 @@ This section is the canonical high-level roadmap view. Detailed implementation c
     - ✅ /command autocomplete for browsing slash commands from installed bots
     - ✅ Alt+1..4 keyboard shortcuts for quick reactions on hovered messages
     - ✅ Backend `GET /api/guilds/{id}/commands` endpoint for guild command listing
-- [ ] **[Growth] Discovery & Onboarding** ([Design](../plans/2026-02-15-phase-5-discovery-onboarding-design.md), [Implementation](../plans/2026-02-15-phase-5-discovery-onboarding-implementation.md))
+- [x] **[Growth] Discovery & Onboarding** ✅ (PRs #244, #245, #246) ([Design](../plans/2026-02-15-phase-5-discovery-onboarding-design.md), [Implementation](../plans/2026-02-15-phase-5-discovery-onboarding-implementation.md))
   - **Guild Discovery:**
-    - **Backend:** Create public guild listing API with search and filters
-    - **Backend:** Add guild tags/categories system
-    - **Frontend:** Implement `DiscoveryView.tsx` with category filters and search
-    - **Frontend:** Show guild preview cards with member count, description, banner
-    - **Admin:** Allow guild owners to opt-in to public directory
+    - ✅ Database migration with `discoverable`, `tags`, `banner_url` columns and full-text `search_vector`
+    - ✅ Public browse API (`GET /api/discover/guilds`) with full-text search, tag filtering, sort (members/newest), pagination
+    - ✅ Public join API (`POST /api/discover/guilds/{id}/join`) with rate limiting and `MemberJoined` WebSocket broadcast
+    - ✅ Denormalized `member_count` with PostgreSQL trigger and CHECK constraints
+    - ✅ Guild settings extension: discoverable toggle, tags editor (max 5, case-insensitive), banner URL with HTTPS validation
+    - ✅ Frontend `DiscoveryView.tsx` with search (300ms debounce), sort toggle, pagination, loading skeletons, error states
+    - ✅ Frontend `GuildCard.tsx` with banner gradient, member count, tags, join button
+    - ✅ Compass icon in ServerRail for discovery navigation
+    - ✅ Server config flag `ENABLE_GUILD_DISCOVERY` (default true)
   - **Rich Onboarding (FTE):**
-    - **Frontend:** Create `OnboardingOverlay.tsx` with step-by-step guide
-    - **Steps:** Welcome → Profile Setup → Mic Test → Theme Selection → Join First Guild
-    - **UX:** Support skip/back navigation between steps
-    - **Integration:** Launch on first login, can be retriggered from settings
-- [ ] **[UX] Advanced Search & Discovery** ([Design](../plans/2026-02-15-phase-5-search-discovery-design.md), [Implementation](../plans/2026-02-15-phase-5-search-discovery-implementation.md))
+    - ✅ 5-step `OnboardingWizard.tsx`: Welcome → Theme → Mic Setup → Join Server → Done
+    - ✅ Extracted `MicTestPanel.tsx` from `MicrophoneTest.tsx` for inline embedding
+    - ✅ Step 4 dual-tab: mini discovery grid (top 6 guilds) or invite code input
+    - ✅ Skip/back navigation, progress dots, focus trap for accessibility
+    - ✅ ARIA tabs pattern with proper `role`, `aria-controls`, `tabpanel` attributes
+    - ✅ Re-trigger from Settings > Appearance ("Re-run Setup Wizard" button)
+    - ✅ Shows on first login when `onboarding_completed` preference is falsy
+- [x] **[UX] Advanced Search & Discovery** ✅ ([Design](../plans/2026-02-15-phase-5-search-discovery-design.md), [Implementation](../plans/2026-02-15-phase-5-search-discovery-implementation.md))
   - **Full-Text Search:**
     - ✅ **Backend:** Implement full-text search indexing using PostgreSQL tsvector with GIN index
     - ✅ **Backend:** Guild-scoped message search with `websearch_to_tsquery` (supports AND, OR, quotes, negation)
@@ -519,11 +520,13 @@ This section is the canonical high-level roadmap view. Detailed implementation c
       - [x] Add search query analytics logging (TD-30): structured tracing with user_id, query_length, result_count, duration_ms
       - [ ] Monitor and optimize search performance at scale
   - **Bulk Read Management:**
-    - **Backend:** Add bulk mark-as-read API endpoints
-    - **Frontend:** Implement "Mark all as read" in `MessagesState`
-    - **UI:** Add actions at category level (DMs, Guild channels)
-    - **UI:** Add guild-level "Mark all as read" button
-    - **UI:** Add global "Mark everything as read" in Home view
+    - ✅ **Backend:** Bulk mark-as-read API endpoints (`POST /api/me/read-all`, `POST /api/guilds/{id}/read-all`, `POST /api/dm/read-all`)
+    - ✅ **Frontend:** Mark-as-read in channels and DMs stores with optimistic updates
+    - ✅ **UI:** Per-guild "Mark all as read" button in UnreadModule
+    - ✅ **UI:** DM-level "Mark all as read" button in UnreadModule
+    - ✅ **UI:** Global "Mark everything as read" button in UnreadModule
+    - ✅ **UI:** Per-channel "Mark as Read" in context menu
+    - ✅ Cross-device sync via `ChannelRead`/`DmRead` WebSocket events
 - [ ] **[Compliance] SaaS Trust & Data Governance** ([Design](../plans/2026-02-15-phase-5-trust-governance-design.md), [Implementation](../plans/2026-02-15-phase-5-trust-governance-implementation.md))
   - **Implementation:**
     - **Data Export (GDPR/CCPA):**
@@ -550,7 +553,7 @@ This section is the canonical high-level roadmap view. Detailed implementation c
     - ✅ Thread unread tracking: server-side read state + client-side WebSocket tracking
     - ✅ 11+ server integration tests
   - **Remaining:**
-    - [ ] Guild-level toggle to enable/disable threads
+    - [x] Guild-level toggle to enable/disable threads ✅ (migration `20260211000000_guild_threads_enabled.sql`, backend GET/PATCH `/api/guilds/{id}/settings`, frontend GeneralTab toggle, enforcement in message creation)
 - [ ] **[Media] Advanced Media Processing** ([Design](../plans/2026-02-15-phase-5-media-processing-design.md), [Implementation](../plans/2026-02-15-phase-5-media-processing-implementation.md))
   - **Context:** Improve perceived performance and bandwidth efficiency.
   - **Implementation:**
@@ -660,6 +663,9 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 ---
 
 ## Recent Changes
+
+### 2026-02-24
+- **Guild Discovery & Onboarding Wizard** (PRs #244, #245, #246) — Three stacked PRs delivering guild discovery backend, frontend UI, and onboarding wizard. Backend: PostgreSQL migration with `discoverable`, `tags`, `banner_url` columns, full-text `search_vector` (tsvector), denormalized `member_count` with trigger, public browse/join API with rate limiting and WebSocket broadcast, server config flag. Frontend: `DiscoveryView` with search/sort/pagination, `GuildCard` with banner/tags/join, Compass icon in ServerRail, guild settings extension (discoverable toggle, tags editor, banner URL). Onboarding: 5-step wizard (Welcome → Theme → Mic Setup → Join Server → Done), extracted `MicTestPanel`, ARIA-compliant tabs with focus trap, re-triggerable from settings. Seven code review rounds addressed 40+ issues including denormalized queries, case-insensitive tags, past-end pagination, focus trap, `createUniqueId()` for element IDs, parent-level joined tracking, and AudioContext error handling.
 
 ### 2026-02-19
 - **Advanced Moderation & Safety Filters** (PR #206) — Guild-configurable content filters with Aho-Corasick + regex hybrid engine. Built-in categories (slurs, hate speech, spam, abusive language) with Block/Log/Warn actions. Custom guild patterns with ReDoS protection. Per-guild cached `FilterEngine` with generation-counter invalidation. Integrated into message create/edit/upload flows (skips encrypted and DM messages). Frontend Safety tab with category toggles, custom pattern CRUD, test panel, and moderation log. 17 integration tests + 9 unit tests. Two code review rounds addressed 12 issues including TOCTOU race fix, transactional upserts, regex validation three-way match, and ephemeral test engine.
