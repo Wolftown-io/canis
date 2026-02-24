@@ -10,7 +10,7 @@
  * 5. Done
  */
 
-import { Component, createSignal, Show, For, lazy, Suspense } from "solid-js";
+import { Component, createSignal, createEffect, Show, For, lazy, Suspense } from "solid-js";
 import { Check, ChevronRight, ChevronLeft, Mic, Compass, Users } from "lucide-solid";
 import { preferences, updatePreference } from "@/stores/preferences";
 import { currentUser, updateUser } from "@/stores/auth";
@@ -31,13 +31,34 @@ const OnboardingWizard: Component = () => {
     authState.isInitialized && !preferences().onboarding_completed && !authState.setupRequired;
 
   const [step, setStep] = createSignal(0);
-  const [displayName, setDisplayName] = createSignal(currentUser()?.display_name ?? "");
+  const [displayName, setDisplayName] = createSignal("");
   const [inviteCode, setInviteCode] = createSignal("");
   const [joiningInvite, setJoiningInvite] = createSignal(false);
+  const [savingName, setSavingName] = createSignal(false);
   const [discoveryGuilds, setDiscoveryGuilds] = createSignal<DiscoverableGuild[]>([]);
   const [discoveryLoading, setDiscoveryLoading] = createSignal(false);
   const [discoveryError, setDiscoveryError] = createSignal(false);
+  const [discoveryPermanent, setDiscoveryPermanent] = createSignal(false);
   const [joinTab, setJoinTab] = createSignal<"discover" | "invite">("discover");
+
+  let displayNameRef: HTMLInputElement | undefined;
+
+  // Sync display name when user data becomes available
+  createEffect(() => {
+    const name = currentUser()?.display_name;
+    if (name && !displayName()) {
+      setDisplayName(name);
+    }
+  });
+
+  // Auto-focus first interactive element when step changes
+  createEffect(() => {
+    const currentStep = step();
+    if (currentStep === 0) {
+      // Focus the display name input after DOM update
+      queueMicrotask(() => displayNameRef?.focus());
+    }
+  });
 
   const complete = () => {
     updatePreference("onboarding_completed", true);
@@ -58,8 +79,10 @@ const OnboardingWizard: Component = () => {
   };
 
   const handleSaveDisplayName = async () => {
+    if (savingName()) return;
     const name = displayName().trim();
     if (name && name !== currentUser()?.display_name) {
+      setSavingName(true);
       try {
         const { fetchApi } = await import("@/lib/tauri");
         await fetchApi("/auth/me", {
@@ -75,7 +98,10 @@ const OnboardingWizard: Component = () => {
           message: "Your display name wasn't saved. You can update it later in settings.",
           duration: 8000,
         });
+        setSavingName(false);
+        return; // Stay on this step so the user can retry or skip
       }
+      setSavingName(false);
     }
     next();
   };
@@ -83,11 +109,14 @@ const OnboardingWizard: Component = () => {
   const loadDiscoveryGuilds = async () => {
     setDiscoveryLoading(true);
     setDiscoveryError(false);
+    setDiscoveryPermanent(false);
     try {
       const result = await discoverGuilds({ sort: "members", limit: 6, offset: 0 });
       setDiscoveryGuilds(result.guilds);
     } catch (err: unknown) {
       console.error("Failed to load discovery guilds:", err);
+      const isDisabled = err instanceof Error && err.message.includes("DISCOVERY_DISABLED");
+      setDiscoveryPermanent(isDisabled);
       setDiscoveryError(true);
     } finally {
       setDiscoveryLoading(false);
@@ -159,6 +188,7 @@ const OnboardingWizard: Component = () => {
                   Display Name
                 </label>
                 <input
+                  ref={displayNameRef}
                   type="text"
                   value={displayName()}
                   onInput={(e) => setDisplayName(e.currentTarget.value)}
@@ -234,8 +264,10 @@ const OnboardingWizard: Component = () => {
               </div>
 
               {/* Tab switcher */}
-              <div class="flex rounded-lg border border-white/10 overflow-hidden text-xs mb-4">
+              <div class="flex rounded-lg border border-white/10 overflow-hidden text-xs mb-4" role="tablist" aria-label="Join method">
                 <button
+                  role="tab"
+                  aria-selected={joinTab() === "discover"}
                   onClick={() => setJoinTab("discover")}
                   class="flex-1 px-3 py-2 transition-colors"
                   classList={{
@@ -246,6 +278,8 @@ const OnboardingWizard: Component = () => {
                   Discover
                 </button>
                 <button
+                  role="tab"
+                  aria-selected={joinTab() === "invite"}
                   onClick={() => setJoinTab("invite")}
                   class="flex-1 px-3 py-2 transition-colors"
                   classList={{
@@ -268,13 +302,17 @@ const OnboardingWizard: Component = () => {
                 </Show>
                 <Show when={!discoveryLoading() && discoveryError()}>
                   <div class="text-center py-8 text-text-secondary text-sm">
-                    <p>Could not load servers. Check your connection.</p>
-                    <button
-                      onClick={loadDiscoveryGuilds}
-                      class="mt-2 px-3 py-1 text-xs bg-accent-primary text-white rounded-lg hover:bg-accent-hover"
-                    >
-                      Retry
-                    </button>
+                    <p>{discoveryPermanent()
+                      ? "Guild discovery is not enabled on this server."
+                      : "Could not load servers. Check your connection."}</p>
+                    <Show when={!discoveryPermanent()}>
+                      <button
+                        onClick={loadDiscoveryGuilds}
+                        class="mt-2 px-3 py-1 text-xs bg-accent-primary text-white rounded-lg hover:bg-accent-hover"
+                      >
+                        Retry
+                      </button>
+                    </Show>
                   </div>
                 </Show>
                 <Show when={!discoveryLoading() && !discoveryError() && discoveryGuilds().length === 0}>
@@ -410,9 +448,10 @@ const OnboardingWizard: Component = () => {
               >
                 <button
                   onClick={() => (step() === 0 ? handleSaveDisplayName() : next())}
-                  class="flex items-center gap-1.5 px-5 py-2 text-sm font-medium rounded-lg bg-accent-primary text-white hover:bg-accent-hover transition-colors"
+                  disabled={savingName()}
+                  class="flex items-center gap-1.5 px-5 py-2 text-sm font-medium rounded-lg bg-accent-primary text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
                 >
-                  {step() === 0 ? "Continue" : "Next"}
+                  {savingName() ? "Saving..." : step() === 0 ? "Continue" : "Next"}
                   <ChevronRight class="w-4 h-4" />
                 </button>
               </Show>
