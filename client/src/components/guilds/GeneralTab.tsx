@@ -124,12 +124,16 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
   const handleTagKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleAddTag();
+      void handleAddTag();
     }
   };
 
   const handleBannerSave = async () => {
     const url = bannerUrl().trim() || null;
+    if (url && !isValidBannerUrl()) {
+      showToast({ type: "error", title: "Invalid URL", message: "Banner URL must use HTTPS." });
+      return;
+    }
     try {
       await saveSetting({ banner_url: url });
       showToast({ type: "success", title: "Saved", message: "Banner URL updated." });
