@@ -373,7 +373,7 @@ export function patchGuild(guildId: string, diff: Record<string, unknown>): void
   }
 
   // Filter to only valid Guild fields
-  const validFields: (keyof Guild)[] = ["name", "icon_url", "description", "owner_id", "threads_enabled"];
+  const validFields: (keyof Guild)[] = ["name", "icon_url", "description", "owner_id", "threads_enabled", "discoverable", "tags", "banner_url"];
   const updates: Partial<Guild> = {};
   for (const field of validFields) {
     if (field in diff) {
@@ -450,6 +450,26 @@ export function clearGuildUnread(guildId: string): void {
  */
 export function getGuildIdForChannel(channelId: string): string | undefined {
   return guildsState.channelGuildMap[channelId];
+}
+
+// ============================================================================
+// Discovery Helpers
+// ============================================================================
+
+const DISCOVERY_SENTINEL = "__discovery__";
+
+/**
+ * Select the discovery view (browse public guilds).
+ */
+export function selectDiscovery(): void {
+  setGuildsState({ activeGuildId: DISCOVERY_SENTINEL });
+}
+
+/**
+ * Check if discovery view is currently active.
+ */
+export function isDiscoveryActive(): boolean {
+  return guildsState.activeGuildId === DISCOVERY_SENTINEL;
 }
 
 // Export the store for reading and modifying (for members store)
