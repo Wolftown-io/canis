@@ -78,11 +78,13 @@ const channel = await invoke<Channel>('get_channel', { id });
 
 **NEVER commit directly to `main`.** Always create a feature branch or worktree for changes and merge via PR.
 **Branch naming:** `feature/<name>`, `fix/<name>`, `refactor/<area>`, `docs/<topic>`
-**Worktrees:** Main worktree stays on `main`, one worktree per feature, clean up after merge.
+**Worktrees:** Main worktree stays on `main`, one worktree per feature, clean up after merge:
+`git worktree remove .claude/worktrees/<name> && git branch -d <branch> && git push origin --delete <branch> && git fetch --prune`
+**Merge strategy:** Squash merge via `gh pr merge <number> --squash`
 
 ### Pre-Push Quality Gates
 1. `cargo test` (server), `bun run test:run` (client, uses vitest)
-2. `cargo fmt --check && cargo clippy -- -D warnings`
+2. `cargo fmt --check && SQLX_OFFLINE=true cargo clippy -- -D warnings`
 3. Self-review: no secrets, correct scope, proper error handling
 4. Code review for significant changes (new modules, auth/crypto, API changes)
 
@@ -104,8 +106,14 @@ MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Zlib, CC0-1.0, Unlicense, MPL-
 ### Verbotene Lizenzen
 GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, SSPL, Proprietary
 
+### Build Commands
+- Server only: `SQLX_OFFLINE=true cargo clippy -p vc-server -- -D warnings`
+- Full workspace: `SQLX_OFFLINE=true cargo clippy -- -D warnings`
+- `.sqlx/` contains offline query cache — commit new `.sqlx/*.json` files when queries change
+
 ### Wichtige Crates
 - Web: axum, tower, tokio
+- OpenAPI: utoipa, utoipa-swagger-ui
 - WebRTC: webrtc-rs
 - DB: sqlx (PostgreSQL)
 - Redis: fred
