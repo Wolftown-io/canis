@@ -3,6 +3,17 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Sort order for discovery browsing.
+#[derive(Debug, Default, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DiscoverSort {
+    /// Sort by member count (most popular first).
+    Members,
+    /// Sort by creation date (newest first).
+    #[default]
+    Newest,
+}
+
 /// Query parameters for browsing discoverable guilds.
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct DiscoverQuery {
@@ -12,16 +23,12 @@ pub struct DiscoverQuery {
     #[serde(default, deserialize_with = "deserialize_tags")]
     pub tags: Option<Vec<String>>,
     /// Sort order: "members" (popular) or "newest" (default).
-    #[serde(default = "default_sort")]
-    pub sort: String,
+    #[serde(default)]
+    pub sort: DiscoverSort,
     /// Number of results per page (1-50, default 20).
     pub limit: Option<i64>,
     /// Offset for pagination (default 0).
     pub offset: Option<i64>,
-}
-
-fn default_sort() -> String {
-    "newest".to_string()
 }
 
 fn deserialize_tags<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>

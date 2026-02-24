@@ -94,11 +94,14 @@ impl IntoResponse for GuildError {
             ),
             Self::Permission(e) => (StatusCode::FORBIDDEN, "PERMISSION_DENIED", e.to_string()),
             Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
-            Self::Database(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INTERNAL_ERROR",
-                "Database error".to_string(),
-            ),
+            Self::Database(err) => {
+                tracing::error!(%err, "Guild endpoint database error");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "Database error".to_string(),
+                )
+            }
         };
         (
             status,
@@ -1154,7 +1157,10 @@ pub async fn update_guild_settings(
             has_changes = true;
         }
         if let Some(banner_url) = body.banner_url {
-            sep.push("banner_url = ").push_bind_unseparated(banner_url);
+            // Normalize empty string to NULL (clears the banner)
+            let normalized: Option<String> =
+                if banner_url.is_empty() { None } else { Some(banner_url) };
+            sep.push("banner_url = ").push_bind_unseparated(normalized);
             has_changes = true;
         }
     }

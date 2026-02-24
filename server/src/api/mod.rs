@@ -34,7 +34,9 @@ use crate::chat::S3Client;
 use crate::config::Config;
 use crate::email::EmailService;
 use crate::moderation::filter_cache::FilterCache;
-use crate::ratelimit::{rate_limit_by_user, with_category, RateLimitCategory, RateLimiter};
+use crate::ratelimit::{
+    rate_limit_by_ip, rate_limit_by_user, with_category, RateLimitCategory, RateLimiter,
+};
 use crate::voice::SfuServer;
 use crate::{
     admin, auth, chat, connectivity, crypto, discovery, guild, moderation, pages, social, voice,
@@ -292,8 +294,13 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         // Health check
         .route("/health", get(health_check))
-        // Public guild discovery (browsing, no auth required)
-        .nest("/api/discover", discovery::public_router())
+        // Public guild discovery (browsing, no auth required, IP rate limited)
+        .nest(
+            "/api/discover",
+            discovery::public_router()
+                .layer(from_fn_with_state(state.clone(), rate_limit_by_ip))
+                .layer(from_fn(with_category(RateLimitCategory::Search))),
+        )
         // Public server settings
         .route("/api/settings", get(settings::get_server_settings))
         .route(

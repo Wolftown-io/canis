@@ -7,7 +7,9 @@ use axum::Json;
 use sqlx::QueryBuilder;
 use uuid::Uuid;
 
-use super::types::{DiscoverQuery, DiscoverResponse, DiscoverableGuild, JoinDiscoverableResponse};
+use super::types::{
+    DiscoverQuery, DiscoverResponse, DiscoverSort, DiscoverableGuild, JoinDiscoverableResponse,
+};
 use crate::api::AppState;
 use crate::auth::AuthUser;
 
@@ -91,53 +93,34 @@ pub async fn browse_guilds(
         }
     }
 
-    // Validate tag filter count (Issue #6)
+    // Validate tag filter content and count
     if let Some(ref tags) = query.tags {
         if tags.len() > 10 {
             return Err(DiscoveryError::Validation(
                 "Maximum 10 tags for filtering".to_string(),
             ));
         }
+        for tag in tags {
+            if tag.len() > 32 {
+                return Err(DiscoveryError::Validation(
+                    "Each filter tag must be at most 32 characters".to_string(),
+                ));
+            }
+        }
     }
 
     let limit = query.limit.unwrap_or(20).clamp(1, 50);
-    let offset = query.offset.unwrap_or(0).max(0);
+    let offset = query.offset.unwrap_or(0).clamp(0, 10_000);
 
     // Build the WHERE clause
     let has_search = query.q.as_ref().is_some_and(|q| !q.trim().is_empty());
     let has_tags = query.tags.as_ref().is_some_and(|t| !t.is_empty());
 
-    // --- Count query ---
-    let mut count_builder: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
-        "SELECT COUNT(*) FROM guilds g WHERE g.discoverable = true AND g.suspended_at IS NULL",
-    );
-
-    if has_search {
-        count_builder.push(" AND g.search_vector @@ websearch_to_tsquery('english', ");
-        count_builder.push_bind(query.q.as_ref().unwrap().trim().to_string());
-        count_builder.push(")");
-    }
-
-    if has_tags {
-        count_builder.push(" AND g.tags && ");
-        count_builder.push_bind(query.tags.as_ref().unwrap().clone());
-    }
-
-    let (total,): (i64,) = count_builder.build_query_as().fetch_one(&state.db).await?;
-
-    if total == 0 {
-        return Ok(Json(DiscoverResponse {
-            guilds: vec![],
-            total: 0,
-            limit,
-            offset,
-        }));
-    }
-
-    // --- Data query ---
+    // Single query with COUNT(*) OVER() window function for atomic total
     let mut builder: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
         r"SELECT g.id, g.name, g.icon_url, g.banner_url, g.description, g.tags, g.created_at,
-                 COUNT(gm.user_id) as member_count
+                 COUNT(gm.user_id) as member_count,
+                 COUNT(*) OVER() as total_count
           FROM guilds g
           LEFT JOIN guild_members gm ON g.id = gm.guild_id
           WHERE g.discoverable = true AND g.suspended_at IS NULL",
@@ -159,10 +142,14 @@ pub async fn browse_guilds(
     );
 
     // Sort
-    match query.sort.as_str() {
-        "members" => builder.push(" ORDER BY member_count DESC, g.created_at DESC"),
-        _ => builder.push(" ORDER BY g.created_at DESC"),
-    };
+    match query.sort {
+        DiscoverSort::Members => {
+            builder.push(" ORDER BY member_count DESC, g.created_at DESC");
+        }
+        DiscoverSort::Newest => {
+            builder.push(" ORDER BY g.created_at DESC");
+        }
+    }
 
     builder.push(" LIMIT ");
     builder.push_bind(limit);
@@ -178,12 +165,16 @@ pub async fn browse_guilds(
         Vec<String>,
         chrono::DateTime<chrono::Utc>,
         i64,
+        i64,
     )> = builder.build_query_as().fetch_all(&state.db).await?;
+
+    // Extract total from the first row's window function, or 0 if no rows
+    let total = rows.first().map_or(0, |r| r.8);
 
     let guilds = rows
         .into_iter()
         .map(
-            |(id, name, icon_url, banner_url, description, tags, created_at, member_count)| {
+            |(id, name, icon_url, banner_url, description, tags, created_at, member_count, _)| {
                 DiscoverableGuild {
                     id,
                     name,
