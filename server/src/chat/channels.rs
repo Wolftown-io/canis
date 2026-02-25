@@ -40,11 +40,7 @@ impl IntoResponse for ChannelError {
                 "Access denied".to_string(),
             ),
             Self::Validation(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone()),
-            Self::LimitExceeded(msg) => (
-                StatusCode::FORBIDDEN,
-                "LIMIT_EXCEEDED",
-                msg.clone(),
-            ),
+            Self::LimitExceeded(msg) => (StatusCode::FORBIDDEN, "LIMIT_EXCEEDED", msg.clone()),
             Self::Database(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",
@@ -186,8 +182,7 @@ pub async fn create(
         .map_err(|_| ChannelError::Forbidden)?;
 
         // Check channel limit
-        let channel_count =
-            crate::guild::limits::count_guild_channels(&state.db, guild_id).await?;
+        let channel_count = crate::guild::limits::count_guild_channels(&state.db, guild_id).await?;
         if channel_count >= state.config.max_channels_per_guild {
             return Err(ChannelError::LimitExceeded(format!(
                 "Maximum number of channels per guild reached ({})",

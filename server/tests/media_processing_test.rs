@@ -132,7 +132,8 @@ async fn test_image_upload_generates_metadata() {
 
     // Create a 500x400 PNG (large enough for thumbnail, no medium)
     let png_data = create_test_png(500, 400);
-    let (boundary, body) = build_upload_multipart("photo.png", "image/png", &png_data, "check this out");
+    let (boundary, body) =
+        build_upload_multipart("photo.png", "image/png", &png_data, "check this out");
 
     let req = TestApp::request(
         Method::POST,
@@ -268,17 +269,15 @@ async fn test_variant_download_returns_webp() {
     // Download the thumbnail variant
     let req = TestApp::request(
         Method::GET,
-        &format!("/api/messages/attachments/{attachment_id}/download?variant=thumbnail&token={token}"),
+        &format!(
+            "/api/messages/attachments/{attachment_id}/download?variant=thumbnail&token={token}"
+        ),
     )
     .body(Body::empty())
     .unwrap();
 
     let resp = app.oneshot(req).await;
-    assert_eq!(
-        resp.status(),
-        200,
-        "Thumbnail download should return 200"
-    );
+    assert_eq!(resp.status(), 200, "Thumbnail download should return 200");
     assert_eq!(
         resp.headers().get("content-type").unwrap(),
         "image/webp",
@@ -286,7 +285,10 @@ async fn test_variant_download_returns_webp() {
     );
 
     let thumb_bytes = resp.into_body().collect().await.unwrap().to_bytes();
-    assert!(!thumb_bytes.is_empty(), "Thumbnail data should not be empty");
+    assert!(
+        !thumb_bytes.is_empty(),
+        "Thumbnail data should not be empty"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -306,8 +308,7 @@ async fn test_variant_fallback_to_original() {
 
     // Upload a tiny 50x50 PNG (too small for any variants)
     let png_data = create_test_png(50, 50);
-    let (boundary, body) =
-        build_upload_multipart("tiny.png", "image/png", &png_data, "tiny image");
+    let (boundary, body) = build_upload_multipart("tiny.png", "image/png", &png_data, "tiny image");
 
     let req = TestApp::request(
         Method::POST,
@@ -337,7 +338,9 @@ async fn test_variant_fallback_to_original() {
     // Requesting variant=thumbnail on an attachment without one falls back to original PNG
     let req = TestApp::request(
         Method::GET,
-        &format!("/api/messages/attachments/{attachment_id}/download?variant=thumbnail&token={token}"),
+        &format!(
+            "/api/messages/attachments/{attachment_id}/download?variant=thumbnail&token={token}"
+        ),
     )
     .body(Body::empty())
     .unwrap();

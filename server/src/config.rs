@@ -137,7 +137,6 @@ pub struct Config {
     // ========================================================================
     // Resource Limits
     // ========================================================================
-
     /// Maximum number of guilds a single user can own (default: 100)
     pub max_guilds_per_user: i64,
 
@@ -158,6 +157,9 @@ pub struct Config {
 
     /// Maximum number of webhooks per bot application (default: 5)
     pub max_webhooks_per_app: i64,
+
+    /// Maximum number of personal workspaces per user (default: 20)
+    pub max_workspaces_per_user: i64,
 }
 
 impl Config {
@@ -283,6 +285,11 @@ impl Config {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(5)
                 .max(1),
+            max_workspaces_per_user: env::var("MAX_WORKSPACES_PER_USER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(20)
+                .max(1),
         })
     }
 
@@ -365,6 +372,7 @@ impl Config {
             max_emojis_per_guild: 50,
             max_bots_per_guild: 10,
             max_webhooks_per_app: 5,
+            max_workspaces_per_user: 20,
         }
     }
 }

@@ -607,6 +607,51 @@ pub enum ServerEvent {
         user_id: Uuid,
     },
 
+    // Workspace events (broadcast to workspace owner's sessions)
+    /// New workspace created.
+    WorkspaceCreated {
+        /// Created workspace.
+        workspace: serde_json::Value,
+    },
+    /// Workspace updated (name/icon).
+    WorkspaceUpdated {
+        /// Workspace ID.
+        workspace_id: Uuid,
+        /// Updated workspace fields.
+        workspace: serde_json::Value,
+    },
+    /// Workspace deleted.
+    WorkspaceDeleted {
+        /// Deleted workspace ID.
+        workspace_id: Uuid,
+    },
+    /// Workspaces reordered.
+    WorkspaceReordered {
+        /// New ordering: list of `{ id, sort_order }`.
+        workspaces: Vec<serde_json::Value>,
+    },
+    /// Entry added to workspace.
+    WorkspaceEntryAdded {
+        /// Workspace ID.
+        workspace_id: Uuid,
+        /// Added entry.
+        entry: serde_json::Value,
+    },
+    /// Entry removed from workspace.
+    WorkspaceEntryRemoved {
+        /// Workspace ID.
+        workspace_id: Uuid,
+        /// Removed entry ID.
+        entry_id: Uuid,
+    },
+    /// Workspace entries reordered.
+    WorkspaceEntriesReordered {
+        /// Workspace ID.
+        workspace_id: Uuid,
+        /// New ordering: list of { id, position }.
+        entries: Vec<serde_json::Value>,
+    },
+
     // Thread events
     /// New reply in a thread (broadcast to channel for indicator updates)
     ThreadReplyNew {

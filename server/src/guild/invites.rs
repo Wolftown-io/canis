@@ -248,8 +248,7 @@ pub async fn join_via_invite(
 
     // Check member limit (best-effort; concurrent joins may overshoot by a small
     // bounded amount due to TOCTOU, but the denormalized member_count self-corrects).
-    let member_count =
-        crate::guild::limits::get_member_count(&state.db, invite.guild_id).await?;
+    let member_count = crate::guild::limits::get_member_count(&state.db, invite.guild_id).await?;
     if member_count >= state.config.max_members_per_guild {
         return Err(GuildError::LimitExceeded(format!(
             "Guild has reached the maximum number of members ({})",
@@ -258,12 +257,13 @@ pub async fn join_via_invite(
     }
 
     // Add as member (ON CONFLICT DO NOTHING to handle duplicate join attempts)
-    let result =
-        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-            .bind(invite.guild_id)
-            .bind(auth.id)
-            .execute(&state.db)
-            .await?;
+    let result = sqlx::query(
+        "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    )
+    .bind(invite.guild_id)
+    .bind(auth.id)
+    .execute(&state.db)
+    .await?;
 
     // If no rows affected, user was already a member (race with the earlier check)
     if result.rows_affected() == 0 {

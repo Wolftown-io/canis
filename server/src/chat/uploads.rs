@@ -1027,11 +1027,18 @@ async fn process_and_upload_variants(
 
     let thumb_key = if let Some(ref thumb) = meta.thumbnail {
         let key = format!("{base_key}_thumb.webp");
-        if let Err(e) = s3.upload(&key, thumb.data.clone(), &thumb.content_type).await {
+        if let Err(e) = s3
+            .upload(&key, thumb.data.clone(), &thumb.content_type)
+            .await
+        {
             tracing::warn!(error = %e, "Failed to upload thumbnail variant");
             None
         } else {
-            tracing::debug!(width = thumb.width, height = thumb.height, "Uploaded thumbnail variant");
+            tracing::debug!(
+                width = thumb.width,
+                height = thumb.height,
+                "Uploaded thumbnail variant"
+            );
             Some(key)
         }
     } else {
@@ -1040,11 +1047,18 @@ async fn process_and_upload_variants(
 
     let medium_key = if let Some(ref medium) = meta.medium {
         let key = format!("{base_key}_medium.webp");
-        if let Err(e) = s3.upload(&key, medium.data.clone(), &medium.content_type).await {
+        if let Err(e) = s3
+            .upload(&key, medium.data.clone(), &medium.content_type)
+            .await
+        {
             tracing::warn!(error = %e, "Failed to upload medium variant");
             None
         } else {
-            tracing::debug!(width = medium.width, height = medium.height, "Uploaded medium variant");
+            tracing::debug!(
+                width = medium.width,
+                height = medium.height,
+                "Uploaded medium variant"
+            );
             Some(key)
         }
     } else {
@@ -1055,8 +1069,8 @@ async fn process_and_upload_variants(
     // "partial" if some variant uploads failed
     let expected_thumb = meta.thumbnail.is_some();
     let expected_medium = meta.medium.is_some();
-    let all_uploaded = (!expected_thumb || thumb_key.is_some())
-        && (!expected_medium || medium_key.is_some());
+    let all_uploaded =
+        (!expected_thumb || thumb_key.is_some()) && (!expected_medium || medium_key.is_some());
     let processing_status = if all_uploaded { "processed" } else { "partial" };
 
     MediaProcessingOutput {

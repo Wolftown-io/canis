@@ -111,7 +111,11 @@ async fn test_request_deletion_requires_confirm() {
         .unwrap();
 
     let resp = app.oneshot(req).await;
-    assert_eq!(resp.status(), 400, "Should reject wrong confirmation string");
+    assert_eq!(
+        resp.status(),
+        400,
+        "Should reject wrong confirmation string"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -163,11 +167,7 @@ async fn test_request_deletion_wrong_password() {
         .unwrap();
 
     let resp = app.oneshot(req).await;
-    assert_eq!(
-        resp.status(),
-        401,
-        "Should reject wrong password"
-    );
+    assert_eq!(resp.status(), 401, "Should reject wrong password");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

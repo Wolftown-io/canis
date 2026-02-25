@@ -43,9 +43,7 @@ async fn test_guild_creation_limit() {
                 TestApp::request(Method::POST, "/api/guilds")
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
-                    .body(Body::from(format!(
-                        r#"{{"name": "LimitGuild{i}"}}"#
-                    )))
+                    .body(Body::from(format!(r#"{{"name": "LimitGuild{i}"}}"#)))
                     .unwrap(),
             )
             .await;
@@ -167,7 +165,11 @@ async fn test_channel_limit() {
                     .unwrap(),
             )
             .await;
-        assert_eq!(resp.status(), StatusCode::CREATED, "Channel {i} should succeed");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CREATED,
+            "Channel {i} should succeed"
+        );
     }
 
     // 3rd channel should fail
@@ -224,7 +226,11 @@ async fn test_role_limit() {
                 .unwrap(),
         )
         .await;
-    assert_eq!(resp.status(), StatusCode::OK, "First extra role should succeed");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "First extra role should succeed"
+    );
 
     // Next role should fail (3/2)
     let resp = app
@@ -287,7 +293,11 @@ async fn test_bot_limit() {
             .unwrap(),
         )
         .await;
-    assert_eq!(resp.status(), StatusCode::NO_CONTENT, "First bot should succeed");
+    assert_eq!(
+        resp.status(),
+        StatusCode::NO_CONTENT,
+        "First bot should succeed"
+    );
 
     // Install second bot (2/1) — should fail
     let resp = app

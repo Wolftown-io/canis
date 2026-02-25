@@ -183,9 +183,11 @@ async fn main() -> Result<()> {
             }
 
             // Process pending account deletions (30-day grace period expired)
-            if let Err(e) =
-                vc_server::governance::deletion::process_pending_deletions(&db_pool_clone, &s3_clone)
-                    .await
+            if let Err(e) = vc_server::governance::deletion::process_pending_deletions(
+                &db_pool_clone,
+                &s3_clone,
+            )
+            .await
             {
                 tracing::error!(error = %e, "Failed to process pending account deletions");
             }

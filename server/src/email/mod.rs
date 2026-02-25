@@ -115,11 +115,7 @@ impl EmailService {
     }
 
     /// Send a notification that the user's data export is ready for download.
-    pub async fn send_data_export_ready(
-        &self,
-        to_email: &str,
-        username: &str,
-    ) -> Result<()> {
+    pub async fn send_data_export_ready(&self, to_email: &str, username: &str) -> Result<()> {
         let to_mailbox: Mailbox = to_email
             .parse()
             .context("Invalid recipient email address")?;
