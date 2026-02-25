@@ -205,20 +205,15 @@ pub async fn update_workspace(
     Path(workspace_id): Path<Uuid>,
     Json(request): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<WorkspaceResponse>, WorkspaceError> {
-    // Validate name if provided (trim first, then validate length as chars)
-    let trimmed_name = request.name.as_deref().map(str::trim);
-    if let Some(name) = trimmed_name {
-        if name.is_empty() {
-            return Err(WorkspaceError::Validation(
-                "Workspace name is required".to_string(),
-            ));
-        }
-        if name.chars().count() > 100 {
-            return Err(WorkspaceError::Validation(
-                "Name must be 1-100 characters".to_string(),
-            ));
-        }
-    }
+    // Trim name first (whitespace-only → empty → rejected by validator's min=1)
+    let trimmed_name = request.name.as_deref().map(str::trim).map(String::from);
+    let validation_req = UpdateWorkspaceRequest {
+        name: trimmed_name.clone(),
+        icon: request.icon.clone(),
+    };
+    validation_req
+        .validate()
+        .map_err(|e| WorkspaceError::Validation(e.to_string()))?;
 
     // icon: None = no change, Some(None) = clear, Some(Some(val)) = set
     let should_update_icon = request.icon.is_some();

@@ -71,6 +71,46 @@ async fn test_create_workspace_name_too_long() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
+async fn test_create_workspace_unicode_name_length() {
+    let app = helpers::fresh_test_app().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let mut guard = app.cleanup_guard();
+    guard.delete_user(user_id);
+
+    // 100 CJK characters (300 bytes in UTF-8) should be accepted
+    let cjk_name: String = "你".repeat(100);
+    assert_eq!(cjk_name.chars().count(), 100);
+    assert_eq!(cjk_name.len(), 300); // 3 bytes per char
+
+    let req = TestApp::request(Method::POST, "/api/me/workspaces")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "name": cjk_name })).unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 201, "100 Unicode chars should be accepted");
+
+    // 101 CJK characters should be rejected
+    let long_cjk: String = "你".repeat(101);
+    let req = TestApp::request(Method::POST, "/api/me/workspaces")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "name": long_cjk })).unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 400, "101 Unicode chars should be rejected");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial]
 async fn test_create_workspace_empty_name() {
     let app = helpers::fresh_test_app().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -338,6 +378,72 @@ async fn test_update_workspace() {
     let json = body_to_json(resp).await;
     assert_eq!(json["name"], "New Name");
     assert_eq!(json["icon"], "🎯");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial]
+async fn test_update_workspace_clear_icon() {
+    let app = helpers::fresh_test_app().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let mut guard = app.cleanup_guard();
+    guard.delete_user(user_id);
+
+    // Create with icon
+    let req = TestApp::request(Method::POST, "/api/me/workspaces")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "name": "Icon Test", "icon": "🎮" }))
+                .unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await;
+    let ws_json = body_to_json(resp).await;
+    let ws_id = ws_json["id"].as_str().unwrap();
+    assert_eq!(ws_json["icon"], "🎮");
+
+    // Clear icon by sending null
+    let req = TestApp::request(Method::PATCH, &format!("/api/me/workspaces/{ws_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(r#"{"icon": null}"#))
+        .unwrap();
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert!(json["icon"].is_null(), "Icon should be cleared to null");
+
+    // Omitting icon should NOT change it (stays null)
+    // First set it again
+    let req = TestApp::request(Method::PATCH, &format!("/api/me/workspaces/{ws_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "icon": "🔧" })).unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+    let json = body_to_json(resp).await;
+    assert_eq!(json["icon"], "🔧");
+
+    // Omit icon entirely — should remain "🔧"
+    let req = TestApp::request(Method::PATCH, &format!("/api/me/workspaces/{ws_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "name": "Renamed" })).unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["name"], "Renamed");
+    assert_eq!(json["icon"], "🔧", "Icon should be unchanged when omitted");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
