@@ -76,7 +76,7 @@ export async function initPresence(): Promise<void> {
 }
 
 /**
- * Cleanup presence listeners.
+ * Cleanup presence listeners and reset focus state.
  */
 export function cleanupPresence(): void {
   if (unlistener) {
@@ -87,6 +87,11 @@ export function cleanupPresence(): void {
     activityUnlistener();
     activityUnlistener = null;
   }
+
+  // Reset focus mode so it doesn't persist across logout/re-login
+  import("./focus").then(({ deactivateFocusMode }) => {
+    deactivateFocusMode();
+  });
 }
 
 /**

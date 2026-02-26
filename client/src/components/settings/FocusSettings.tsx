@@ -45,19 +45,21 @@ const TRIGGER_OPTIONS: { value: FocusTriggerCategory; label: string }[] = [
 ];
 
 function generateId(): string {
-  const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
-  let id = "";
-  for (let i = 0; i < 12; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return id;
+  return crypto.randomUUID();
 }
 
 const FocusSettings: Component = () => {
-  const [expandedModeId, setExpandedModeId] = createSignal<string | null>(null);
   const [keywordInput, setKeywordInput] = createSignal("");
   const [vipUserInput, setVipUserInput] = createSignal("");
   const [vipChannelInput, setVipChannelInput] = createSignal("");
+
+  const [expandedModeId, _setExpandedModeId] = createSignal<string | null>(null);
+  const setExpandedModeId = (id: string | null) => {
+    _setExpandedModeId(id);
+    setKeywordInput("");
+    setVipUserInput("");
+    setVipChannelInput("");
+  };
 
   const focusPrefs = createMemo(() => preferences().focus ?? DEFAULT_FOCUS_PREFERENCES);
   const modes = createMemo(() => focusPrefs().modes);

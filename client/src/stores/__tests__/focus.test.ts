@@ -39,6 +39,18 @@ vi.mock("@/stores/preferences", () => {
           builtin: true,
           triggerCategories: null,
           autoActivateEnabled: false,
+          suppressionLevel: "all" as const,
+          vipUserIds: [],
+          vipChannelIds: [],
+          emergencyKeywords: [],
+        },
+        {
+          id: "dm-friendly",
+          name: "DM Friendly",
+          icon: "message-circle",
+          builtin: false,
+          triggerCategories: null,
+          autoActivateEnabled: false,
           suppressionLevel: "except_dms" as const,
           vipUserIds: [],
           vipChannelIds: [],
@@ -176,14 +188,14 @@ describe("focus store", () => {
     });
 
     it("allows DMs through in 'except_dms' mode", () => {
-      activateFocusMode("streaming");
+      activateFocusMode("dm-friendly");
 
       const result = evaluateFocusPolicy(makeEvent({ isDm: true }));
       expect(result).toBe("allow");
     });
 
     it("suppresses non-DMs in 'except_dms' mode", () => {
-      activateFocusMode("streaming");
+      activateFocusMode("dm-friendly");
 
       const result = evaluateFocusPolicy(makeEvent({ isDm: false }));
       expect(result).toBe("suppress");

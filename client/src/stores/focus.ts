@@ -28,21 +28,19 @@ const [focusState, setFocusState] = createSignal<FocusState>({
 });
 
 // ============================================================================
-// VIP Caches (rebuilt on mode change for O(1) lookups)
+// VIP Lookup Helpers
 // ============================================================================
 
-let vipUserSet: Set<string> = new Set();
-let vipChannelSet: Set<string> = new Set();
-
-function rebuildVipCaches(mode: FocusMode): void {
-  vipUserSet = new Set(mode.vipUserIds);
-  vipChannelSet = new Set(mode.vipChannelIds);
+/**
+ * Build a Set from a mode's VIP list for O(1) lookups.
+ * Called on every evaluateFocusPolicy to stay in sync with live preferences.
+ * Lists are capped at 50 entries so construction cost is negligible.
+ */
+function buildVipSet(ids: string[]): Set<string> {
+  return ids.length > 0 ? new Set(ids) : EMPTY_SET;
 }
 
-function clearVipCaches(): void {
-  vipUserSet = new Set();
-  vipChannelSet = new Set();
-}
+const EMPTY_SET: ReadonlySet<string> = new Set();
 
 // ============================================================================
 // Mode Accessors
@@ -75,7 +73,6 @@ export function activateFocusMode(modeId: string): void {
   const mode = modes.find((m) => m.id === modeId);
   if (!mode) return;
 
-  rebuildVipCaches(mode);
   setFocusState({
     activeModeId: modeId,
     autoActivated: false,
@@ -88,7 +85,6 @@ export function activateFocusMode(modeId: string): void {
  * Deactivate the current focus mode.
  */
 export function deactivateFocusMode(): void {
-  clearVipCaches();
   setFocusState({
     activeModeId: null,
     autoActivated: false,
@@ -135,7 +131,6 @@ export function handleActivityChange(
     // Already active for this mode? Skip
     if (state.activeModeId === matchingMode.id) return;
 
-    rebuildVipCaches(matchingMode);
     setFocusState({
       activeModeId: matchingMode.id,
       autoActivated: true,
@@ -178,17 +173,17 @@ export function evaluateFocusPolicy(
     return "allow";
   }
 
-  // 3. VIP user check (O(1) Set lookup)
-  if (event.authorId && vipUserSet.has(event.authorId)) {
+  // 3. VIP user check (O(1) Set lookup, rebuilt from live preferences)
+  if (event.authorId && buildVipSet(mode.vipUserIds).has(event.authorId)) {
     return "allow";
   }
 
-  // 4. VIP channel check (O(1) Set lookup)
-  if (vipChannelSet.has(event.channelId)) {
+  // 4. VIP channel check (O(1) Set lookup, rebuilt from live preferences)
+  if (buildVipSet(mode.vipChannelIds).has(event.channelId)) {
     return "allow";
   }
 
-  // 5. Emergency keyword check (linear scan, typically 0-3 keywords)
+  // 5. Emergency keyword check (linear scan, max 5 keywords)
   if (
     event.content &&
     mode.emergencyKeywords.length > 0
