@@ -13,3 +13,6 @@ export { default as PageSection } from "./PageSection";
 export { default as PageAcceptanceModal } from "./PageAcceptanceModal";
 export { default as AcceptanceManager } from "./AcceptanceManager";
 export { default as PlatformPagesCard } from "./PlatformPagesCard";
+export { default as LibraryCatalog } from "./LibraryCatalog";
+export { default as CategoryManager } from "./CategoryManager";
+export { default as RevisionHistory } from "./RevisionHistory";

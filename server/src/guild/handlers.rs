@@ -1231,6 +1231,7 @@ pub struct GuildUsageStats {
     pub roles: UsageStat,
     pub emojis: UsageStat,
     pub bots: UsageStat,
+    pub pages: UsageStat,
 }
 
 /// Get guild resource usage stats.
@@ -1263,12 +1264,18 @@ pub async fn get_guild_usage(
         .ok_or(GuildError::NotFound)?;
 
     // Run count queries in parallel
-    let (members, channels, roles, emojis, bots) = tokio::join!(
+    let (members, channels, roles, emojis, bots, pages, page_limit) = tokio::join!(
         limits::get_member_count(&state.db, guild_id),
         limits::count_guild_channels(&state.db, guild_id),
         limits::count_guild_roles(&state.db, guild_id),
         limits::count_guild_emojis(&state.db, guild_id),
         limits::count_guild_bots(&state.db, guild_id),
+        crate::pages::count_pages(&state.db, Some(guild_id)),
+        crate::pages::get_effective_page_limit(
+            &state.db,
+            guild_id,
+            state.config.max_pages_per_guild,
+        ),
     );
 
     Ok(Json(GuildUsageStats {
@@ -1293,6 +1300,10 @@ pub async fn get_guild_usage(
         bots: UsageStat {
             current: bots?,
             limit: state.config.max_bots_per_guild,
+        },
+        pages: UsageStat {
+            current: pages?,
+            limit: page_limit.unwrap_or(state.config.max_pages_per_guild),
         },
     }))
 }

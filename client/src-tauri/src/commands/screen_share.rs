@@ -91,7 +91,7 @@ pub async fn start_screen_share(
     }
 
     // Resolve quality params
-    let params = QualityParams::from_tier(&quality).map_err(|e| e)?;
+    let params = QualityParams::from_tier(&quality)?;
 
     // Verify source exists
     let target =

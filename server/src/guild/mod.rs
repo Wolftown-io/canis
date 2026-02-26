@@ -80,6 +80,8 @@ pub fn router() -> Router<AppState> {
         )
         // Pages routes (nested)
         .nest("/{id}/pages", pages::guild_pages_router())
+        // Page categories routes (nested)
+        .nest("/{id}/page-categories", pages::guild_page_categories_router())
         // Emoji routes
         .nest("/{id}/emojis", emojis::router())
 }

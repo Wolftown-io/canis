@@ -58,7 +58,7 @@ pub async fn create_report(
             .await?;
 
         match msg {
-            Some(m) if m.user_id != body.target_user_id => {
+            Some(m) if m.user_id != Some(body.target_user_id) => {
                 return Err(ReportError::Validation(
                     "Message does not belong to the target user".to_string(),
                 ));

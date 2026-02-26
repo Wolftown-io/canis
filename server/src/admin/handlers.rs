@@ -2336,3 +2336,120 @@ pub async fn delete_guild(
         id: guild_id,
     }))
 }
+
+// ============================================================================
+// Per-Guild Page Limits
+// ============================================================================
+
+/// Request to set per-guild page limits.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SetGuildPageLimitsRequest {
+    /// Maximum pages (null = reset to instance default, min 1).
+    pub max_pages: Option<i32>,
+    /// Maximum revisions per page (null = reset to instance default, min 5).
+    pub max_revisions: Option<i32>,
+}
+
+/// Guild page limits response.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct GuildPageLimitsResponse {
+    pub guild_id: Uuid,
+    pub max_pages: Option<i32>,
+    pub max_revisions: Option<i32>,
+    pub instance_default_pages: i64,
+    pub instance_default_revisions: i64,
+}
+
+/// Get per-guild page limits.
+///
+/// GET /api/admin/guilds/:id/page-limits
+#[utoipa::path(
+    get,
+    path = "/api/admin/guilds/{id}/page-limits",
+    tag = "admin",
+    params(("id" = Uuid, Path, description = "Guild ID")),
+    responses((status = 200, body = GuildPageLimitsResponse)),
+    security(("bearer_auth" = []))
+)]
+#[tracing::instrument(skip(state))]
+pub async fn get_guild_page_limits(
+    State(state): State<AppState>,
+    Extension(_admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    Path(guild_id): Path<Uuid>,
+) -> Result<Json<GuildPageLimitsResponse>, AdminError> {
+    let row: Option<(Option<i32>, Option<i32>)> =
+        sqlx::query_as("SELECT max_pages, max_revisions FROM guilds WHERE id = $1")
+            .bind(guild_id)
+            .fetch_optional(&state.db)
+            .await?;
+
+    let (max_pages, max_revisions) = row.ok_or(AdminError::NotFound("Guild not found".into()))?;
+
+    Ok(Json(GuildPageLimitsResponse {
+        guild_id,
+        max_pages,
+        max_revisions,
+        instance_default_pages: state.config.max_pages_per_guild,
+        instance_default_revisions: state.config.max_revisions_per_page,
+    }))
+}
+
+/// Set per-guild page limits.
+///
+/// PATCH /api/admin/guilds/:id/page-limits
+#[utoipa::path(
+    patch,
+    path = "/api/admin/guilds/{id}/page-limits",
+    tag = "admin",
+    params(("id" = Uuid, Path, description = "Guild ID")),
+    request_body = SetGuildPageLimitsRequest,
+    responses((status = 200, body = GuildPageLimitsResponse)),
+    security(("bearer_auth" = []))
+)]
+#[tracing::instrument(skip(state))]
+pub async fn set_guild_page_limits(
+    State(state): State<AppState>,
+    Extension(_admin): Extension<SystemAdminUser>,
+    Extension(_elevated): Extension<ElevatedAdmin>,
+    Path(guild_id): Path<Uuid>,
+    Json(body): Json<SetGuildPageLimitsRequest>,
+) -> Result<Json<GuildPageLimitsResponse>, AdminError> {
+    // Validate bounds
+    const MAX_ALLOWED_PAGES: i32 = 1000;
+    const MAX_ALLOWED_REVISIONS: i32 = 500;
+
+    if let Some(max_pages) = body.max_pages {
+        if !(1..=MAX_ALLOWED_PAGES).contains(&max_pages) {
+            return Err(AdminError::Validation(
+                format!("max_pages must be between 1 and {MAX_ALLOWED_PAGES}"),
+            ));
+        }
+    }
+    if let Some(max_revisions) = body.max_revisions {
+        if !(5..=MAX_ALLOWED_REVISIONS).contains(&max_revisions) {
+            return Err(AdminError::Validation(
+                format!("max_revisions must be between 5 and {MAX_ALLOWED_REVISIONS}"),
+            ));
+        }
+    }
+
+    let row: Option<(Option<i32>, Option<i32>)> = sqlx::query_as(
+        "UPDATE guilds SET max_pages = $2, max_revisions = $3 WHERE id = $1 RETURNING max_pages, max_revisions",
+    )
+    .bind(guild_id)
+    .bind(body.max_pages)
+    .bind(body.max_revisions)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let (max_pages, max_revisions) = row.ok_or(AdminError::NotFound("Guild not found".into()))?;
+
+    Ok(Json(GuildPageLimitsResponse {
+        guild_id,
+        max_pages,
+        max_revisions,
+        instance_default_pages: state.config.max_pages_per_guild,
+        instance_default_revisions: state.config.max_revisions_per_page,
+    }))
+}

@@ -122,6 +122,7 @@ export interface GuildUsageStats {
   roles: UsageStat;
   emojis: UsageStat;
   bots: UsageStat;
+  pages: UsageStat;
 }
 
 export interface GuildSettings {
@@ -717,6 +718,7 @@ export interface Page {
   content_hash: string;
   position: number;
   requires_acceptance: boolean;
+  category_id: string | null;
   created_by: string;
   updated_by: string;
   created_at: string;
@@ -731,6 +733,7 @@ export interface PageListItem {
   slug: string;
   position: number;
   requires_acceptance: boolean;
+  category_id: string | null;
   updated_at: string;
 }
 
@@ -739,6 +742,7 @@ export interface CreatePageRequest {
   slug?: string;
   content: string;
   requires_acceptance?: boolean;
+  category_id?: string;
 }
 
 export interface UpdatePageRequest {
@@ -746,6 +750,36 @@ export interface UpdatePageRequest {
   slug?: string;
   content?: string;
   requires_acceptance?: boolean;
+  category_id?: string | null;
+}
+
+export interface PageRevision {
+  id: string;
+  page_id: string;
+  revision_number: number;
+  content: string | null;
+  content_hash: string | null;
+  title: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface RevisionListItem {
+  id: string;
+  page_id: string;
+  revision_number: number;
+  content_hash: string | null;
+  title: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface PageCategory {
+  id: string;
+  guild_id: string;
+  name: string;
+  position: number;
+  created_at: string;
 }
 
 // ============================================================================

@@ -5,7 +5,7 @@
  */
 
 import { createStore } from "solid-js/store";
-import type { Page, PageListItem } from "@/lib/types";
+import type { Page, PageCategory, PageListItem, PageRevision, RevisionListItem } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 
 // ============================================================================
@@ -22,6 +22,7 @@ function toListItem(page: Page): PageListItem {
   return {
     id: page.id,
     guild_id: page.guild_id,
+    category_id: page.category_id,
     title: page.title,
     slug: page.slug,
     position: page.position,
@@ -34,7 +35,10 @@ function toListItem(page: Page): PageListItem {
 interface PagesState {
   platformPages: PageListItem[];
   guildPages: Record<string, PageListItem[]>;
+  guildCategories: Record<string, PageCategory[]>;
   currentPage: Page | null;
+  revisions: RevisionListItem[];
+  currentRevision: PageRevision | null;
   pendingAcceptance: PageListItem[];
   isLoading: boolean;
   isPlatformLoading: boolean;
@@ -45,7 +49,10 @@ interface PagesState {
 const [pagesState, setPagesState] = createStore<PagesState>({
   platformPages: [],
   guildPages: {},
+  guildCategories: {},
   currentPage: null,
+  revisions: [],
+  currentRevision: null,
   pendingAcceptance: [],
   isLoading: false,
   isPlatformLoading: false,
@@ -139,19 +146,7 @@ export async function updatePlatformPage(
   try {
     const page = await tauri.updatePlatformPage(pageId, title, slug, content, requiresAcceptance);
     setPagesState("platformPages", (prev) =>
-      prev.map((p) =>
-        p.id === pageId
-          ? {
-              id: page.id,
-              guild_id: page.guild_id,
-              title: page.title,
-              slug: page.slug,
-              position: page.position,
-              requires_acceptance: page.requires_acceptance,
-              updated_at: page.updated_at,
-            }
-          : p
-      )
+      prev.map((p) => (p.id === pageId ? toListItem(page) : p))
     );
     if (pagesState.currentPage?.id === pageId) {
       setPagesState({ currentPage: page });
@@ -263,12 +258,13 @@ export async function createGuildPage(
   title: string,
   content: string,
   slug?: string,
-  requiresAcceptance?: boolean
+  requiresAcceptance?: boolean,
+  categoryId?: string
 ): Promise<Page | null> {
   setPagesState({ isLoading: true, error: null });
 
   try {
-    const page = await tauri.createGuildPage(guildId, title, content, slug, requiresAcceptance);
+    const page = await tauri.createGuildPage(guildId, title, content, slug, requiresAcceptance, categoryId);
     setPagesState("guildPages", guildId, (prev) =>
       sortByPosition([...(prev || []), toListItem(page)])
     );
@@ -291,26 +287,15 @@ export async function updateGuildPage(
   title?: string,
   slug?: string,
   content?: string,
-  requiresAcceptance?: boolean
+  requiresAcceptance?: boolean,
+  categoryId?: string | null
 ): Promise<Page | null> {
   setPagesState({ isLoading: true, error: null });
 
   try {
-    const page = await tauri.updateGuildPage(guildId, pageId, title, slug, content, requiresAcceptance);
+    const page = await tauri.updateGuildPage(guildId, pageId, title, slug, content, requiresAcceptance, categoryId);
     setPagesState("guildPages", guildId, (prev) =>
-      (prev || []).map((p) =>
-        p.id === pageId
-          ? {
-              id: page.id,
-              guild_id: page.guild_id,
-              title: page.title,
-              slug: page.slug,
-              position: page.position,
-              requires_acceptance: page.requires_acceptance,
-              updated_at: page.updated_at,
-            }
-          : p
-      )
+      (prev || []).map((p) => (p.id === pageId ? toListItem(page) : p))
     );
     if (pagesState.currentPage?.id === pageId) {
       setPagesState({ currentPage: page });
@@ -409,6 +394,194 @@ export async function acceptPage(pageId: string): Promise<boolean> {
 }
 
 // ============================================================================
+// Category Actions
+// ============================================================================
+
+/**
+ * Load categories for a guild.
+ */
+export async function loadGuildCategories(guildId: string): Promise<void> {
+  try {
+    const categories = await tauri.listPageCategories(guildId);
+    setPagesState("guildCategories", guildId, sortByPosition(categories));
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to load guild categories:", error);
+    setPagesState({ error });
+  }
+}
+
+/**
+ * Create a guild page category.
+ */
+export async function createCategory(
+  guildId: string,
+  name: string
+): Promise<PageCategory | null> {
+  try {
+    const category = await tauri.createPageCategory(guildId, name);
+    setPagesState("guildCategories", guildId, (prev) =>
+      sortByPosition([...(prev || []), category])
+    );
+    return category;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to create category:", error);
+    setPagesState({ error });
+    return null;
+  }
+}
+
+/**
+ * Update a guild page category.
+ */
+export async function updateCategory(
+  guildId: string,
+  categoryId: string,
+  name: string
+): Promise<PageCategory | null> {
+  try {
+    const category = await tauri.updatePageCategory(guildId, categoryId, name);
+    setPagesState("guildCategories", guildId, (prev) =>
+      (prev || []).map((c) => (c.id === categoryId ? category : c))
+    );
+    return category;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to update category:", error);
+    setPagesState({ error });
+    return null;
+  }
+}
+
+/**
+ * Delete a guild page category.
+ */
+export async function deleteCategory(
+  guildId: string,
+  categoryId: string
+): Promise<boolean> {
+  try {
+    await tauri.deletePageCategory(guildId, categoryId);
+    setPagesState("guildCategories", guildId, (prev) =>
+      (prev || []).filter((c) => c.id !== categoryId)
+    );
+    // Pages in this category become uncategorized
+    setPagesState("guildPages", guildId, (prev) =>
+      (prev || []).map((p) =>
+        p.category_id === categoryId ? { ...p, category_id: null } : p
+      )
+    );
+    return true;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to delete category:", error);
+    setPagesState({ error });
+    return false;
+  }
+}
+
+/**
+ * Reorder guild page categories.
+ */
+export async function reorderCategories(
+  guildId: string,
+  categoryIds: string[]
+): Promise<boolean> {
+  try {
+    await tauri.reorderPageCategories(guildId, categoryIds);
+    setPagesState("guildCategories", guildId, (prev) =>
+      categoryIds
+        .map((id, index) => {
+          const cat = (prev || []).find((c) => c.id === id);
+          return cat ? { ...cat, position: index } : null;
+        })
+        .filter((c): c is PageCategory => c !== null)
+    );
+    return true;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to reorder categories:", error);
+    setPagesState({ error });
+    return false;
+  }
+}
+
+// ============================================================================
+// Revision Actions
+// ============================================================================
+
+/**
+ * Load revisions for a page.
+ */
+export async function loadRevisions(
+  guildId: string,
+  pageId: string
+): Promise<void> {
+  try {
+    const revisions = await tauri.listPageRevisions(guildId, pageId);
+    setPagesState({ revisions });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to load revisions:", error);
+    setPagesState({ error });
+  }
+}
+
+/**
+ * Load a specific revision.
+ */
+export async function loadRevision(
+  guildId: string,
+  pageId: string,
+  revisionNumber: number
+): Promise<PageRevision | null> {
+  try {
+    const revision = await tauri.getPageRevision(guildId, pageId, revisionNumber);
+    setPagesState({ currentRevision: revision });
+    return revision;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to load revision:", error);
+    setPagesState({ error });
+    return null;
+  }
+}
+
+/**
+ * Restore a page to a specific revision.
+ */
+export async function restoreRevision(
+  guildId: string,
+  pageId: string,
+  revisionNumber: number
+): Promise<Page | null> {
+  try {
+    const page = await tauri.restorePageRevision(guildId, pageId, revisionNumber);
+    // Update the page in guild pages list
+    setPagesState("guildPages", guildId, (prev) =>
+      (prev || []).map((p) => (p.id === pageId ? toListItem(page) : p))
+    );
+    if (pagesState.currentPage?.id === pageId) {
+      setPagesState({ currentPage: page });
+    }
+    return page;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error("Failed to restore revision:", error);
+    setPagesState({ error });
+    return null;
+  }
+}
+
+/**
+ * Clear revision state.
+ */
+export function clearRevisions(): void {
+  setPagesState({ revisions: [], currentRevision: null });
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
@@ -424,6 +597,13 @@ export function clearCurrentPage(): void {
  */
 export function getGuildPagesFromState(guildId: string): PageListItem[] {
   return pagesState.guildPages[guildId] || [];
+}
+
+/**
+ * Get guild categories from state.
+ */
+export function getGuildCategoriesFromState(guildId: string): PageCategory[] {
+  return pagesState.guildCategories[guildId] || [];
 }
 
 /**

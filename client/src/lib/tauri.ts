@@ -69,10 +69,13 @@ import type {
   GuildUsageStats,
   DiscoverResponse,
   JoinDiscoverableResponse,
+  PageRevision,
+  RevisionListItem,
+  PageCategory,
 } from "./types";
 
 // Re-export types for convenience
-export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, GlobalSearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider, GuildSettings, GuildUsageStats, DiscoverResponse, JoinDiscoverableResponse };
+export type { User, Channel, ChannelCategory, ChannelWithUnread, Message, AppSettings, Guild, GuildMember, GuildInvite, InviteResponse, InviteExpiry, Friend, Friendship, DMChannel, DMListItem, Page, PageListItem, GuildRole, GuildEmoji, ChannelOverride, CreateRoleRequest, UpdateRoleRequest, SetChannelOverrideRequest, AssignRoleResponse, RemoveRoleResponse, DeleteRoleResponse, AdminStats, AdminStatus, UserSummary, GuildSummary, AuditLogEntry, PaginatedResponse, ElevateResponse, UserDetailsResponse, GuildDetailsResponse, BulkBanResponse, BulkSuspendResponse, CallEndReason, CallStateResponse, E2EEStatus, InitE2EEResponse, PrekeyData, E2EEContent, ClaimedPrekeyInput, UserKeysResponse, ClaimedPrekeyResponse, SearchResponse, SearchFilters, GlobalSearchResponse, Pin, CreatePinRequest, UpdatePinRequest, ServerSettings, OidcProvider, OidcLoginResult, AuthSettingsResponse, AuthMethodsConfig, AdminOidcProvider, GuildSettings, GuildUsageStats, DiscoverResponse, JoinDiscoverableResponse, PageRevision, RevisionListItem, PageCategory };
 
 /**
  * Unread aggregation types
@@ -2490,7 +2493,8 @@ export async function createGuildPage(
   title: string,
   content: string,
   slug?: string,
-  requiresAcceptance?: boolean
+  requiresAcceptance?: boolean,
+  categoryId?: string
 ): Promise<Page> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -2500,6 +2504,7 @@ export async function createGuildPage(
       content,
       slug,
       requiresAcceptance,
+      categoryId,
     });
   }
 
@@ -2508,6 +2513,7 @@ export async function createGuildPage(
     content,
     slug,
     requires_acceptance: requiresAcceptance,
+    category_id: categoryId,
   });
 }
 
@@ -2520,7 +2526,8 @@ export async function updateGuildPage(
   title?: string,
   slug?: string,
   content?: string,
-  requiresAcceptance?: boolean
+  requiresAcceptance?: boolean,
+  categoryId?: string | null
 ): Promise<Page> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -2531,15 +2538,22 @@ export async function updateGuildPage(
       slug,
       content,
       requiresAcceptance,
+      categoryId,
     });
   }
 
-  return httpRequest<Page>("PATCH", `/api/guilds/${guildId}/pages/${pageId}`, {
+  // Build body — only include category_id if explicitly provided
+  const body: Record<string, unknown> = {
     title,
     slug,
     content,
     requires_acceptance: requiresAcceptance,
-  });
+  };
+  if (categoryId !== undefined) {
+    body.category_id = categoryId;
+  }
+
+  return httpRequest<Page>("PATCH", `/api/guilds/${guildId}/pages/${pageId}`, body);
 }
 
 /**
@@ -2590,6 +2604,150 @@ export async function getPendingAcceptance(): Promise<PageListItem[]> {
   }
 
   return httpRequest<PageListItem[]>("GET", "/api/pages/pending-acceptance");
+}
+
+// Revision Commands
+
+/**
+ * List all revisions for a guild page.
+ */
+export async function listPageRevisions(
+  guildId: string,
+  pageId: string
+): Promise<RevisionListItem[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("list_page_revisions", { guildId, pageId });
+  }
+
+  return httpRequest<RevisionListItem[]>(
+    "GET",
+    `/api/guilds/${guildId}/pages/${pageId}/revisions`
+  );
+}
+
+/**
+ * Get a specific revision of a guild page.
+ */
+export async function getPageRevision(
+  guildId: string,
+  pageId: string,
+  revisionNumber: number
+): Promise<PageRevision> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("get_page_revision", { guildId, pageId, revisionNumber });
+  }
+
+  return httpRequest<PageRevision>(
+    "GET",
+    `/api/guilds/${guildId}/pages/${pageId}/revisions/${revisionNumber}`
+  );
+}
+
+/**
+ * Restore a guild page to a specific revision.
+ */
+export async function restorePageRevision(
+  guildId: string,
+  pageId: string,
+  revisionNumber: number
+): Promise<Page> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("restore_page_revision", { guildId, pageId, revisionNumber });
+  }
+
+  return httpRequest<Page>(
+    "POST",
+    `/api/guilds/${guildId}/pages/${pageId}/revisions/${revisionNumber}/restore`
+  );
+}
+
+// Page Category Commands
+
+/**
+ * List all page categories for a guild.
+ */
+export async function listPageCategories(guildId: string): Promise<PageCategory[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("list_page_categories", { guildId });
+  }
+
+  return httpRequest<PageCategory[]>("GET", `/api/guilds/${guildId}/page-categories`);
+}
+
+/**
+ * Create a page category in a guild.
+ */
+export async function createPageCategory(
+  guildId: string,
+  name: string
+): Promise<PageCategory> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("create_page_category", { guildId, name });
+  }
+
+  return httpRequest<PageCategory>("POST", `/api/guilds/${guildId}/page-categories`, {
+    name,
+  });
+}
+
+/**
+ * Update a page category in a guild.
+ */
+export async function updatePageCategory(
+  guildId: string,
+  categoryId: string,
+  name: string
+): Promise<PageCategory> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("update_page_category", { guildId, categoryId, name });
+  }
+
+  return httpRequest<PageCategory>(
+    "PATCH",
+    `/api/guilds/${guildId}/page-categories/${categoryId}`,
+    { name }
+  );
+}
+
+/**
+ * Delete a page category from a guild.
+ */
+export async function deletePageCategory(
+  guildId: string,
+  categoryId: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("delete_page_category", { guildId, categoryId });
+  }
+
+  await httpRequest<void>(
+    "DELETE",
+    `/api/guilds/${guildId}/page-categories/${categoryId}`
+  );
+}
+
+/**
+ * Reorder page categories in a guild.
+ */
+export async function reorderPageCategories(
+  guildId: string,
+  categoryIds: string[]
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("reorder_page_categories", { guildId, categoryIds });
+  }
+
+  await httpRequest<void>("POST", `/api/guilds/${guildId}/page-categories/reorder`, {
+    category_ids: categoryIds,
+  });
 }
 
 // ============================================================================

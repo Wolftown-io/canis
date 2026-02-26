@@ -39,6 +39,7 @@ pub enum Sensitivity {
     Normal,
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 impl Sensitivity {
     /// Get auto-clear timeout in seconds for standard mode.
     pub const fn standard_timeout_secs(&self) -> Option<u32> {
@@ -245,7 +246,7 @@ impl ClipboardGuard {
             });
 
             // Start background clear task
-            self.start_clear_task(app.clone(), secs);
+            Self::start_clear_task(app.clone(), secs);
         } else {
             *self.pending_clear.write().await = None;
         }
@@ -271,7 +272,7 @@ impl ClipboardGuard {
     }
 
     /// Start background task to clear clipboard after timeout.
-    fn start_clear_task(&self, app: AppHandle, secs: u32) {
+    fn start_clear_task(app: AppHandle, secs: u32) {
         let guard = app.state::<Arc<Self>>().inner().clone();
 
         tokio::spawn(async move {
@@ -410,7 +411,7 @@ impl ClipboardGuard {
 
         // Restart clear task
         drop(pending);
-        self.start_clear_task(app.clone(), new_secs);
+        Self::start_clear_task(app.clone(), new_secs);
 
         // Emit updated status
         let pending = self.pending_clear.read().await;

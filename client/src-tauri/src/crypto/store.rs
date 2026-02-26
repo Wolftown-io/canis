@@ -108,7 +108,7 @@ impl LocalKeyStore {
 
     /// Derive a deterministic keyed hash of a value.
     ///
-    /// Used to store session lookup keys (user_id, device_key) as opaque
+    /// Used to store session lookup keys (`user_id`, `device_key`) as opaque
     /// hashes in the database so the communication graph is not exposed
     /// in plaintext on disk.
     fn keyed_hash(&self, domain: &str, value: &str) -> String {

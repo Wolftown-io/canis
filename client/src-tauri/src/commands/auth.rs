@@ -334,7 +334,7 @@ pub struct OidcLoginResult {
 /// Start OIDC login flow for Tauri desktop.
 ///
 /// 1. Binds a temporary TCP listener on localhost
-/// 2. Requests the authorize URL from the server (with localhost redirect_uri)
+/// 2. Requests the authorize URL from the server (with localhost `redirect_uri`)
 /// 3. Opens the authorize URL in the default browser
 /// 4. Waits for the OIDC callback on the localhost listener
 /// 5. Extracts tokens from the callback query params and returns them
@@ -371,7 +371,7 @@ pub async fn oidc_authorize(
     // Use Url path segment mutation to safely encode the provider slug
     authorize_parsed
         .path_segments_mut()
-        .map_err(|_| "Invalid server URL: cannot be a base")?
+        .map_err(|()| "Invalid server URL: cannot be a base")?
         .extend(&["auth", "oidc", "authorize", &provider_slug]);
     authorize_parsed
         .query_pairs_mut()

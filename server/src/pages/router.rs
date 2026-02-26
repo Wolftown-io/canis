@@ -7,16 +7,6 @@ use super::handlers;
 use crate::api::AppState;
 
 /// Router for platform pages (mounted at /api/pages).
-///
-/// Routes:
-/// - GET  /                    - List platform pages
-/// - POST /                    - Create platform page (admin)
-/// - GET  /pending-acceptance  - Get pages needing user acceptance
-/// - GET  /by-slug/{slug}       - Get platform page by slug
-/// - PATCH /{id}                - Update platform page (admin)
-/// - DELETE /{id}               - Delete platform page (admin)
-/// - POST /reorder             - Reorder platform pages (admin)
-/// - POST /{id}/accept          - Accept a page
 pub fn platform_pages_router() -> Router<AppState> {
     Router::new()
         .route("/", get(handlers::list_platform_pages))
@@ -27,17 +17,21 @@ pub fn platform_pages_router() -> Router<AppState> {
         .route("/{id}", patch(handlers::update_platform_page))
         .route("/{id}", delete(handlers::delete_platform_page))
         .route("/{id}/accept", post(handlers::accept_page))
+        .route(
+            "/{page_id}/revisions",
+            get(handlers::list_platform_page_revisions),
+        )
+        .route(
+            "/{page_id}/revisions/{n}",
+            get(handlers::get_platform_page_revision),
+        )
+        .route(
+            "/{page_id}/revisions/{n}/restore",
+            post(handlers::restore_platform_page_revision),
+        )
 }
 
 /// Router for guild pages (mounted at `/api/guilds/{guild_id}/pages`).
-///
-/// Routes:
-/// - GET  /               - List guild pages
-/// - POST /               - Create guild page (`MANAGE_PAGES`)
-/// - GET  /by-slug/{slug}  - Get guild page by slug
-/// - PATCH /{id}           - Update guild page (`MANAGE_PAGES`)
-/// - DELETE /{id}          - Delete guild page (`MANAGE_PAGES`)
-/// - POST /reorder        - Reorder guild pages (`MANAGE_PAGES`)
 pub fn guild_pages_router() -> Router<AppState> {
     Router::new()
         .route("/", get(handlers::list_guild_pages))
@@ -47,4 +41,26 @@ pub fn guild_pages_router() -> Router<AppState> {
         .route("/{id}", patch(handlers::update_guild_page))
         .route("/{id}", delete(handlers::delete_guild_page))
         .route("/{id}/accept", post(handlers::accept_guild_page))
+        .route(
+            "/{page_id}/revisions",
+            get(handlers::list_guild_page_revisions),
+        )
+        .route(
+            "/{page_id}/revisions/{n}",
+            get(handlers::get_guild_page_revision),
+        )
+        .route(
+            "/{page_id}/revisions/{n}/restore",
+            post(handlers::restore_guild_page_revision),
+        )
+}
+
+/// Router for guild page categories (mounted at `/api/guilds/{guild_id}/page-categories`).
+pub fn guild_page_categories_router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(handlers::list_guild_categories))
+        .route("/", post(handlers::create_guild_category))
+        .route("/reorder", post(handlers::reorder_guild_categories))
+        .route("/{cat_id}", patch(handlers::update_guild_category))
+        .route("/{cat_id}", delete(handlers::delete_guild_category))
 }

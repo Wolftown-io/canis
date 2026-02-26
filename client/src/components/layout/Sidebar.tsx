@@ -11,7 +11,7 @@
 
 import { Component, createSignal, createEffect, onMount, Show, lazy, Suspense } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { ChevronDown, Settings, Search } from "lucide-solid";
+import { ChevronDown, Settings, Search, BookOpen } from "lucide-solid";
 import { loadChannels } from "@/stores/channels";
 import { getActiveGuild } from "@/stores/guilds";
 import { loadFavorites } from "@/stores/favorites";
@@ -142,6 +142,18 @@ const Sidebar: Component = () => {
           onToggle={() => setPagesExpanded(!pagesExpanded())}
           onSelectPage={handleSelectPage}
         />
+      </Show>
+
+      {/* Library Link */}
+      <Show when={activeGuild()}>
+        <button
+          type="button"
+          onClick={() => navigate(`/guilds/${activeGuild()!.id}/library`)}
+          class="mx-2 mb-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors"
+        >
+          <BookOpen class="w-4 h-4" />
+          Library
+        </button>
       </Show>
 
       {/* Channel List */}
