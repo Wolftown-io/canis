@@ -9,11 +9,11 @@ use sqlx::QueryBuilder;
 use uuid::Uuid;
 use validator::Validate;
 
+use super::limits;
 use super::types::{
     CreateGuildRequest, Guild, GuildCommandInfo, GuildMember, GuildSettings, GuildWithMemberCount,
     UpdateGuildRequest, UpdateGuildSettingsRequest,
 };
-use super::limits;
 use crate::api::AppState;
 use crate::auth::AuthUser;
 use crate::db::{self, ChannelType};
@@ -1178,8 +1178,11 @@ pub async fn update_guild_settings(
         }
         if let Some(banner_url) = body.banner_url {
             // Normalize empty string to NULL (clears the banner)
-            let normalized: Option<String> =
-                if banner_url.is_empty() { None } else { Some(banner_url) };
+            let normalized: Option<String> = if banner_url.is_empty() {
+                None
+            } else {
+                Some(banner_url)
+            };
             sep.push("banner_url = ").push_bind_unseparated(normalized);
             has_changes = true;
         }
@@ -1253,12 +1256,11 @@ pub async fn get_guild_usage(
     }
 
     // Fetch plan
-    let (plan,): (String,) =
-        sqlx::query_as("SELECT plan FROM guilds WHERE id = $1")
-            .bind(guild_id)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or(GuildError::NotFound)?;
+    let (plan,): (String,) = sqlx::query_as("SELECT plan FROM guilds WHERE id = $1")
+        .bind(guild_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(GuildError::NotFound)?;
 
     // Run count queries in parallel
     let (members, channels, roles, emojis, bots) = tokio::join!(

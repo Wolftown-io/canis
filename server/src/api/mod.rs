@@ -40,7 +40,7 @@ use crate::ratelimit::{
 use crate::voice::SfuServer;
 use crate::{
     admin, auth, chat, connectivity, crypto, discovery, governance, guild, moderation, pages,
-    social, voice, webhooks, ws,
+    social, voice, webhooks, workspaces, ws,
 };
 
 /// Shared application state.
@@ -219,6 +219,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/me/favorites/{channel_id}",
             post(favorites::add_favorite).delete(favorites::remove_favorite),
         )
+        .nest("/api/me/workspaces", workspaces::router())
         .route("/api/me/unread", get(unread::get_unread_aggregate))
         .route("/api/me/read-all", post(unread::mark_all_read))
         .nest("/api/keys", crypto::router())

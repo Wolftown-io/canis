@@ -8,11 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Roadmap Alignment
-- Current roadmap phase: Phase 5 (Ecosystem & SaaS Readiness) - In Progress
+- Current roadmap phase: Phase 6 (Competitive Differentiators & Mastery) - In Progress
 - Roadmap last updated: 2026-02-25
 
 ### Milestone Metadata
-- Milestone: Phase 5 - Ecosystem & SaaS Readiness
+- Milestone: Phase 6 - Competitive Differentiators & Mastery
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
 ### Security
@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production client builds now selectively strip `console.log` and `console.debug` while preserving `console.error` and `console.warn` for diagnostics (TD-09)
 
 ### Added
+- Personal workspaces — users can create named workspace folders and add channels from any guild they're a member of, enabling cross-guild "Mission Control" views; 9 REST API endpoints for workspace CRUD, entry management, and drag-and-drop reordering; real-time cross-device sync via 7 new WebSocket events; configurable max workspaces per user limit (default: 20); guild membership and VIEW_CHANNEL permission checks enforced on entry creation
 - Data export — users can request a full export of their data (profile, messages, guild memberships, friends, preferences) as a downloadable ZIP archive via `POST /api/me/data-export`; background worker gathers data into a versioned JSON archive, uploads to S3, and sends email notification when ready; downloads expire after 7 days
 - Account deletion with 30-day grace period — users can request account deletion via `POST /api/me/delete-account` (requires password confirmation); deletion is scheduled 30 days out and can be cancelled via `POST /api/me/delete-account/cancel`; after the grace period, the account is permanently deleted with messages anonymized (author removed but content preserved); guild ownership must be transferred before deletion
 - User profile now includes `deletion_scheduled_at` field when account deletion is pending, allowing clients to display a cancellation banner

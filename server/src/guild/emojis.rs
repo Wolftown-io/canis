@@ -97,9 +97,7 @@ impl IntoResponse for EmojiError {
                 Self::Validation(msg) => {
                     (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.as_str())
                 }
-                Self::LimitExceeded(msg) => {
-                    (StatusCode::FORBIDDEN, "LIMIT_EXCEEDED", msg.as_str())
-                }
+                Self::LimitExceeded(msg) => (StatusCode::FORBIDDEN, "LIMIT_EXCEEDED", msg.as_str()),
                 Self::Database(err) => {
                     tracing::error!("Database error: {}", err);
                     (

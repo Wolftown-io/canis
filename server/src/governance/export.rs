@@ -148,8 +148,7 @@ pub async fn process_export_job(
 async fn build_export_archive(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Vec<u8>> {
     let mut buf = Vec::new();
     let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     // 1. Profile
     let user = crate::db::find_user_by_id(pool, user_id)
@@ -219,12 +218,11 @@ async fn build_export_archive(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Ve
     serde_json::to_writer_pretty(&mut zip, &friends)?;
 
     // 5. Preferences
-    let prefs: Option<ExportPreferences> = sqlx::query_as(
-        "SELECT preferences FROM user_preferences WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?;
+    let prefs: Option<ExportPreferences> =
+        sqlx::query_as("SELECT preferences FROM user_preferences WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
 
     if let Some(p) = &prefs {
         zip.start_file("preferences.json", options)?;

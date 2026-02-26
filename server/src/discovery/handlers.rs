@@ -144,7 +144,13 @@ pub async fn browse_guilds(
     }
 
     if has_tags {
-        let lower_tags: Vec<String> = query.tags.as_ref().unwrap().iter().map(|t| t.to_lowercase()).collect();
+        let lower_tags: Vec<String> = query
+            .tags
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|t| t.to_lowercase())
+            .collect();
         builder.push(" AND g.tags && ");
         builder.push_bind(lower_tags);
     }
@@ -192,7 +198,13 @@ pub async fn browse_guilds(
             count_builder.push(")");
         }
         if has_tags {
-            let lower_tags: Vec<String> = query.tags.as_ref().unwrap().iter().map(|t| t.to_lowercase()).collect();
+            let lower_tags: Vec<String> = query
+                .tags
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|t| t.to_lowercase())
+                .collect();
             count_builder.push(" AND g.tags && ");
             count_builder.push_bind(lower_tags);
         }
@@ -311,56 +323,59 @@ pub async fn join_discoverable(
         let gid = guild_id;
         let uid = auth.id;
         let span = tracing::info_span!("discovery_member_joined_broadcast", guild_id = %gid, user_id = %uid);
-        let handle = tokio::spawn(tracing::Instrument::instrument(async move {
-            let user_info: Option<(String, String)> =
-                match sqlx::query_as("SELECT username, display_name FROM users WHERE id = $1")
-                    .bind(uid)
-                    .fetch_optional(&db)
-                    .await
-                {
-                    Ok(info) => info,
-                    Err(err) => {
-                        tracing::error!(
-                            user_id = %uid,
-                            guild_id = %gid,
-                            %err,
-                            "Failed to look up user for MemberJoined event"
-                        );
-                        return;
-                    }
-                };
+        let handle = tokio::spawn(tracing::Instrument::instrument(
+            async move {
+                let user_info: Option<(String, String)> =
+                    match sqlx::query_as("SELECT username, display_name FROM users WHERE id = $1")
+                        .bind(uid)
+                        .fetch_optional(&db)
+                        .await
+                    {
+                        Ok(info) => info,
+                        Err(err) => {
+                            tracing::error!(
+                                user_id = %uid,
+                                guild_id = %gid,
+                                %err,
+                                "Failed to look up user for MemberJoined event"
+                            );
+                            return;
+                        }
+                    };
 
-            if let Some((username, display_name)) = user_info {
-                crate::ws::bot_events::publish_member_joined(
-                    &db,
-                    &redis,
-                    gid,
-                    uid,
-                    &username,
-                    &display_name,
-                )
-                .await;
-                crate::webhooks::dispatch::dispatch_guild_event(
-                    &db,
-                    &redis,
-                    gid,
-                    crate::webhooks::events::BotEventType::MemberJoined,
-                    serde_json::json!({
-                        "guild_id": gid,
-                        "user_id": uid,
-                        "username": username,
-                        "display_name": display_name,
-                    }),
-                )
-                .await;
-            } else {
-                tracing::warn!(
-                    user_id = %uid,
-                    guild_id = %gid,
-                    "Skipping MemberJoined broadcast: user not found"
-                );
-            }
-        }, span));
+                if let Some((username, display_name)) = user_info {
+                    crate::ws::bot_events::publish_member_joined(
+                        &db,
+                        &redis,
+                        gid,
+                        uid,
+                        &username,
+                        &display_name,
+                    )
+                    .await;
+                    crate::webhooks::dispatch::dispatch_guild_event(
+                        &db,
+                        &redis,
+                        gid,
+                        crate::webhooks::events::BotEventType::MemberJoined,
+                        serde_json::json!({
+                            "guild_id": gid,
+                            "user_id": uid,
+                            "username": username,
+                            "display_name": display_name,
+                        }),
+                    )
+                    .await;
+                } else {
+                    tracing::warn!(
+                        user_id = %uid,
+                        guild_id = %gid,
+                        "Skipping MemberJoined broadcast: user not found"
+                    );
+                }
+            },
+            span,
+        ));
         let watcher_gid = guild_id;
         let watcher_uid = auth.id;
         tokio::spawn(async move {

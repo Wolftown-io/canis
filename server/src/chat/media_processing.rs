@@ -68,7 +68,10 @@ pub struct ProcessedVariant {
 /// variants) to preserve animation.
 ///
 /// This function is CPU-bound and should be called inside `spawn_blocking`.
-pub fn process_image(data: &[u8], mime_type: &str) -> Result<ImageProcessingResult, ProcessingError> {
+pub fn process_image(
+    data: &[u8],
+    mime_type: &str,
+) -> Result<ImageProcessingResult, ProcessingError> {
     if data.len() > MAX_PROCESSABLE_SIZE {
         return Err(ProcessingError::TooLarge(data.len()));
     }
@@ -126,7 +129,11 @@ fn mime_to_format(mime_type: &str) -> Result<ImageFormat, ProcessingError> {
 /// Generate a blurhash from a small downscaled sample of the image.
 fn generate_blurhash(img: &DynamicImage) -> Result<String, ProcessingError> {
     // Downscale to a small size for fast hashing
-    let sample = img.resize(BLURHASH_SAMPLE_SIZE, BLURHASH_SAMPLE_SIZE, FilterType::Triangle);
+    let sample = img.resize(
+        BLURHASH_SAMPLE_SIZE,
+        BLURHASH_SAMPLE_SIZE,
+        FilterType::Triangle,
+    );
     let (w, h) = sample.dimensions();
     let rgba = sample.to_rgba8();
 
@@ -195,8 +202,14 @@ mod tests {
         assert_eq!(result.width, 100);
         assert_eq!(result.height, 100);
         assert!(!result.blurhash.is_empty());
-        assert!(result.thumbnail.is_none(), "100px image should not have a thumbnail");
-        assert!(result.medium.is_none(), "100px image should not have a medium variant");
+        assert!(
+            result.thumbnail.is_none(),
+            "100px image should not have a thumbnail"
+        );
+        assert!(
+            result.medium.is_none(),
+            "100px image should not have a medium variant"
+        );
     }
 
     #[test]
@@ -230,7 +243,10 @@ mod tests {
         assert_eq!(result.height, 500);
         assert!(!result.blurhash.is_empty());
         assert!(result.thumbnail.is_none(), "GIF should not have thumbnail");
-        assert!(result.medium.is_none(), "GIF should not have medium variant");
+        assert!(
+            result.medium.is_none(),
+            "GIF should not have medium variant"
+        );
     }
 
     #[test]
@@ -251,7 +267,13 @@ mod tests {
         let data = create_test_png(800, 600);
         let result = process_image(&data, "image/png").unwrap();
 
-        assert!(result.thumbnail.is_some(), "800px image should have a thumbnail");
-        assert!(result.medium.is_none(), "800px image should not have a medium variant");
+        assert!(
+            result.thumbnail.is_some(),
+            "800px image should have a thumbnail"
+        );
+        assert!(
+            result.medium.is_none(),
+            "800px image should not have a medium variant"
+        );
     }
 }

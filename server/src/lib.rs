@@ -25,6 +25,7 @@ pub mod social;
 pub mod util;
 pub mod voice;
 pub mod webhooks;
+pub mod workspaces;
 pub mod ws;
 
 #[cfg(test)]

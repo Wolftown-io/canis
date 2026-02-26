@@ -69,8 +69,14 @@ impl S3Client {
             .behavior_version_latest();
 
         // Configure credentials from Config fields, falling back to environment variables
-        let access_key = config.s3_access_key.clone().or_else(|| std::env::var("AWS_ACCESS_KEY_ID").ok());
-        let secret_key = config.s3_secret_key.clone().or_else(|| std::env::var("AWS_SECRET_ACCESS_KEY").ok());
+        let access_key = config
+            .s3_access_key
+            .clone()
+            .or_else(|| std::env::var("AWS_ACCESS_KEY_ID").ok());
+        let secret_key = config
+            .s3_secret_key
+            .clone()
+            .or_else(|| std::env::var("AWS_SECRET_ACCESS_KEY").ok());
         if let (Some(access_key), Some(secret_key)) = (access_key, secret_key) {
             let credentials = Credentials::new(
                 access_key,
@@ -202,7 +208,13 @@ impl S3Client {
     /// Used in tests and development to auto-provision storage.
     pub async fn create_bucket_if_not_exists(&self) -> Result<(), S3Error> {
         // Always attempt to create — ignore "already exists" errors to avoid TOCTOU races
-        match self.client.create_bucket().bucket(&self.bucket).send().await {
+        match self
+            .client
+            .create_bucket()
+            .bucket(&self.bucket)
+            .send()
+            .await
+        {
             Ok(_) => Ok(()),
             Err(e) => {
                 let err_str = e.to_string();

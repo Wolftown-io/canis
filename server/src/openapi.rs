@@ -48,6 +48,7 @@ use utoipa::{Modify, OpenApi};
         (name = "connectivity", description = "Connection and session info"),
         (name = "discovery", description = "Public guild discovery and browsing"),
         (name = "governance", description = "Data export and account deletion"),
+        (name = "workspaces", description = "Personal workspace management"),
         (name = "settings", description = "Server settings and configuration"),
         (name = "setup", description = "Initial server setup"),
         (name = "uploads", description = "File upload operations"),
@@ -278,6 +279,16 @@ use utoipa::{Modify, OpenApi};
         crate::api::favorites::reorder_guilds,
         crate::api::favorites::add_favorite,
         crate::api::favorites::remove_favorite,
+        // Workspaces
+        crate::workspaces::handlers::create_workspace,
+        crate::workspaces::handlers::list_workspaces,
+        crate::workspaces::handlers::get_workspace,
+        crate::workspaces::handlers::update_workspace,
+        crate::workspaces::handlers::delete_workspace,
+        crate::workspaces::handlers::add_entry,
+        crate::workspaces::handlers::remove_entry,
+        crate::workspaces::handlers::reorder_entries,
+        crate::workspaces::handlers::reorder_workspaces,
         // Unread
         crate::api::unread::get_unread_aggregate,
         crate::api::unread::mark_all_read,
@@ -495,6 +506,16 @@ use utoipa::{Modify, OpenApi};
         crate::api::bots::CreateApplicationRequest,
         crate::api::bots::ApplicationResponse,
         crate::api::bots::BotTokenResponse,
+        // Workspaces
+        crate::workspaces::types::WorkspaceResponse,
+        crate::workspaces::types::WorkspaceListItem,
+        crate::workspaces::types::WorkspaceEntryResponse,
+        crate::workspaces::types::WorkspaceDetailResponse,
+        crate::workspaces::types::CreateWorkspaceRequest,
+        crate::workspaces::types::UpdateWorkspaceRequest,
+        crate::workspaces::types::AddEntryRequest,
+        crate::workspaces::types::ReorderEntriesRequest,
+        crate::workspaces::types::ReorderWorkspacesRequest,
         // Settings
         crate::api::settings::InstanceLimitsResponse,
         // Data Governance

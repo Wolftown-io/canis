@@ -251,8 +251,8 @@ pub async fn request_deletion(
                 .password_hash
                 .as_deref()
                 .ok_or(GovError::PasswordInvalid)?;
-            let valid = verify_password(password, password_hash)
-                .map_err(|_| GovError::PasswordInvalid)?;
+            let valid =
+                verify_password(password, password_hash).map_err(|_| GovError::PasswordInvalid)?;
             if !valid {
                 return Err(GovError::PasswordInvalid);
             }
