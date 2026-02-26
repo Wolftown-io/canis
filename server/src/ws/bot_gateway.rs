@@ -395,7 +395,7 @@ async fn handle_bot_event(
             content,
         } => {
             // Validate content length
-            if let Err(_) = crate::chat::messages::validate_message_content(&content) {
+            if crate::chat::messages::validate_message_content(&content).is_err() {
                 return Err("Message content must be 1-4000 characters (or 10000 with a code block)".to_string());
             }
 
@@ -481,7 +481,7 @@ async fn handle_bot_event(
             ephemeral,
         } => {
             // Validate content length
-            if let Err(_) = crate::chat::messages::validate_message_content(&content) {
+            if crate::chat::messages::validate_message_content(&content).is_err() {
                 return Err("Response content must be 1-4000 characters (or 10000 with a code block)".to_string());
             }
 

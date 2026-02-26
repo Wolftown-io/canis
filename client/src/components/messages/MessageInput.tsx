@@ -74,12 +74,13 @@ const MessageInput: Component<MessageInputProps> = (props) => {
   // Calculate character length properties separating code blocks and regular text
   const lengthStats = () => {
     const text = content();
-    const totalLength = text.length;
+    // Use spreader to count unicode code points instead of UTF-16 code units (matching backend)
+    const totalLength = [...text].length;
 
     // Remove code blocks to get regular text length
     // Using a regex similar to backend: matches ``` followed by anything until next ```
     const textWithoutBlocks = text.replace(/```[\s\S]*?```/g, '');
-    const regularLength = textWithoutBlocks.length;
+    const regularLength = [...textWithoutBlocks].length;
 
     return {
       totalLength,
