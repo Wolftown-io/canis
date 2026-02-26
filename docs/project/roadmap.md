@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-02-25
+**Last Updated:** 2026-02-26
 
 ## Quick Status Overview
 
@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 0% (0/6) | Mobile, personal workspaces, sovereign guild model, live session toolkits |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 17% (1/6) | Personal workspaces, mobile, sovereign guild model, live session toolkits |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
@@ -572,9 +572,9 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 
 - [ ] **[Client] Mobile Support** ([Design](../plans/2026-02-15-phase-6-mobile-workspaces-design.md), [Implementation](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md))
   - Adapt Tauri frontend for mobile or begin Flutter/Native implementation.
-- [ ] **[UX] Personal Workspaces (Favorites v2)** ([Design](../plans/2026-02-15-phase-6-mobile-workspaces-design.md), [Implementation](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md))
-  - **Context:** Solve "Discord Bloat" by letting users aggregate channels from disparate guilds.
-  - **Strategy:** Allow users to create custom "Workspaces" that act as virtual folders. Users can drag-and-drop channels from any guild into these workspaces for a unified Mission Control view.
+- [x] **[UX] Personal Workspaces (Favorites v2)** ([Design](../plans/2026-02-15-phase-6-mobile-workspaces-design.md), [Implementation](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md)) — (#250)
+  - 9 REST endpoints, 7 WebSocket events, cross-guild channel aggregation with drag-and-drop reordering.
+  - Configurable limits (`MAX_WORKSPACES_PER_USER`, `MAX_ENTRIES_PER_WORKSPACE`), atomic CTE for concurrency safety, 17 integration tests.
 - [ ] **[Content] Sovereign Guild Model (BYO Infrastructure)** ([Design](../plans/2026-02-15-phase-6-sovereign-livekit-design.md), [Implementation](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md))
   - **Context:** Provide ultimate data ownership for privacy-conscious groups.
   - **Strategy:** Allow Guild Admins in the SaaS version to provide their own **S3 API** keys and **SFU Relay** configurations, ensuring their media and voice traffic never touches Canis-owned storage.
@@ -653,6 +653,9 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 ---
 
 ## Recent Changes
+
+### 2026-02-26
+- **Personal Workspaces** (PR #250) — Cross-guild channel aggregation with named workspace folders. 9 REST endpoints (CRUD, entry management, reordering), 7 WebSocket events for real-time sync, `workspaces` and `workspace_entries` tables with `update_updated_at()` triggers. Configurable limits via `MAX_WORKSPACES_PER_USER` (default 20) and `MAX_ENTRIES_PER_WORKSPACE` (default 50). Atomic CTE prevents limit bypass on concurrent requests. Guild membership + VIEW_CHANNEL permission checks enforced. 17 integration tests. Three code review rounds aligned error codes (SCREAMING_SNAKE_CASE), status codes (403 for limits, 204 for reorder), structured tracing, validator crate usage, `Option<Option<String>>` icon clearing, and configurable entry limits.
 
 ### 2026-02-25
 - **Phase 5 Complete** — All 17 Ecosystem & SaaS Readiness items delivered (str0m evaluation deferred as trigger-based). Phase 6 (Competitive Differentiators & Mastery) now in progress.
