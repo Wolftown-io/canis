@@ -6,7 +6,7 @@
  */
 
 import { createStore, produce } from "solid-js/store";
-import type { Activity, UserPresence, UserStatus } from "@/lib/types";
+import type { Activity, FocusTriggerCategory, UserPresence, UserStatus } from "@/lib/types";
 import {
   startIdleDetection,
   stopIdleDetection,
@@ -58,7 +58,16 @@ export async function initPresence(): Promise<void> {
     );
 
     // Listen for local activity changes from presence service
+    const VALID_TRIGGER_CATEGORIES: ReadonlySet<string> = new Set(["game", "coding", "listening", "watching"]);
     activityUnlistener = await listen<Activity | null>("presence:activity_changed", async (event) => {
+      // Notify focus engine of activity category change for auto-activation
+      const { handleActivityChange } = await import("./focus");
+      const rawType = event.payload?.type;
+      const category = (typeof rawType === "string" && VALID_TRIGGER_CATEGORIES.has(rawType))
+        ? rawType as FocusTriggerCategory
+        : null;
+      handleActivityChange(category);
+
       // Send activity to server via WebSocket command
       try {
         const { invoke } = await import("@tauri-apps/api/core");
@@ -71,7 +80,11 @@ export async function initPresence(): Promise<void> {
 }
 
 /**
- * Cleanup presence listeners.
+ * Cleanup presence listeners and reset focus state.
+ * Focus reset uses a dynamic import to avoid pulling the full focus → sound
+ * dependency chain into the presence module (which breaks test mocks).
+ * The async gap is acceptable: logout → login has a full auth round-trip
+ * in between, so the deactivation always resolves before re-initialization.
  */
 export function cleanupPresence(): void {
   if (unlistener) {
@@ -82,6 +95,11 @@ export function cleanupPresence(): void {
     activityUnlistener();
     activityUnlistener = null;
   }
+
+  // Reset focus mode so it doesn't persist across logout/re-login
+  import("./focus").then(({ deactivateFocusMode }) => {
+    deactivateFocusMode();
+  });
 }
 
 /**

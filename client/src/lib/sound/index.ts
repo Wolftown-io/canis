@@ -2,7 +2,9 @@
  * Sound Service
  *
  * Central service for notification sounds with platform detection,
- * cooldown throttling, and eligibility checking.
+ * cooldown throttling, focus mode policy evaluation, and eligibility checking.
+ * Focus policy (DND, focus mode suppression, VIP/emergency overrides) is the
+ * first gate in the notification pipeline — see evaluateFocusPolicy in stores/focus.
  */
 
 import type { SoundEvent, SoundOption } from "./types";
@@ -15,8 +17,8 @@ import {
   getSelectedSound,
   getChannelNotificationLevel,
   isChannelMuted,
-  isDndActive,
 } from "@/stores/sound";
+import { evaluateFocusPolicy } from "@/stores/focus";
 import { currentUser } from "@/stores/auth";
 
 // ============================================================================
@@ -104,9 +106,9 @@ export function cleanupSoundService(): void {
  * Handles eligibility checking, cooldown, and platform routing.
  */
 export async function playNotification(event: SoundEvent): Promise<void> {
-  // Quick exit: DND active (user status "dnd" or quiet hours)
-  if (isDndActive()) {
-    console.log("[Sound] Suppressed by DND");
+  // Quick exit: focus policy (handles DND/quiet hours, focus mode, VIP overrides)
+  if (evaluateFocusPolicy(event) === "suppress") {
+    console.debug("[Sound] Suppressed by focus policy");
     return;
   }
 
