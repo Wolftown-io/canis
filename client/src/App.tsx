@@ -16,6 +16,7 @@ const AdminDashboard = lazy(() => import("./views/AdminDashboard"));
 const ConnectionHistory = lazy(() => import("./pages/settings/ConnectionHistory"));
 const BotSlashCommands = lazy(() => import("./pages/settings/BotSlashCommands"));
 const BotWebhooks = lazy(() => import("./pages/settings/BotWebhooks"));
+const LibraryViewRoute = lazy(() => import("./views/LibraryViewRoute"));
 
 // Components
 import AuthGuard from "./components/auth/AuthGuard";
@@ -177,6 +178,18 @@ const ConnectionHistoryPage = () => <Layout><ProtectedConnectionHistory /></Layo
 const BotCommandsPage = () => <Layout><ProtectedBotCommands /></Layout>;
 const BotWebhooksPage = () => <Layout><ProtectedBotWebhooks /></Layout>;
 
+// Protected library wrapper
+const ProtectedLibrary: Component = () => (
+  <AuthGuard>
+    <LazyErrorBoundary name="LibraryView">
+      <Suspense fallback={<PageFallback />}>
+        <LibraryViewRoute />
+      </Suspense>
+    </LazyErrorBoundary>
+  </AuthGuard>
+);
+const LibraryPage = () => <Layout><ProtectedLibrary /></Layout>;
+
 // Export routes as JSX Route elements
 export const AppRoutes = (): JSX.Element => (
   <>
@@ -188,6 +201,7 @@ export const AppRoutes = (): JSX.Element => (
     <Route path="/invite/:code" component={InvitePage} />
     <Route path="/pages/:slug" component={PagePage} />
     <Route path="/guilds/:guildId/pages/:slug" component={PagePage} />
+    <Route path="/guilds/:guildId/library" component={LibraryPage} />
     <Route path="/admin" component={AdminPage} />
     <Route path="/settings/connection" component={ConnectionHistoryPage} />
     <Route path="/settings/bots/:id/commands" component={BotCommandsPage} />

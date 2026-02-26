@@ -163,6 +163,12 @@ pub struct Config {
 
     /// Maximum number of entries per workspace (default: 50)
     pub max_entries_per_workspace: i64,
+
+    /// Maximum number of pages per guild (default: 10)
+    pub max_pages_per_guild: i64,
+
+    /// Maximum number of revisions per page (default: 25)
+    pub max_revisions_per_page: i64,
 }
 
 impl Config {
@@ -298,6 +304,16 @@ impl Config {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(50)
                 .max(1),
+            max_pages_per_guild: env::var("MAX_PAGES_PER_GUILD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10)
+                .max(1),
+            max_revisions_per_page: env::var("MAX_REVISIONS_PER_PAGE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(25)
+                .max(1),
         })
     }
 
@@ -382,6 +398,8 @@ impl Config {
             max_webhooks_per_app: 5,
             max_workspaces_per_user: 20,
             max_entries_per_workspace: 50,
+            max_pages_per_guild: 10,
+            max_revisions_per_page: 25,
         }
     }
 }

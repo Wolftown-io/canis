@@ -5,7 +5,7 @@
  */
 
 import { Show, createSignal } from "solid-js";
-import { ArrowLeft, Edit, Trash2, Clock } from "lucide-solid";
+import { ArrowLeft, Edit, Trash2, Clock, History } from "lucide-solid";
 import type { Page } from "@/lib/types";
 import MarkdownPreview from "./MarkdownPreview";
 
@@ -15,6 +15,7 @@ interface PageViewProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onBack?: () => void;
+  onViewHistory?: () => void;
 }
 
 /**
@@ -83,8 +84,18 @@ export default function PageView(props: PageViewProps) {
           </div>
         </div>
 
-        <Show when={props.canEdit}>
-          <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2">
+          <Show when={props.onViewHistory}>
+            <button
+              type="button"
+              onClick={props.onViewHistory}
+              class="px-3 py-1.5 text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-700 rounded-md flex items-center gap-2 transition-colors"
+            >
+              <History class="w-4 h-4" />
+              History
+            </button>
+          </Show>
+          <Show when={props.canEdit}>
             <button
               type="button"
               onClick={props.onEdit}
@@ -102,8 +113,8 @@ export default function PageView(props: PageViewProps) {
               <Trash2 class="w-4 h-4" />
               {isDeleting() ? "Deleting..." : "Delete"}
             </button>
-          </div>
-        </Show>
+          </Show>
+        </div>
       </div>
 
       {/* Delete error */}

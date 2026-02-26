@@ -136,6 +136,11 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/oidc-providers/{id}",
             put(handlers::update_oidc_provider).delete(handlers::delete_oidc_provider),
         )
+        // Per-guild page limits
+        .route(
+            "/guilds/{id}/page-limits",
+            get(handlers::get_guild_page_limits).patch(handlers::set_guild_page_limits),
+        )
         .layer(from_fn_with_state(state.clone(), require_elevated));
 
     // Non-elevated admin routes (require system admin)

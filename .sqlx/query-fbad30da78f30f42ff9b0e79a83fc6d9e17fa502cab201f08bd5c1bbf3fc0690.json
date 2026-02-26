@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO users (username, display_name, email, password_hash, auth_method)\n           VALUES ($1, $2, $3, $4, 'local')\n           RETURNING id, username, display_name, email, password_hash,\n                     auth_method as \"auth_method: _\", external_id, avatar_url,\n                     status as \"status: _\", mfa_secret, is_bot, bot_owner_id,\n                     created_at, updated_at",
+  "query": "INSERT INTO users (username, display_name, password_hash, auth_method)\n                   VALUES ($1, $2, $3, 'local')\n                   RETURNING id, username, display_name, email, password_hash,\n                             auth_method as \"auth_method: _\", external_id, avatar_url,\n                             status as \"status: _\", mfa_secret, is_bot, bot_owner_id,\n                             deletion_requested_at, deletion_scheduled_at,\n                             created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -87,18 +87,27 @@
       },
       {
         "ordinal": 12,
-        "name": "created_at",
+        "name": "deletion_requested_at",
         "type_info": "Timestamptz"
       },
       {
         "ordinal": 13,
+        "name": "deletion_scheduled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Varchar",
         "Varchar",
         "Varchar",
         "Varchar"
@@ -117,9 +126,11 @@
       true,
       false,
       true,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "ddfc905b7729680a6a2d905f9de4bdb5a365badcc76ac047e629f8ae1dbb5cd5"
+  "hash": "fbad30da78f30f42ff9b0e79a83fc6d9e17fa502cab201f08bd5c1bbf3fc0690"
 }

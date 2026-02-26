@@ -39,7 +39,7 @@ pub fn play_sound(sound_id: String, volume: Option<u8>) -> Result<(), String> {
         }
     };
 
-    let vol = volume.unwrap_or(100).min(100) as f32 / 100.0;
+    let vol = f32::from(volume.unwrap_or(100).min(100)) / 100.0;
 
     // Spawn thread for audio playback (OutputStream is not Send)
     thread::spawn(move || {

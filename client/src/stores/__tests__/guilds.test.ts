@@ -72,6 +72,7 @@ function createGuildObj(overrides: Partial<Guild> = {}): Guild {
     discoverable: false,
     tags: [],
     banner_url: null,
+    plan: "free",
     created_at: "2025-01-01T00:00:00Z",
     ...overrides,
   };

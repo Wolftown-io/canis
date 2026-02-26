@@ -4,9 +4,9 @@
  * Side-by-side markdown editor with live preview.
  */
 
-import { createSignal, createEffect, Show, onCleanup } from "solid-js";
+import { createSignal, createEffect, Show, For, onCleanup } from "solid-js";
 import { Bold, Italic, Strikethrough, Image, Code, List, ListOrdered, Link, Eye, EyeOff, Save, X } from "lucide-solid";
-import type { Page } from "@/lib/types";
+import type { Page, PageCategory } from "@/lib/types";
 import { MAX_CONTENT_SIZE } from "@/lib/pageConstants";
 import MarkdownPreview from "./MarkdownPreview";
 import MarkdownCheatSheet from "./MarkdownCheatSheet";
@@ -14,7 +14,8 @@ import MarkdownCheatSheet from "./MarkdownCheatSheet";
 interface PageEditorProps {
   page?: Page | null;
   guildId?: string;
-  onSave: (data: { title: string; slug: string; content: string; requiresAcceptance: boolean }) => Promise<void>;
+  categories?: PageCategory[];
+  onSave: (data: { title: string; slug: string; content: string; requiresAcceptance: boolean; categoryId?: string | null }) => Promise<void>;
   onCancel: () => void;
   isPlatform?: boolean;
 }
@@ -34,6 +35,7 @@ export default function PageEditor(props: PageEditorProps) {
   const [title, setTitle] = createSignal(props.page?.title || "");
   const [slug, setSlug] = createSignal(props.page?.slug || "");
   const [content, setContent] = createSignal(props.page?.content || "");
+  const [categoryId, setCategoryId] = createSignal<string | null>(props.page?.category_id ?? null);
   const [requiresAcceptance, setRequiresAcceptance] = createSignal(props.page?.requires_acceptance || false);
   const [showPreview, setShowPreview] = createSignal(true);
   const [isSaving, setIsSaving] = createSignal(false);
@@ -49,6 +51,7 @@ export default function PageEditor(props: PageEditorProps) {
     setTitle(page?.title || "");
     setSlug(page?.slug || "");
     setContent(page?.content || "");
+    setCategoryId(page?.category_id ?? null);
     setRequiresAcceptance(page?.requires_acceptance || false);
     setSlugManuallyEdited(!!page?.slug);
     setHasUnsavedChanges(false);
@@ -61,6 +64,7 @@ export default function PageEditor(props: PageEditorProps) {
       title() !== (props.page?.title || "") ||
       slug() !== (props.page?.slug || "") ||
       content() !== (props.page?.content || "") ||
+      categoryId() !== (props.page?.category_id ?? null) ||
       requiresAcceptance() !== (props.page?.requires_acceptance || false);
 
     setHasUnsavedChanges(hasChanges);
@@ -152,6 +156,7 @@ export default function PageEditor(props: PageEditorProps) {
         slug: slug().trim(),
         content: content(),
         requiresAcceptance: requiresAcceptance(),
+        categoryId: props.categories ? categoryId() : undefined,
       });
       setHasUnsavedChanges(false);
     } catch (err) {
@@ -252,6 +257,21 @@ export default function PageEditor(props: PageEditorProps) {
             class="w-full px-3 py-2 bg-zinc-800 border border-zinc-600 rounded-md text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono text-sm"
           />
         </div>
+        <Show when={props.categories && props.categories.length > 0}>
+          <div>
+            <label class="block text-sm font-medium text-zinc-300 mb-1">Category</label>
+            <select
+              value={categoryId() ?? ""}
+              onChange={(e) => setCategoryId(e.currentTarget.value || null)}
+              class="w-full px-3 py-2 bg-zinc-800 border border-zinc-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="">Uncategorized</option>
+              <For each={props.categories}>
+                {(cat) => <option value={cat.id}>{cat.name}</option>}
+              </For>
+            </select>
+          </div>
+        </Show>
         <div class="flex items-center gap-3">
           <label class="flex items-center gap-2 cursor-pointer">
             <input

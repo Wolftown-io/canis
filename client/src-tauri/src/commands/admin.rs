@@ -665,7 +665,8 @@ pub async fn admin_get_audit_log(
     let mut url = format!("{server_url}/api/admin/audit-log?limit={limit}&offset={offset}");
     if let Some(ref action) = action_filter {
         let encoded: String = form_urlencoded::byte_serialize(action.as_bytes()).collect();
-        url.push_str(&format!("&action={encoded}"));
+        url.push_str("&action=");
+        url.push_str(&encoded);
     }
 
     let response = state

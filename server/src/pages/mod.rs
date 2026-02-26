@@ -7,9 +7,10 @@
 //! Features:
 //! - Markdown content with Mermaid diagram support
 //! - Version tracking via content hashing
+//! - Revision history with restore capability
+//! - Guild-scoped page categories
 //! - User acceptance tracking
 //! - Audit logging
-//! - Role-based visibility (guild pages)
 
 pub mod constants;
 pub mod handlers;
@@ -19,5 +20,5 @@ pub mod types;
 
 pub use constants::*;
 pub use queries::*;
-pub use router::{guild_pages_router, platform_pages_router};
+pub use router::{guild_page_categories_router, guild_pages_router, platform_pages_router};
 pub use types::*;

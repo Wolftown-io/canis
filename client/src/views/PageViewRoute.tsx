@@ -7,7 +7,7 @@
  * - /guilds/:guildId/pages/:slug - Guild page
  */
 
-import { Component, Show, createResource } from "solid-js";
+import { Component, Show, createResource, createEffect } from "solid-js";
 import { useParams, useNavigate } from "@solidjs/router";
 import { ArrowLeft } from "lucide-solid";
 import { PageView } from "@/components/pages";
@@ -28,6 +28,18 @@ const PageViewRoute: Component = () => {
       return tauri.getPlatformPage(slug);
     }
   );
+
+  // Scroll to URL fragment after page loads and markdown renders
+  createEffect(() => {
+    if (page() && window.location.hash) {
+      const hash = window.location.hash.slice(1);
+      // Delay to allow markdown rendering to complete
+      setTimeout(() => {
+        const el = document.getElementById(hash);
+        el?.scrollIntoView({ behavior: "smooth" });
+      }, 200);
+    }
+  });
 
   const handleBack = () => {
     navigate(-1);

@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-02-27
 
 ## Quick Status Overview
 
@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 17% (1/6) | Personal workspaces, mobile, sovereign guild model, live session toolkits |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 40% (2/5) | Personal workspaces, digital library, mobile, live session toolkits, focus engine (sovereign guild model deferred) |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
@@ -575,7 +575,7 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [x] **[UX] Personal Workspaces (Favorites v2)** ([Design](../plans/2026-02-15-phase-6-mobile-workspaces-design.md), [Implementation](../plans/2026-02-15-phase-6-mobile-workspaces-implementation.md)) — (#250)
   - 9 REST endpoints, 7 WebSocket events, cross-guild channel aggregation with drag-and-drop reordering.
   - Configurable limits (`MAX_WORKSPACES_PER_USER`, `MAX_ENTRIES_PER_WORKSPACE`), atomic CTE for concurrency safety, 17 integration tests.
-- [ ] **[Content] Sovereign Guild Model (BYO Infrastructure)** ([Design](../plans/2026-02-15-phase-6-sovereign-livekit-design.md), [Implementation](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md))
+- [ ] **[Content] Sovereign Guild Model (BYO Infrastructure)** *(Optional — future consideration)* ([Design](../plans/2026-02-15-phase-6-sovereign-livekit-design.md), [Implementation](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md))
   - **Context:** Provide ultimate data ownership for privacy-conscious groups.
   - **Strategy:** Allow Guild Admins in the SaaS version to provide their own **S3 API** keys and **SFU Relay** configurations, ensuring their media and voice traffic never touches Canis-owned storage.
 - [ ] **[Voice] Live Session Toolkits** ([Design](../plans/2026-02-15-phase-6-sovereign-livekit-design.md), [Implementation](../plans/2026-02-15-phase-6-sovereign-livekit-implementation.md))
@@ -586,9 +586,10 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [ ] **[UX] Context-Aware Focus Engine** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md))
   - **Context:** Prevent platform fatigue with intelligent notification routing.
   - **Strategy:** Use Tauri's desktop APIs to detect active foreground apps (e.g., IDEs, DAWs). Implement **VIP/Emergency Overrides** that allow specific users or channels to bypass DND during focused work sessions.
-- [ ] **[SaaS] The Digital Library (Wiki Mastery)** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md))
+- [x] **[SaaS] The Digital Library (Wiki Mastery)** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md)) ✅
   - **Context:** Transform "Information Pages" into a structured Knowledge Base.
   - **Strategy:** Enhance current Info Pages with version recovery, deep-linkable sections, and a "Library" view for long-term guild documentation.
+  - **Delivered:** Revision history with content snapshots and pruning, guild-scoped page categories with CRUD/reordering, deep-linkable heading anchors, library catalog view, per-guild configurable limits with admin overrides (13 new API endpoints).
 
 ---
 

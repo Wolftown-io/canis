@@ -9,7 +9,7 @@
  */
 
 import { createSignal, createEffect, onMount, Show } from "solid-js";
-import { marked } from "marked";
+import { Marked } from "marked";
 import DOMPurify from "dompurify";
 import mermaid from "mermaid";
 
@@ -53,6 +53,55 @@ const ALLOWED_ATTR = [
 // URL protocol allowlist
 const ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
+/** Generate a GitHub-style slug from heading text, handling duplicates. */
+function slugify(text: string, seen: Map<string, number>): string {
+  const slug = text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-");
+  const count = seen.get(slug) ?? 0;
+  seen.set(slug, count + 1);
+  // Escape quotes for safe use in HTML attributes (defense-in-depth)
+  const result = count === 0 ? slug : `${slug}-${count}`;
+  return result.replace(/"/g, "");
+}
+
+// Note: Each MarkdownPreview instance creates its own Marked parser to avoid
+// shared mutable state between simultaneous instances.
+
+/** Add hover anchor links to headings in the rendered DOM. */
+function addHeadingAnchors(container: HTMLElement): void {
+  const headings = container.querySelectorAll("h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]");
+  for (const heading of headings) {
+    // Skip if anchor already added
+    if (heading.querySelector(".heading-anchor")) continue;
+
+    const id = heading.getAttribute("id");
+    if (!id) continue;
+
+    const anchor = document.createElement("a");
+    anchor.className = "heading-anchor";
+    anchor.href = `#${id}`;
+    anchor.textContent = "#";
+    anchor.setAttribute("aria-label", `Link to ${heading.textContent}`);
+    anchor.style.cssText = "margin-left:0.5em;color:#71717a;text-decoration:none;opacity:0;transition:opacity 0.15s;font-weight:normal;";
+    anchor.addEventListener("click", (e) => {
+      e.preventDefault();
+      const url = new URL(window.location.href);
+      url.hash = id;
+      navigator.clipboard.writeText(url.toString()).catch((err) => {
+        console.warn("Failed to copy heading URL to clipboard:", err);
+      });
+      history.replaceState(null, "", url.toString());
+      heading.scrollIntoView({ behavior: "smooth" });
+    });
+    (heading as HTMLElement).addEventListener("mouseenter", () => { anchor.style.opacity = "1"; });
+    (heading as HTMLElement).addEventListener("mouseleave", () => { anchor.style.opacity = "0"; });
+    heading.appendChild(anchor);
+  }
+}
+
 // Inline config passed to each sanitize() call — avoids global setConfig pollution
 const MARKDOWN_PURIFY_CONFIG = {
   ALLOWED_TAGS,
@@ -75,12 +124,16 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-// SVG-specific sanitization for mermaid diagrams — explicit allowlist (not additive)
-// foreignObject, style, and script are excluded as they are XSS vectors
+// SVG-specific sanitization for mermaid diagrams — explicit allowlist (not additive).
+// foreignObject, script, and style are excluded as XSS/CSS-injection vectors.
+// DOMPurify does NOT sanitize CSS content inside <style> elements, so allowing
+// <style> would permit arbitrary CSS injection (data exfiltration via url(),
+// UI redressing via position:fixed). Mermaid diagrams render via inline SVG
+// presentation attributes instead.
 const MERMAID_SVG_CONFIG = {
-  ALLOWED_TAGS: ["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "marker"],
-  ALLOWED_ATTR: ["viewBox", "d", "fill", "stroke", "stroke-width", "transform", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "points", "font-size", "font-family", "text-anchor", "dominant-baseline", "marker-end", "marker-start", "xmlns", "preserveAspectRatio"],
-  FORBID_TAGS: ["foreignObject", "style", "script"],
+  ALLOWED_TAGS: ["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "marker", "clipPath", "title", "desc"],
+  ALLOWED_ATTR: ["viewBox", "d", "fill", "stroke", "stroke-width", "transform", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "points", "font-size", "font-family", "text-anchor", "dominant-baseline", "marker-end", "marker-start", "xmlns", "preserveAspectRatio", "class", "id", "width", "height", "clip-path", "opacity"],
+  FORBID_TAGS: ["foreignObject", "script", "style"],
   ALLOW_DATA_ATTR: false,
 };
 
@@ -94,6 +147,9 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
   const [error, setError] = createSignal<string | null>(null);
   const [renderVersion, setRenderVersion] = createSignal(0);
   let containerRef: HTMLDivElement | undefined;
+
+  // Per-component Marked instance avoids global state mutation between instances
+  const parser = new Marked();
 
   onMount(() => {
     initMermaid();
@@ -113,8 +169,17 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
     }
 
     try {
-      // Parse markdown to HTML
-      const rawHtml = await marked.parse(content, {
+      // Configure renderer with a fresh slug map per-parse
+      const slugMap = new Map<string, number>();
+      parser.use({
+        renderer: {
+          heading({ text, depth }: { text: string; depth: number }) {
+            const id = slugify(text, slugMap);
+            return `<h${depth} id="${id}">${text}</h${depth}>`;
+          },
+        },
+      });
+      const rawHtml = await parser.parse(content, {
         gfm: true,
         breaks: true,
       });
@@ -179,6 +244,16 @@ export default function MarkdownPreview(props: MarkdownPreviewProps) {
         errorDiv.textContent = "Failed to render diagram";
         pre.appendChild(errorDiv);
       }
+    });
+  });
+
+  // Add anchor links to headings after HTML is rendered
+  createEffect(() => {
+    html(); // Track html changes
+    if (!containerRef) return;
+    // Small delay to ensure DOM is updated
+    requestAnimationFrame(() => {
+      if (containerRef) addHeadingAnchors(containerRef);
     });
   });
 

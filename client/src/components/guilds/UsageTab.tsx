@@ -54,6 +54,7 @@ const UsageTab: Component<UsageTabProps> = (props) => {
       { label: "Roles", current: s.roles.current, limit: s.roles.limit },
       { label: "Emojis", current: s.emojis.current, limit: s.emojis.limit },
       { label: "Bots", current: s.bots.current, limit: s.bots.limit },
+      { label: "Pages", current: s.pages.current, limit: s.pages.limit },
     ];
   };
 

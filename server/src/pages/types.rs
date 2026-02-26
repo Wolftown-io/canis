@@ -1,9 +1,25 @@
 //! Types for information pages feature.
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+
+/// Custom deserializer for `Option<Option<T>>` that distinguishes three JSON states:
+/// - field absent → `None`
+/// - field present with `null` → `Some(None)`
+/// - field present with value → `Some(Some(value))`
+///
+/// Required because serde's default behavior treats both absent and `null` as `None`.
+#[allow(clippy::option_option)]
+fn deserialize_double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    // If this function is called, the field was present in the JSON
+    Option::<T>::deserialize(deserializer).map(Some)
+}
 
 /// Full page data including content.
 #[derive(Debug, Clone, Serialize, FromRow, utoipa::ToSchema)]
@@ -16,6 +32,7 @@ pub struct Page {
     pub content_hash: String,
     pub position: i32,
     pub requires_acceptance: bool,
+    pub category_id: Option<Uuid>,
     pub created_by: Uuid,
     pub updated_by: Uuid,
     pub created_at: DateTime<Utc>,
@@ -32,6 +49,7 @@ pub struct PageListItem {
     pub slug: String,
     pub position: i32,
     pub requires_acceptance: bool,
+    pub category_id: Option<Uuid>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -46,6 +64,8 @@ pub struct CreatePageRequest {
     pub content: String,
     /// Whether users must accept this page (default: false).
     pub requires_acceptance: Option<bool>,
+    /// Category ID (guild pages only).
+    pub category_id: Option<Uuid>,
 }
 
 /// Request body for updating an existing page.
@@ -59,6 +79,14 @@ pub struct UpdatePageRequest {
     pub content: Option<String>,
     /// New acceptance requirement (optional).
     pub requires_acceptance: Option<bool>,
+    /// Category ID update (absent = no change, null = remove, value = set).
+    /// Guild pages only.
+    ///
+    /// Serde deserializes the three-way distinction correctly for `Option<Option<T>>`:
+    /// field missing → `None`, `"category_id": null` → `Some(None)`,
+    /// `"category_id": "uuid"` → `Some(Some(uuid))`.
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub category_id: Option<Option<Uuid>>,
 }
 
 /// Request body for reordering pages.
@@ -89,4 +117,60 @@ pub struct PageAuditEntry {
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Full page revision with content.
+#[derive(Debug, Clone, Serialize, FromRow, utoipa::ToSchema)]
+pub struct PageRevision {
+    pub id: Uuid,
+    pub page_id: Uuid,
+    pub revision_number: i32,
+    pub content: Option<String>,
+    pub content_hash: Option<String>,
+    pub title: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Revision metadata for listing (without content).
+#[derive(Debug, Clone, Serialize, FromRow, utoipa::ToSchema)]
+pub struct RevisionListItem {
+    pub id: Uuid,
+    pub page_id: Uuid,
+    pub revision_number: i32,
+    pub content_hash: Option<String>,
+    pub title: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Guild-scoped page category.
+#[derive(Debug, Clone, Serialize, FromRow, utoipa::ToSchema)]
+pub struct PageCategory {
+    pub id: Uuid,
+    pub guild_id: Uuid,
+    pub name: String,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Request body for creating a page category.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct CreateCategoryRequest {
+    /// Category name (max 50 characters).
+    pub name: String,
+}
+
+/// Request body for updating a page category.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct UpdateCategoryRequest {
+    /// New category name (max 50 characters).
+    pub name: String,
+}
+
+/// Request body for reordering categories.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct ReorderCategoriesRequest {
+    /// Ordered list of category IDs representing the new order.
+    pub category_ids: Vec<Uuid>,
 }

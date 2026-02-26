@@ -353,8 +353,7 @@ pub async fn create_backup(
 ) -> Result<(), String> {
     if recovery_key.len() > MAX_RECOVERY_KEY_LEN {
         return Err(format!(
-            "Recovery key exceeds maximum length of {} bytes",
-            MAX_RECOVERY_KEY_LEN
+            "Recovery key exceeds maximum length of {MAX_RECOVERY_KEY_LEN} bytes"
         ));
     }
     if backup_data.len() > MAX_BACKUP_DATA_LEN {
@@ -416,8 +415,7 @@ pub async fn restore_backup(
 ) -> Result<String, String> {
     if recovery_key.len() > MAX_RECOVERY_KEY_LEN {
         return Err(format!(
-            "Recovery key exceeds maximum length of {} bytes",
-            MAX_RECOVERY_KEY_LEN
+            "Recovery key exceeds maximum length of {MAX_RECOVERY_KEY_LEN} bytes"
         ));
     }
 
@@ -530,8 +528,7 @@ pub async fn init_e2ee(
 ) -> Result<InitE2EEResponse, String> {
     if encryption_key.len() > MAX_ENCRYPTION_KEY_LEN {
         return Err(format!(
-            "Encryption key exceeds maximum length of {} bytes",
-            MAX_ENCRYPTION_KEY_LEN
+            "Encryption key exceeds maximum length of {MAX_ENCRYPTION_KEY_LEN} bytes"
         ));
     }
 
@@ -608,7 +605,7 @@ pub async fn encrypt_message(
         ));
     }
     if recipients.len() > MAX_RECIPIENTS {
-        return Err(format!("Too many recipients (max {})", MAX_RECIPIENTS));
+        return Err(format!("Too many recipients (max {MAX_RECIPIENTS})"));
     }
 
     let crypto = state.crypto.lock().await;
@@ -674,8 +671,7 @@ pub async fn decrypt_message(
 ) -> Result<String, String> {
     if sender_key.len() > MAX_SENDER_KEY_LEN {
         return Err(format!(
-            "Sender key exceeds maximum length of {} bytes",
-            MAX_SENDER_KEY_LEN
+            "Sender key exceeds maximum length of {MAX_SENDER_KEY_LEN} bytes"
         ));
     }
     if ciphertext.len() > MAX_CIPHERTEXT_LEN {
@@ -731,8 +727,7 @@ pub async fn generate_prekeys(
 ) -> Result<Vec<PrekeyData>, String> {
     if count > MAX_PREKEY_COUNT {
         return Err(format!(
-            "Prekey count exceeds maximum of {}",
-            MAX_PREKEY_COUNT
+            "Prekey count exceeds maximum of {MAX_PREKEY_COUNT}"
         ));
     }
 

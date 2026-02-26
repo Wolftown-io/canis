@@ -143,6 +143,7 @@ fn test_create_page_request_structure() {
         slug: Some("test-page".to_string()),
         content: "# Content".to_string(),
         requires_acceptance: Some(false),
+        category_id: None,
     };
 
     assert_eq!(request.title, "Test Page");
@@ -158,6 +159,7 @@ fn test_update_page_request_structure() {
         slug: None,
         content: Some("Updated content".to_string()),
         requires_acceptance: Some(true),
+        category_id: None,
     };
 
     assert_eq!(request.title, Some("Updated Title".to_string()));
@@ -176,6 +178,7 @@ fn test_page_list_item_structure() {
         slug: "platform-page".to_string(),
         position: 0,
         requires_acceptance: true,
+        category_id: None,
         updated_at: now,
     };
 
@@ -236,8 +239,8 @@ fn test_slugify_no_leading_trailing_dashes() {
 /// Test that max pages per scope constant is reasonable.
 #[test]
 fn test_max_pages_constant() {
-    use vc_server::pages::MAX_PAGES_PER_SCOPE;
-    let max = MAX_PAGES_PER_SCOPE;
+    use vc_server::pages::DEFAULT_MAX_PAGES_PER_SCOPE;
+    let max = DEFAULT_MAX_PAGES_PER_SCOPE;
     assert!(max >= 10, "Should allow at least 10 pages");
     assert!(max <= 1000, "Should not allow more than 1000 pages");
 }
