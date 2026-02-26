@@ -286,7 +286,7 @@ pub fn detect_mention_type(content: &str, author_username: Option<&str>) -> Opti
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateMessageRequest {
-    #[validate(length(min = 1, max = 4000, message = "Content must be 1-4000 characters"))]
+    #[validate(custom(function = "validate_message_content"))]
     pub content: String,
     #[serde(default)]
     pub encrypted: bool,
@@ -304,8 +304,42 @@ pub struct ListThreadRepliesQuery {
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdateMessageRequest {
-    #[validate(length(min = 1, max = 4000, message = "Content must be 1-4000 characters"))]
+    #[validate(custom(function = "validate_message_content"))]
     pub content: String,
+}
+
+lazy_static::lazy_static! {
+    static ref CODE_BLOCK_RE: regex::Regex = regex::Regex::new(r"(?s)```.*?```").unwrap();
+}
+
+/// Custom validation for message content length
+/// Standard messages: 1-4000 characters
+/// Messages with code blocks: 1-10000 characters
+pub fn validate_message_content(content: &str) -> Result<(), validator::ValidationError> {
+    if content.is_empty() {
+        return Err(validator::ValidationError::new("content_empty")
+            .with_message("Content cannot be empty".into()));
+    }
+
+    let total_len = content.chars().count();
+    
+    // Overall hard limit of 10,000 characters
+    if total_len > 10000 {
+        return Err(validator::ValidationError::new("length")
+            .with_message(std::borrow::Cow::Borrowed("Content cannot exceed 10000 characters in total")));
+    }
+    
+    // Strip code blocks to check the regular text limit (4,000 chars)
+    let text_without_blocks = CODE_BLOCK_RE.replace_all(content, "");
+    
+    let regular_text_len = text_without_blocks.chars().count();
+    
+    if regular_text_len > 4000 {
+        return Err(validator::ValidationError::new("length")
+            .with_message(std::borrow::Cow::Borrowed("Regular text content (excluding code blocks) must be 1-4000 characters")));
+    }
+    
+    Ok(())
 }
 
 // ============================================================================
@@ -2359,3 +2393,4 @@ mod tests {
         );
     }
 }
+

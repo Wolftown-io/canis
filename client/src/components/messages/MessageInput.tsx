@@ -71,6 +71,34 @@ const MessageInput: Component<MessageInputProps> = (props) => {
     });
   };
 
+  // Calculate character length properties separating code blocks and regular text
+  const lengthStats = () => {
+    const text = content();
+    const totalLength = text.length;
+
+    // Remove code blocks to get regular text length
+    // Using a regex similar to backend: matches ``` followed by anything until next ```
+    const textWithoutBlocks = text.replace(/```[\s\S]*?```/g, '');
+    const regularLength = textWithoutBlocks.length;
+
+    return {
+      totalLength,
+      regularLength,
+      totalLimit: 10000,
+      regularLimit: 4000
+    };
+  };
+
+  const isNearLimit = () => {
+    const stats = lengthStats();
+    return stats.regularLength > stats.regularLimit * 0.8 || stats.totalLength > stats.totalLimit * 0.8;
+  };
+
+  const isOverLimit = () => {
+    const stats = lengthStats();
+    return stats.regularLength > stats.regularLimit || stats.totalLength > stats.totalLimit;
+  };
+
   // Cleanup on unmount
   onCleanup(() => {
     if (typingTimeout) {
@@ -242,8 +270,8 @@ const MessageInput: Component<MessageInputProps> = (props) => {
     const text = content().trim();
     const files = pendingFiles();
 
-    // Need either text or files to send
-    if ((!text && files.length === 0) || isSending()) return;
+    // Need either text or files to send, and text must be within the limit
+    if ((!text && files.length === 0) || isSending() || isOverLimit()) return;
 
     // Stop typing indicator
     if (typingTimeout) {
@@ -482,17 +510,34 @@ const MessageInput: Component<MessageInputProps> = (props) => {
           rows={1}
         />
 
-        {/* Send button - show when there's content OR pending files */}
-        <Show when={content().trim() || pendingFiles().length > 0}>
-          <button
-            type="submit"
-            class="p-3 text-accent-primary hover:text-accent-primary/80 transition-colors disabled:opacity-50"
-            disabled={isSending()}
-            title={pendingFiles().length > 0 ? `Send ${pendingFiles().length} file(s)` : "Send message"}
-          >
-            <Send class="w-5 h-5" />
-          </button>
-        </Show>
+        {/* Send button and character counter container */}
+        <div class="flex items-center gap-1 pr-1">
+          {/* Character counter - show when nearing limit */}
+          <Show when={isNearLimit()}>
+            <div class="flex flex-col items-end pr-2 gap-0.5 pointer-events-none">
+              <Show when={lengthStats().totalLength > lengthStats().regularLength}>
+                <span class={`text-[9px] ${lengthStats().totalLength > lengthStats().totalLimit ? 'text-accent-danger font-bold' : 'text-text-secondary'}`}>
+                  Total: {lengthStats().totalLength}/{lengthStats().totalLimit}
+                </span>
+              </Show>
+              <span class={`text-[10px] leading-tight ${lengthStats().regularLength > lengthStats().regularLimit ? 'text-accent-danger font-bold' : 'text-text-secondary'}`}>
+                Text: {lengthStats().regularLength}/{lengthStats().regularLimit}
+              </span>
+            </div>
+          </Show>
+
+          {/* Send button - show when there's content OR pending files */}
+          <Show when={content().trim() || pendingFiles().length > 0}>
+            <button
+              type="submit"
+              class="p-2 text-accent-primary hover:text-accent-primary/80 transition-colors disabled:opacity-50"
+              disabled={isSending() || isOverLimit()}
+              title={pendingFiles().length > 0 ? `Send ${pendingFiles().length} file(s)` : "Send message"}
+            >
+              <Send class="w-5 h-5" />
+            </button>
+          </Show>
+        </div>
       </div>
 
       {/* Error display */}
