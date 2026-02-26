@@ -44,14 +44,11 @@ pub async fn create_workspace(
     auth_user: AuthUser,
     Json(request): Json<CreateWorkspaceRequest>,
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), WorkspaceError> {
-    let name = request.name.trim().to_string();
-
-    // Validate using the validator crate (checks length including Unicode chars)
-    let trimmed_request = CreateWorkspaceRequest {
-        name: name.clone(),
-        icon: request.icon.clone(),
+    let request = CreateWorkspaceRequest {
+        name: request.name.trim().to_string(),
+        icon: request.icon,
     };
-    trimmed_request
+    request
         .validate()
         .map_err(|e| WorkspaceError::Validation(e.to_string()))?;
 
@@ -65,7 +62,7 @@ pub async fn create_workspace(
         ",
     )
     .bind(auth_user.id)
-    .bind(&name)
+    .bind(&request.name)
     .bind(&request.icon)
     .bind(state.config.max_workspaces_per_user)
     .fetch_optional(&state.db)
@@ -206,12 +203,11 @@ pub async fn update_workspace(
     Json(request): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<WorkspaceResponse>, WorkspaceError> {
     // Trim name first (whitespace-only → empty → rejected by validator's min=1)
-    let trimmed_name = request.name.as_deref().map(str::trim).map(String::from);
-    let validation_req = UpdateWorkspaceRequest {
-        name: trimmed_name.clone(),
-        icon: request.icon.clone(),
+    let request = UpdateWorkspaceRequest {
+        name: request.name.as_deref().map(str::trim).map(String::from),
+        icon: request.icon,
     };
-    validation_req
+    request
         .validate()
         .map_err(|e| WorkspaceError::Validation(e.to_string()))?;
 
@@ -230,7 +226,7 @@ pub async fn update_workspace(
     )
     .bind(workspace_id)
     .bind(auth_user.id)
-    .bind(trimmed_name)
+    .bind(&request.name)
     .bind(should_update_icon)
     .bind(new_icon_value)
     .fetch_optional(&state.db)
