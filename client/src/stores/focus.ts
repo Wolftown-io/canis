@@ -31,6 +31,8 @@ const [focusState, setFocusState] = createSignal<FocusState>({
 // VIP Lookup Helpers
 // ============================================================================
 
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
 /**
  * Build a Set from a mode's VIP list for O(1) lookups.
  * Called on every evaluateFocusPolicy to stay in sync with live preferences.
@@ -39,8 +41,6 @@ const [focusState, setFocusState] = createSignal<FocusState>({
 function buildVipSet(ids: string[]): Set<string> {
   return ids.length > 0 ? new Set(ids) : EMPTY_SET;
 }
-
-const EMPTY_SET: ReadonlySet<string> = new Set();
 
 // ============================================================================
 // Mode Accessors
@@ -105,16 +105,18 @@ export function handleActivityChange(
   const focusPrefs = preferences().focus;
   if (!focusPrefs) return;
 
-  // Master switch must be on
-  if (!focusPrefs.autoActivateGlobal) return;
-
   // If activity cleared and current mode was auto-activated, deactivate
+  // (must run even when autoActivateGlobal is off — user may have toggled it
+  // off while an auto-activated mode was running)
   if (category === null) {
     if (state.autoActivated) {
       deactivateFocusMode();
     }
     return;
   }
+
+  // Master switch must be on for new activations
+  if (!focusPrefs.autoActivateGlobal) return;
 
   // Don't override a manually activated mode
   if (state.activeModeId && !state.autoActivated) return;

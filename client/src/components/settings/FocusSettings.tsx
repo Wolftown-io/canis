@@ -417,7 +417,7 @@ const FocusSettings: Component = () => {
                         VIP Users ({mode.vipUserIds.length}/{MAX_VIP_USERS})
                       </label>
                       <p class="text-xs text-text-muted mb-2">
-                        Messages from these users always play sounds
+                        Messages from these users bypass focus suppression
                       </p>
                       <Show when={mode.vipUserIds.length > 0}>
                         <div class="flex flex-wrap gap-1 mb-2">
@@ -464,7 +464,7 @@ const FocusSettings: Component = () => {
                         VIP Channels ({mode.vipChannelIds.length}/{MAX_VIP_CHANNELS})
                       </label>
                       <p class="text-xs text-text-muted mb-2">
-                        Messages from these channels always play sounds
+                        Messages from these channels bypass focus suppression
                       </p>
                       <Show when={mode.vipChannelIds.length > 0}>
                         <div class="flex flex-wrap gap-1 mb-2">

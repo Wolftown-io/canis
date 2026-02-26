@@ -81,6 +81,10 @@ export async function initPresence(): Promise<void> {
 
 /**
  * Cleanup presence listeners and reset focus state.
+ * Focus reset uses a dynamic import to avoid pulling the full focus → sound
+ * dependency chain into the presence module (which breaks test mocks).
+ * The async gap is acceptable: logout → login has a full auth round-trip
+ * in between, so the deactivation always resolves before re-initialization.
  */
 export function cleanupPresence(): void {
   if (unlistener) {

@@ -16,12 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
 ### Added
-- Focus modes for intelligent notification routing — suppress notifications during gaming, coding, or streaming sessions with VIP contact overrides and emergency keyword bypass
-- Auto-activation of focus modes when matching apps are detected (games, IDEs, media players)
-- Focus settings UI with per-mode configuration: suppression level, VIP users/channels, emergency keywords, and trigger categories
+- Focus modes for intelligent notification routing — suppress notifications during gaming, coding, or streaming sessions with VIP contact overrides and emergency keyword bypass (#253)
+- Auto-activation of focus modes when matching apps are detected (games, IDEs, media players) (#253)
+- Focus settings UI with per-mode configuration: suppression level, VIP users/channels, emergency keywords, and trigger categories (#253)
 
 ### Fixed
-- Process scanner now reports correct activity type (coding, listening, watching) instead of hardcoding all detected apps as "game"
+- Process scanner now reports correct activity type (coding, listening, watching) instead of hardcoding all detected apps as "game" (#253)
 
 ### Security
 - Channel creation, member operations, and file uploads now enforce guild membership and permission checks — previously these endpoints could be accessed without proper authorization (#217, #218)

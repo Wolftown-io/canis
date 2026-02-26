@@ -106,7 +106,7 @@ export function cleanupSoundService(): void {
  * Handles eligibility checking, cooldown, and platform routing.
  */
 export async function playNotification(event: SoundEvent): Promise<void> {
-  // Quick exit: focus policy (handles DND, focus mode, VIP overrides)
+  // Quick exit: focus policy (handles DND/quiet hours, focus mode, VIP overrides)
   if (evaluateFocusPolicy(event) === "suppress") {
     console.debug("[Sound] Suppressed by focus policy");
     return;

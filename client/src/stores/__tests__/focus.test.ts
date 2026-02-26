@@ -341,5 +341,22 @@ describe("focus store", () => {
       handleActivityChange("game");
       expect(focusState().activatedAt).toBe(firstActivatedAt);
     });
+
+    it("deactivates auto-activated mode when global toggle is off and activity clears", () => {
+      const prefs = vi.mocked(preferences)();
+      prefs.focus.autoActivateGlobal = true;
+
+      // Auto-activate gaming mode
+      handleActivityChange("game");
+      expect(focusState().activeModeId).toBe("gaming");
+      expect(focusState().autoActivated).toBe(true);
+
+      // User turns off global toggle while mode is active
+      prefs.focus.autoActivateGlobal = false;
+
+      // App exits — activity clears, should still deactivate
+      handleActivityChange(null);
+      expect(focusState().activeModeId).toBeNull();
+    });
   });
 });
