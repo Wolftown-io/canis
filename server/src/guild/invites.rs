@@ -225,6 +225,17 @@ pub async fn join_via_invite(
         "Invalid or expired invite code".to_string(),
     ))?;
 
+    let globally_banned: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM global_bans WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW()))",
+    )
+    .bind(auth.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if globally_banned {
+        return Err(GuildError::Forbidden);
+    }
+
     let mut tx = state.db.begin().await?;
 
     // Serialize member joins per guild so limit checks are strict under concurrency.

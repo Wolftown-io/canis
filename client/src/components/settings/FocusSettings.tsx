@@ -187,7 +187,7 @@ const FocusSettings: Component = () => {
 
     const mode = modes().find((m) => m.id === modeId);
     if (!mode || mode.vipUserIds.length >= MAX_VIP_USERS) return;
-    if (mode.vipUserIds.includes(userId)) return;
+    if (mode.vipUserIds.some(id => id.toLowerCase().trim() === userId)) return;
 
     updateMode(modeId, { vipUserIds: [...mode.vipUserIds, userId] });
     setVipUserInput("");
@@ -207,7 +207,7 @@ const FocusSettings: Component = () => {
 
     const mode = modes().find((m) => m.id === modeId);
     if (!mode || mode.vipChannelIds.length >= MAX_VIP_CHANNELS) return;
-    if (mode.vipChannelIds.includes(channelId)) return;
+    if (mode.vipChannelIds.some(id => id.toLowerCase().trim() === channelId)) return;
 
     updateMode(modeId, { vipChannelIds: [...mode.vipChannelIds, channelId] });
     setVipChannelInput("");
