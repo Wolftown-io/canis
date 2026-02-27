@@ -7,11 +7,7 @@
  */
 
 import { createSignal } from "solid-js";
-import type {
-  FocusMode,
-  FocusState,
-  FocusTriggerCategory,
-} from "@/lib/types";
+import type { FocusMode, FocusState, FocusTriggerCategory } from "@/lib/types";
 import type { SoundEvent } from "@/lib/sound/types";
 import { isDndActive } from "@/stores/sound";
 import { preferences } from "./preferences";
@@ -55,11 +51,13 @@ const vipSetCache: VipSetCache = {
  * Lists are capped at 50 entries so construction cost is negligible.
  */
 function buildVipSet(ids: string[]): ReadonlySet<string> {
-  return ids.length > 0 ? new Set(ids) : EMPTY_SET;
+  return ids.length > 0
+    ? new Set(ids.map((id) => id.toLowerCase()))
+    : EMPTY_SET;
 }
 
 function hashVipIds(ids: string[]): string {
-  return JSON.stringify([...ids].sort());
+  return JSON.stringify([...ids].map((id) => id.toLowerCase()).sort());
 }
 
 function getCachedVipSets(mode: FocusMode): {
@@ -149,7 +147,7 @@ export function deactivateFocusMode(): void {
  * per-mode toggle are both enabled.
  */
 export function handleActivityChange(
-  category: FocusTriggerCategory | null
+  category: FocusTriggerCategory | null,
 ): void {
   const state = focusState();
   const focusPrefs = preferences().focus;
@@ -176,7 +174,7 @@ export function handleActivityChange(
     (m) =>
       m.autoActivateEnabled &&
       m.triggerCategories !== null &&
-      m.triggerCategories.includes(category)
+      m.triggerCategories.includes(category),
   );
 
   if (matchingMode) {
@@ -211,9 +209,7 @@ export function handleActivityChange(
  * 5. Emergency keyword match → allow
  * 6. Apply suppression level
  */
-export function evaluateFocusPolicy(
-  event: SoundEvent
-): "suppress" | "allow" {
+export function evaluateFocusPolicy(event: SoundEvent): "suppress" | "allow" {
   // 1. DND is absolute — no overrides
   if (isDndActive()) {
     return "suppress";
@@ -228,20 +224,17 @@ export function evaluateFocusPolicy(
   const vipSets = getCachedVipSets(mode);
 
   // 3. VIP user check (O(1) Set lookup)
-  if (event.authorId && vipSets.userSet.has(event.authorId)) {
+  if (event.authorId && vipSets.userSet.has(event.authorId.toLowerCase())) {
     return "allow";
   }
 
   // 4. VIP channel check (O(1) Set lookup)
-  if (vipSets.channelSet.has(event.channelId)) {
+  if (vipSets.channelSet.has(event.channelId.toLowerCase())) {
     return "allow";
   }
 
   // 5. Emergency keyword check (linear scan, max 5 keywords)
-  if (
-    event.content &&
-    mode.emergencyKeywords.length > 0
-  ) {
+  if (event.content && mode.emergencyKeywords.length > 0) {
     const lowerContent = event.content.toLowerCase();
     for (const keyword of mode.emergencyKeywords) {
       if (lowerContent.includes(keyword.toLowerCase())) {
