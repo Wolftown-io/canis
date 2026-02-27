@@ -3,6 +3,7 @@
 //! Handles file uploads to S3-compatible storage and metadata management.
 
 use axum::extract::{Multipart, Path, Query, State};
+use axum::http::HeaderName;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -942,14 +943,18 @@ pub async fn download(
 
     // Set headers
     let headers = [
-        (axum::http::header::CONTENT_TYPE, content_type),
+        (axum::http::header::CONTENT_TYPE, content_type.clone()),
         (
             axum::http::header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{display_filename}\""),
+            format!("attachment; filename=\"{display_filename}\""),
         ),
         (
             axum::http::header::CACHE_CONTROL,
             "private, max-age=31536000, immutable".to_string(),
+        ),
+        (
+            HeaderName::from_static("x-content-type-options"),
+            "nosniff".to_string(),
         ),
     ];
 
