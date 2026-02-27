@@ -255,46 +255,6 @@ pub async fn create_page(pool: &PgPool, params: CreatePageParams<'_>) -> Result<
     Ok(page)
 }
 
-/// Create a page and its initial revision atomically.
-pub async fn create_page_with_initial_revision(
-    pool: &PgPool,
-    params: CreatePageParams<'_>,
-) -> Result<Page, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-    let content_hash = hash_content(params.content);
-
-    let page: Page = sqlx::query_as(
-        r"INSERT INTO pages (guild_id, title, slug, content, content_hash, position, requires_acceptance, category_id, created_by, updated_by)
-        VALUES ($1, $2, $3, $4, $5,
-            (SELECT COUNT(*)::int FROM pages WHERE guild_id IS NOT DISTINCT FROM $1 AND deleted_at IS NULL),
-            $6, $7, $8, $8)
-        RETURNING *",
-    )
-    .bind(params.guild_id)
-    .bind(params.title)
-    .bind(params.slug)
-    .bind(params.content)
-    .bind(&content_hash)
-    .bind(params.requires_acceptance)
-    .bind(params.category_id)
-    .bind(params.created_by)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    create_revision_with_executor(
-        &mut *tx,
-        page.id,
-        &page.content,
-        &page.content_hash,
-        &page.title,
-        params.created_by,
-    )
-    .await?;
-
-    tx.commit().await?;
-    Ok(page)
-}
-
 /// Create a page with initial revision using an existing mutable transaction.
 pub async fn create_page_with_initial_revision_in_tx(
     tx: &mut sqlx::Transaction<'_, Postgres>,

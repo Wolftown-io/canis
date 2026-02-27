@@ -4,8 +4,8 @@
 //! Seeds are allocated per lock site:
 //! - 41 = `workspace_create` (per-user workspace creation limit)
 //! - 43 = `workspace_entry` (per-workspace entry creation limit)
-//! - 51 = `guild_create` (per-user guild creation limit)
-//! - 53 = `guild_join` (per-user guild join limit)
+//! - 51 = `guild_create` (per-user guild creation limit) — see fix/review-focus-guild-discovery branch
+//! - 53 = `guild_join` (per-guild join serialization) — see fix/review-focus-guild-discovery branch
 //! - 61 = `page_create` (per-guild page creation limit)
 //!
 
