@@ -8,6 +8,8 @@ use validator::Validate;
 
 use crate::db::ChannelType;
 
+pub const MAX_WORKSPACE_ICON_LENGTH: usize = 64;
+
 // ============================================================================
 // Database Row Types
 // ============================================================================

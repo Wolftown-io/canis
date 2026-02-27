@@ -2,11 +2,11 @@
 //!
 //! Run with: `cargo test --test integration workspaces -- --nocapture`
 
-use axum::body::Body;
-use axum::http::Method;
 use super::helpers::{
     body_to_json, create_channel, create_guild, create_test_user, generate_access_token, TestApp,
 };
+use axum::body::Body;
+use axum::http::Method;
 
 // ============================================================================
 // Workspace CRUD Tests
@@ -62,6 +62,35 @@ async fn test_create_workspace_name_too_long() {
 
     let resp = app.oneshot(req).await;
     assert_eq!(resp.status(), 400, "Should reject name > 100 chars");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_create_workspace_icon_too_long() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let mut guard = app.cleanup_guard();
+    guard.delete_user(user_id);
+
+    let long_icon = "x".repeat(65);
+    let req = TestApp::request(Method::POST, "/api/me/workspaces")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "name": "Icon Limit",
+                "icon": long_icon,
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 400, "Should reject icon > 64 chars");
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["error"], "VALIDATION_ERROR");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -429,6 +458,42 @@ async fn test_update_workspace_clear_icon() {
     let json = body_to_json(resp).await;
     assert_eq!(json["name"], "Renamed");
     assert_eq!(json["icon"], "🔧", "Icon should be unchanged when omitted");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_update_workspace_icon_too_long() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let mut guard = app.cleanup_guard();
+    guard.delete_user(user_id);
+
+    let req = TestApp::request(Method::POST, "/api/me/workspaces")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "name": "WS" })).unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await;
+    let ws_json = body_to_json(resp).await;
+    let ws_id = ws_json["id"].as_str().unwrap();
+
+    let long_icon = "x".repeat(65);
+    let req = TestApp::request(Method::PATCH, &format!("/api/me/workspaces/{ws_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "icon": long_icon })).unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 400, "Should reject icon > 64 chars");
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["error"], "VALIDATION_ERROR");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -848,4 +913,63 @@ async fn test_reorder_workspaces() {
     assert_eq!(arr[0]["name"], "Third");
     assert_eq!(arr[1]["name"], "Second");
     assert_eq!(arr[2]["name"], "First");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_reorder_entries_rejects_oversized_payload() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let mut guard = app.cleanup_guard();
+    guard.delete_user(user_id);
+
+    let oversized = (0..(app.config.max_entries_per_workspace as usize + 1))
+        .map(|_| uuid::Uuid::new_v4().to_string())
+        .collect::<Vec<_>>();
+
+    let req = TestApp::request(
+        Method::PATCH,
+        "/api/me/workspaces/00000000-0000-0000-0000-000000000000/reorder",
+    )
+    .header("Authorization", format!("Bearer {token}"))
+    .header("Content-Type", "application/json")
+    .body(Body::from(
+        serde_json::to_string(&serde_json::json!({ "entry_ids": oversized })).unwrap(),
+    ))
+    .unwrap();
+
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 400, "Should reject oversized entry_ids");
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["error"], "VALIDATION_ERROR");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_reorder_workspaces_rejects_oversized_payload() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let token = generate_access_token(&app.config, user_id);
+
+    let mut guard = app.cleanup_guard();
+    guard.delete_user(user_id);
+
+    let oversized = (0..(app.config.max_workspaces_per_user as usize + 1))
+        .map(|_| uuid::Uuid::new_v4().to_string())
+        .collect::<Vec<_>>();
+
+    let req = TestApp::request(Method::POST, "/api/me/workspaces/reorder")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({ "workspace_ids": oversized })).unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 400, "Should reject oversized workspace_ids");
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["error"], "VALIDATION_ERROR");
 }

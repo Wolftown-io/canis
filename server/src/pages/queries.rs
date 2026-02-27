@@ -2,7 +2,7 @@
 
 use chrono::{Duration, Utc};
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
+use sqlx::{Executor, PgPool, Postgres};
 use uuid::Uuid;
 
 use crate::pages::{
@@ -185,25 +185,24 @@ pub async fn get_page_by_slug(
     guild_id: Option<Uuid>,
     slug: &str,
 ) -> Result<Option<Page>, sqlx::Error> {
-    let page: Option<Page> = match guild_id {
-        Some(gid) => {
-            sqlx::query_as(
-                r"SELECT * FROM pages WHERE guild_id = $1 AND slug = $2 AND deleted_at IS NULL",
-            )
-            .bind(gid)
-            .bind(slug)
-            .fetch_optional(pool)
-            .await?
-        }
-        None => {
-            sqlx::query_as(
+    let page: Option<Page> =
+        match guild_id {
+            Some(gid) => {
+                sqlx::query_as(
+                    r"SELECT * FROM pages WHERE guild_id = $1 AND slug = $2 AND deleted_at IS NULL",
+                )
+                .bind(gid)
+                .bind(slug)
+                .fetch_optional(pool)
+                .await?
+            }
+            None => sqlx::query_as(
                 r"SELECT * FROM pages WHERE guild_id IS NULL AND slug = $1 AND deleted_at IS NULL",
             )
             .bind(slug)
             .fetch_optional(pool)
-            .await?
-        }
-    };
+            .await?,
+        };
     Ok(page)
 }
 
@@ -251,6 +250,44 @@ pub async fn create_page(pool: &PgPool, params: CreatePageParams<'_>) -> Result<
     .bind(params.category_id)
     .bind(params.created_by)
     .fetch_one(pool)
+    .await?;
+
+    Ok(page)
+}
+
+/// Create a page with initial revision using an existing mutable transaction.
+pub async fn create_page_with_initial_revision_in_tx(
+    tx: &mut sqlx::Transaction<'_, Postgres>,
+    params: CreatePageParams<'_>,
+) -> Result<Page, sqlx::Error> {
+    let content_hash = hash_content(params.content);
+
+    let page: Page = sqlx::query_as(
+        r"INSERT INTO pages (guild_id, title, slug, content, content_hash, position, requires_acceptance, category_id, created_by, updated_by)
+        VALUES ($1, $2, $3, $4, $5,
+            (SELECT COUNT(*)::int FROM pages WHERE guild_id IS NOT DISTINCT FROM $1 AND deleted_at IS NULL),
+            $6, $7, $8, $8)
+        RETURNING *",
+    )
+    .bind(params.guild_id)
+    .bind(params.title)
+    .bind(params.slug)
+    .bind(params.content)
+    .bind(&content_hash)
+    .bind(params.requires_acceptance)
+    .bind(params.category_id)
+    .bind(params.created_by)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    create_revision_with_executor(
+        &mut **tx,
+        page.id,
+        &page.content,
+        &page.content_hash,
+        &page.title,
+        params.created_by,
+    )
     .await?;
 
     Ok(page)
@@ -556,8 +593,8 @@ pub async fn get_effective_revision_limit(
 /// Create a new revision snapshot.
 ///
 /// Computes the next revision number via an inline subquery within the INSERT.
-/// The `uq_page_revision` unique constraint prevents duplicate numbers under
-/// concurrent edits; one insert may fail and the caller should log the error.
+/// Retries transient unique-collision races on `uq_page_revision` a few times
+/// to reduce snapshot loss under concurrent edits.
 pub async fn create_revision(
     pool: &PgPool,
     page_id: Uuid,
@@ -566,6 +603,35 @@ pub async fn create_revision(
     title: &str,
     created_by: Uuid,
 ) -> Result<PageRevision, sqlx::Error> {
+    const MAX_RETRIES: usize = 3;
+    for attempt in 0..MAX_RETRIES {
+        match create_revision_with_executor(pool, page_id, content, content_hash, title, created_by)
+            .await
+        {
+            Ok(revision) => return Ok(revision),
+            Err(sqlx::Error::Database(db_err))
+                if db_err.is_unique_violation() && attempt + 1 < MAX_RETRIES =>
+            {
+                continue;
+            }
+            Err(err) => return Err(err),
+        }
+    }
+
+    unreachable!("revision retry loop should always return before exhausting");
+}
+
+async fn create_revision_with_executor<'e, E>(
+    executor: E,
+    page_id: Uuid,
+    content: &str,
+    content_hash: &str,
+    title: &str,
+    created_by: Uuid,
+) -> Result<PageRevision, sqlx::Error>
+where
+    E: Executor<'e, Database = Postgres>,
+{
     let revision: PageRevision = sqlx::query_as(
         r"INSERT INTO page_revisions (page_id, revision_number, content, content_hash, title, created_by)
         VALUES ($1, COALESCE((SELECT MAX(revision_number) FROM page_revisions WHERE page_id = $1), 0) + 1, $2, $3, $4, $5)
@@ -576,7 +642,7 @@ pub async fn create_revision(
     .bind(content_hash)
     .bind(title)
     .bind(created_by)
-    .fetch_one(pool)
+    .fetch_one(executor)
     .await?;
 
     Ok(revision)
@@ -609,13 +675,12 @@ pub async fn get_revision(
     page_id: Uuid,
     revision_number: i32,
 ) -> Result<Option<PageRevision>, sqlx::Error> {
-    let revision: Option<PageRevision> = sqlx::query_as(
-        r"SELECT * FROM page_revisions WHERE page_id = $1 AND revision_number = $2",
-    )
-    .bind(page_id)
-    .bind(revision_number)
-    .fetch_optional(pool)
-    .await?;
+    let revision: Option<PageRevision> =
+        sqlx::query_as(r"SELECT * FROM page_revisions WHERE page_id = $1 AND revision_number = $2")
+            .bind(page_id)
+            .bind(revision_number)
+            .fetch_optional(pool)
+            .await?;
 
     Ok(revision)
 }

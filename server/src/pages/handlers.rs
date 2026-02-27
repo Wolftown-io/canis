@@ -11,8 +11,8 @@ use crate::auth::AuthUser;
 use crate::pages::{
     queries, CreateCategoryRequest, CreatePageRequest, Page, PageCategory, PageListItem,
     PageRevision, ReorderCategoriesRequest, ReorderRequest, RevisionListItem,
-    UpdateCategoryRequest, UpdatePageRequest, MAX_CATEGORIES_PER_GUILD,
-    MAX_CATEGORY_NAME_LENGTH, MAX_CONTENT_SIZE, MAX_SLUG_LENGTH, MAX_TITLE_LENGTH,
+    UpdateCategoryRequest, UpdatePageRequest, MAX_CATEGORIES_PER_GUILD, MAX_CATEGORY_NAME_LENGTH,
+    MAX_CONTENT_SIZE, MAX_SLUG_LENGTH, MAX_TITLE_LENGTH,
 };
 use crate::permissions::{
     is_system_admin, require_guild_permission, GuildPermissions, PermissionError,
@@ -154,24 +154,56 @@ pub async fn create_platform_page(
         ));
     }
 
-    // Check page limit (conservative: assume at limit on error)
-    let max_limit = state.config.max_pages_per_guild;
-    let at_limit = queries::is_at_page_limit(&state.db, None, max_limit)
+    let mut tx = state.db.begin().await.map_err(|e| {
+        error!("Failed to begin transaction: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
+
+    // Advisory lock: serialize platform page creation to enforce strict limits under concurrency.
+    // Advisory lock: serialize platform page creation to enforce strict limits under concurrency.
+    // Seed 61 prevents collision with other lock sites (see registry in server/src/db/mod.rs).
+    // Other seeds in this codebase: 41 (workspace_create), 43 (workspace_entry).
+    // Seeds 51/53 are on another branch (fix/review-focus-guild-discovery).
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 61))")
+        .bind("platform_pages")
+        .execute(&mut *tx)
         .await
-        .unwrap_or_else(|e| {
-            error!("Page limit check failed, assuming at limit: {}", e);
-            true
-        });
-    if at_limit {
+        .map_err(|e| {
+            error!("Failed to acquire advisory lock: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            )
+        })?;
+
+    // Check page limit inside lock for atomicity
+    let max_limit = state.config.max_pages_per_guild;
+    let at_limit: i64 = sqlx::query_scalar(
+        r"SELECT COUNT(*) FROM pages WHERE guild_id IS NULL AND deleted_at IS NULL",
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!("Page limit check failed: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
+
+    if at_limit >= max_limit {
         return Err((
             StatusCode::BAD_REQUEST,
             format!("Maximum {max_limit} pages reached"),
         ));
     }
 
-    // Create page
-    let page = queries::create_page(
-        &state.db,
+    // Create page inside transaction
+    let page = queries::create_page_with_initial_revision_in_tx(
+        &mut tx,
         queries::CreatePageParams {
             guild_id: None,
             title: &req.title,
@@ -191,30 +223,20 @@ pub async fn create_platform_page(
         )
     })?;
 
+    tx.commit().await.map_err(|e| {
+        error!("Failed to commit transaction: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
+
     // Log audit (non-blocking, log errors instead of failing)
     if let Err(e) =
         queries::log_audit(&state.db, page.id, "create", user.id, None, None, None).await
     {
         error!("Failed to log audit for page {}: {}", page.id, e);
     }
-
-    // Create initial revision
-    queries::create_revision(
-        &state.db,
-        page.id,
-        &page.content,
-        &page.content_hash,
-        &page.title,
-        user.id,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to create initial revision for page {}: {}", page.id, e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Page created but revision snapshot failed".to_string(),
-        )
-    })?;
 
     Ok(Json(page))
 }
@@ -341,15 +363,14 @@ pub async fn update_platform_page(
         )
         .await
         {
-            error!("Revision snapshot failed for page {} (concurrent edit?): {}", page.id, e);
+            error!(
+                "Revision snapshot failed for page {} (concurrent edit?): {}",
+                page.id, e
+            );
         }
         // Prune old revisions (best-effort — pruning failure doesn't affect correctness)
-        if let Err(e) = queries::prune_revisions(
-            &state.db,
-            page.id,
-            state.config.max_revisions_per_page,
-        )
-        .await
+        if let Err(e) =
+            queries::prune_revisions(&state.db, page.id, state.config.max_revisions_per_page).await
         {
             error!("Failed to prune revisions for page {}: {}", page.id, e);
         }
@@ -467,11 +488,17 @@ pub async fn reorder_platform_pages(
     queries::reorder_pages(&state.db, None, &req.page_ids)
         .await
         .map_err(|e| {
-            error!("Failed to reorder platform pages: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            )
+            // Map Protocol errors (invalid input) to 400, others to 500
+            if let sqlx::Error::Protocol(msg) = &e {
+                error!("Invalid reorder request: {}", msg);
+                (StatusCode::BAD_REQUEST, msg.clone())
+            } else {
+                error!("Failed to reorder platform pages: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
         })?;
 
     Ok(StatusCode::NO_CONTENT)
@@ -625,25 +652,57 @@ pub async fn create_guild_page(
         ));
     }
 
-    // Check page limit using per-guild override or instance default
-    let max_limit = queries::get_effective_page_limit(
-        &state.db,
-        guild_id,
-        state.config.max_pages_per_guild,
-    )
-    .await
-    .unwrap_or_else(|e| {
-        error!("Failed to get effective page limit for guild {}, using instance default: {}", guild_id, e);
-        state.config.max_pages_per_guild
-    });
+    let mut tx = state.db.begin().await.map_err(|e| {
+        error!("Failed to begin transaction: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
 
-    if queries::is_at_page_limit(&state.db, Some(guild_id), max_limit)
+    // Advisory lock: serialize guild page creation to enforce strict limits under concurrency.
+    // Seed 61 prevents collision with other lock sites (see registry in server/src/db/mod.rs).
+    // Other seeds in this codebase: 41 (workspace_create), 43 (workspace_entry).
+    // Seeds 51/53 are on another branch (fix/review-focus-guild-discovery).
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 61))")
+        .bind(guild_id)
+        .execute(&mut *tx)
         .await
-        .unwrap_or_else(|e| {
-            error!("Page limit check failed, assuming at limit: {}", e);
-            true
-        })
-    {
+        .map_err(|e| {
+            error!("Failed to acquire advisory lock: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            )
+        })?;
+
+    // Check page limit using per-guild override or instance default, inside lock for atomicity
+    let max_limit =
+        queries::get_effective_page_limit(&state.db, guild_id, state.config.max_pages_per_guild)
+            .await
+            .unwrap_or_else(|e| {
+                error!(
+                    "Failed to get effective page limit for guild {}, using instance default: {}",
+                    guild_id, e
+                );
+                state.config.max_pages_per_guild
+            });
+
+    let at_limit: i64 = sqlx::query_scalar(
+        r"SELECT COUNT(*) FROM pages WHERE guild_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(guild_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!("Page limit check failed: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
+
+    if at_limit >= max_limit {
         return Err((
             StatusCode::BAD_REQUEST,
             format!("Maximum {max_limit} pages reached"),
@@ -656,17 +715,23 @@ pub async fn create_guild_page(
             .await
             .map_err(|e| {
                 error!("Failed to validate category: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             })?
             .ok_or_else(|| (StatusCode::BAD_REQUEST, "Category not found".to_string()))?;
         if cat.guild_id != guild_id {
-            return Err((StatusCode::BAD_REQUEST, "Category does not belong to this guild".to_string()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Category does not belong to this guild".to_string(),
+            ));
         }
     }
 
-    // Create page
-    let page = queries::create_page(
-        &state.db,
+    // Create page inside transaction
+    let page = queries::create_page_with_initial_revision_in_tx(
+        &mut tx,
         queries::CreatePageParams {
             guild_id: Some(guild_id),
             title: &req.title,
@@ -686,30 +751,20 @@ pub async fn create_guild_page(
         )
     })?;
 
+    tx.commit().await.map_err(|e| {
+        error!("Failed to commit transaction: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
+    })?;
+
     // Log audit (non-blocking, log errors instead of failing)
     if let Err(e) =
         queries::log_audit(&state.db, page.id, "create", user.id, None, None, None).await
     {
         error!("Failed to log audit for page {}: {}", page.id, e);
     }
-
-    // Create initial revision
-    queries::create_revision(
-        &state.db,
-        page.id,
-        &page.content,
-        &page.content_hash,
-        &page.title,
-        user.id,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to create initial revision for page {}: {}", page.id, e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Page created but revision snapshot failed".to_string(),
-        )
-    })?;
 
     Ok(Json(page))
 }
@@ -776,11 +831,17 @@ pub async fn update_guild_page(
             .await
             .map_err(|e| {
                 error!("Failed to validate category: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             })?
             .ok_or_else(|| (StatusCode::BAD_REQUEST, "Category not found".to_string()))?;
         if cat.guild_id != guild_id {
-            return Err((StatusCode::BAD_REQUEST, "Category does not belong to this guild".to_string()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Category does not belong to this guild".to_string(),
+            ));
         }
     }
 
@@ -834,7 +895,10 @@ pub async fn update_guild_page(
         )
         .await
         {
-            error!("Revision snapshot failed for page {} (concurrent edit?): {}", page.id, e);
+            error!(
+                "Revision snapshot failed for page {} (concurrent edit?): {}",
+                page.id, e
+            );
         }
         // Prune old revisions (best-effort — pruning failure doesn't affect correctness)
         let max_revisions = queries::get_effective_revision_limit(
@@ -844,7 +908,10 @@ pub async fn update_guild_page(
         )
         .await
         .unwrap_or_else(|e| {
-            error!("Failed to get effective revision limit, using instance default: {}", e);
+            error!(
+                "Failed to get effective revision limit, using instance default: {}",
+                e
+            );
             state.config.max_revisions_per_page
         });
 
@@ -948,11 +1015,17 @@ pub async fn reorder_guild_pages(
     queries::reorder_pages(&state.db, Some(guild_id), &req.page_ids)
         .await
         .map_err(|e| {
-            error!("Failed to reorder guild pages in {}: {}", guild_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            )
+            // Map Protocol errors (invalid input) to 400, others to 500
+            if let sqlx::Error::Protocol(msg) = &e {
+                error!("Invalid reorder request for guild {}: {}", guild_id, msg);
+                (StatusCode::BAD_REQUEST, msg.clone())
+            } else {
+                error!("Failed to reorder guild pages in {}: {}", guild_id, e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
         })?;
 
     Ok(StatusCode::NO_CONTENT)
@@ -1241,7 +1314,10 @@ pub async fn restore_guild_page_revision(
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Revision not found".to_string()))?;
 
     let content = revision.content.as_deref().ok_or_else(|| {
-        error!("Revision {} for page {} has NULL content", n, revision.page_id);
+        error!(
+            "Revision {} for page {} has NULL content",
+            n, revision.page_id
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Revision data is corrupted (missing content)".to_string(),
@@ -1264,7 +1340,10 @@ pub async fn restore_guild_page_revision(
     )
     .await
     .map_err(|e| {
-        error!("Failed to restore page {} to revision {}: {}", page_id, n, e);
+        error!(
+            "Failed to restore page {} to revision {}: {}",
+            page_id, n, e
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Internal server error".to_string(),
@@ -1283,7 +1362,10 @@ pub async fn restore_guild_page_revision(
     )
     .await
     {
-        error!("Revision snapshot failed after restore for page {} (concurrent edit?): {}", page.id, e);
+        error!(
+            "Revision snapshot failed after restore for page {} (concurrent edit?): {}",
+            page.id, e
+        );
     }
 
     // Prune old revisions
@@ -1294,7 +1376,10 @@ pub async fn restore_guild_page_revision(
     )
     .await
     .unwrap_or_else(|e| {
-        error!("Failed to get effective revision limit, using instance default: {}", e);
+        error!(
+            "Failed to get effective revision limit, using instance default: {}",
+            e
+        );
         state.config.max_revisions_per_page
     });
 
@@ -1486,7 +1571,10 @@ pub async fn restore_platform_page_revision(
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Revision not found".to_string()))?;
 
     let content = revision.content.as_deref().ok_or_else(|| {
-        error!("Revision {} for page {} has NULL content", n, revision.page_id);
+        error!(
+            "Revision {} for page {} has NULL content",
+            n, revision.page_id
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Revision data is corrupted (missing content)".to_string(),
@@ -1508,7 +1596,10 @@ pub async fn restore_platform_page_revision(
     )
     .await
     .map_err(|e| {
-        error!("Failed to restore page {} to revision {}: {}", page_id, n, e);
+        error!(
+            "Failed to restore page {} to revision {}: {}",
+            page_id, n, e
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Internal server error".to_string(),
@@ -1527,15 +1618,14 @@ pub async fn restore_platform_page_revision(
     )
     .await
     {
-        error!("Revision snapshot failed after restore for page {} (concurrent edit?): {}", page.id, e);
+        error!(
+            "Revision snapshot failed after restore for page {} (concurrent edit?): {}",
+            page.id, e
+        );
     }
 
-    if let Err(e) = queries::prune_revisions(
-        &state.db,
-        page.id,
-        state.config.max_revisions_per_page,
-    )
-    .await
+    if let Err(e) =
+        queries::prune_revisions(&state.db, page.id, state.config.max_revisions_per_page).await
     {
         error!("Failed to prune revisions for page {}: {}", page.id, e);
     }
@@ -1611,7 +1701,10 @@ pub async fn create_guild_category(
 
     let name = req.name.trim();
     if name.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Category name is required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Category name is required".to_string(),
+        ));
     }
     if name.chars().count() > MAX_CATEGORY_NAME_LENGTH {
         return Err((
@@ -1638,7 +1731,10 @@ pub async fn create_guild_category(
         .map_err(|e| {
             let msg = e.to_string();
             if msg.contains("idx_page_categories_guild_name") {
-                (StatusCode::CONFLICT, "Category name already exists".to_string())
+                (
+                    StatusCode::CONFLICT,
+                    "Category name already exists".to_string(),
+                )
             } else {
                 error!("Failed to create category in guild {}: {}", guild_id, e);
                 (
@@ -1690,7 +1786,10 @@ pub async fn update_guild_category(
 
     let name = req.name.trim();
     if name.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Category name is required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Category name is required".to_string(),
+        ));
     }
     if name.chars().count() > MAX_CATEGORY_NAME_LENGTH {
         return Err((
@@ -1704,7 +1803,10 @@ pub async fn update_guild_category(
         .map_err(|e| {
             let msg = e.to_string();
             if msg.contains("idx_page_categories_guild_name") {
-                (StatusCode::CONFLICT, "Category name already exists".to_string())
+                (
+                    StatusCode::CONFLICT,
+                    "Category name already exists".to_string(),
+                )
             } else {
                 error!("Failed to update category {}: {}", cat_id, e);
                 (
@@ -1789,11 +1891,17 @@ pub async fn reorder_guild_categories(
     queries::reorder_categories(&state.db, guild_id, &req.category_ids)
         .await
         .map_err(|e| {
-            error!("Failed to reorder categories in guild {}: {}", guild_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            )
+            // Map Protocol errors (invalid input) to 400, others to 500
+            if let sqlx::Error::Protocol(msg) = &e {
+                error!("Invalid reorder request for guild {}: {}", guild_id, msg);
+                (StatusCode::BAD_REQUEST, msg.clone())
+            } else {
+                error!("Failed to reorder categories in guild {}: {}", guild_id, e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
         })?;
 
     Ok(StatusCode::NO_CONTENT)

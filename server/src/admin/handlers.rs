@@ -17,7 +17,7 @@ use axum::http::header;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{PgPool, QueryBuilder};
 use tracing::warn;
 use uuid::Uuid;
@@ -2345,9 +2345,20 @@ pub async fn delete_guild(
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SetGuildPageLimitsRequest {
     /// Maximum pages (null = reset to instance default, min 1).
-    pub max_pages: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub max_pages: Option<Option<i32>>,
     /// Maximum revisions per page (null = reset to instance default, min 5).
-    pub max_revisions: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub max_revisions: Option<Option<i32>>,
+}
+
+#[allow(clippy::option_option)]
+fn deserialize_double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 /// Guild page limits response.
@@ -2419,27 +2430,38 @@ pub async fn set_guild_page_limits(
     const MAX_ALLOWED_PAGES: i32 = 1000;
     const MAX_ALLOWED_REVISIONS: i32 = 500;
 
-    if let Some(max_pages) = body.max_pages {
+    if let Some(Some(max_pages)) = body.max_pages {
         if !(1..=MAX_ALLOWED_PAGES).contains(&max_pages) {
-            return Err(AdminError::Validation(
-                format!("max_pages must be between 1 and {MAX_ALLOWED_PAGES}"),
-            ));
+            return Err(AdminError::Validation(format!(
+                "max_pages must be between 1 and {MAX_ALLOWED_PAGES}"
+            )));
         }
     }
-    if let Some(max_revisions) = body.max_revisions {
+    if let Some(Some(max_revisions)) = body.max_revisions {
         if !(5..=MAX_ALLOWED_REVISIONS).contains(&max_revisions) {
-            return Err(AdminError::Validation(
-                format!("max_revisions must be between 5 and {MAX_ALLOWED_REVISIONS}"),
-            ));
+            return Err(AdminError::Validation(format!(
+                "max_revisions must be between 5 and {MAX_ALLOWED_REVISIONS}"
+            )));
         }
     }
 
+    let max_pages_present = body.max_pages.is_some();
+    let max_pages_value = body.max_pages.flatten();
+    let max_revisions_present = body.max_revisions.is_some();
+    let max_revisions_value = body.max_revisions.flatten();
+
     let row: Option<(Option<i32>, Option<i32>)> = sqlx::query_as(
-        "UPDATE guilds SET max_pages = $2, max_revisions = $3 WHERE id = $1 RETURNING max_pages, max_revisions",
+        r#"UPDATE guilds
+           SET max_pages = CASE WHEN $2 THEN $3 ELSE max_pages END,
+               max_revisions = CASE WHEN $4 THEN $5 ELSE max_revisions END
+           WHERE id = $1
+           RETURNING max_pages, max_revisions"#,
     )
     .bind(guild_id)
-    .bind(body.max_pages)
-    .bind(body.max_revisions)
+    .bind(max_pages_present)
+    .bind(max_pages_value)
+    .bind(max_revisions_present)
+    .bind(max_revisions_value)
     .fetch_optional(&state.db)
     .await?;
 
