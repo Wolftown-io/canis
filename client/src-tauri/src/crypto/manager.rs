@@ -9,14 +9,14 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
-use vc_crypto::olm::{EncryptedMessage, IdentityKeyPair, OlmAccount};
 #[cfg(feature = "megolm")]
 use vc_crypto::megolm::{MegolmInboundSession, MegolmOutboundSession};
+use vc_crypto::olm::{EncryptedMessage, IdentityKeyPair, OlmAccount};
 use vc_crypto::types::{Curve25519PublicKey, KeyId};
 
-use super::store::{KeyStoreMetadata, LocalKeyStore, SessionKey};
 #[cfg(feature = "megolm")]
 use super::store::MegolmInboundKey;
+use super::store::{KeyStoreMetadata, LocalKeyStore, SessionKey};
 
 /// Crypto manager errors.
 #[derive(Debug, Error)]
@@ -42,7 +42,9 @@ pub enum CryptoManagerError {
     NotInitialized,
 
     /// No one-time prekey available for recipient device.
-    #[error("No one-time prekey available for device {device_key} — recipient must replenish prekeys")]
+    #[error(
+        "No one-time prekey available for device {device_key} — recipient must replenish prekeys"
+    )]
     NoOneTimePrekey { device_key: String },
 }
 
@@ -473,7 +475,7 @@ impl CryptoManager {
     #[cfg(feature = "megolm")]
     pub fn create_outbound_group_session(&self, room_id: &str) -> Result<String> {
         let store = self.store.lock().expect("Mutex poisoned");
-        
+
         // Always rotate and create a new outbound session for the room
         let session = MegolmOutboundSession::new();
         let session_key = session.session_key();
@@ -486,12 +488,17 @@ impl CryptoManager {
     #[cfg(feature = "megolm")]
     pub fn encrypt_group_message(&self, room_id: &str, plaintext: &str) -> Result<String> {
         let store = self.store.lock().expect("Mutex poisoned");
-        
-        let mut session = store.load_megolm_outbound_session(room_id)?
-            .ok_or_else(|| CryptoManagerError::InvalidKey(format!("No outbound group session for room {}", room_id)))?;
+
+        let mut session = store
+            .load_megolm_outbound_session(room_id)?
+            .ok_or_else(|| {
+                CryptoManagerError::InvalidKey(
+                    "No outbound group session for this room".to_string(),
+                )
+            })?;
 
         let ciphertext = session.encrypt(plaintext);
-        
+
         // Save the updated session (ratchet advanced)
         store.save_megolm_outbound_session(room_id, &session)?;
         Ok(ciphertext)
@@ -506,9 +513,10 @@ impl CryptoManager {
         session_key_b64: &str,
     ) -> Result<()> {
         let store = self.store.lock().expect("Mutex poisoned");
-        
-        let session = MegolmInboundSession::new(session_key_b64)
-            .map_err(|e| CryptoManagerError::InvalidKey(format!("Invalid megolm session key: {}", e)))?;
+
+        let session = MegolmInboundSession::new(session_key_b64).map_err(|_| {
+            CryptoManagerError::InvalidKey("Invalid megolm session key".to_string())
+        })?;
 
         let key = MegolmInboundKey {
             room_id: room_id.to_string(),
@@ -528,17 +536,22 @@ impl CryptoManager {
         ciphertext: &str,
     ) -> Result<String> {
         let store = self.store.lock().expect("Mutex poisoned");
-        
+
         let key = MegolmInboundKey {
             room_id: room_id.to_string(),
             sender_key: sender_key.to_string(),
         };
 
-        let mut session = store.load_megolm_inbound_session(&key)?
-            .ok_or_else(|| CryptoManagerError::InvalidKey(format!("No inbound group session found for room {} and sender {}", room_id, sender_key)))?;
+        let mut session = store.load_megolm_inbound_session(&key)?.ok_or_else(|| {
+            CryptoManagerError::InvalidKey("No inbound group session found".to_string())
+        })?;
 
-        let plaintext = session.decrypt(ciphertext)
-            .map_err(|e| CryptoManagerError::InvalidKey(format!("Decryption failed: {}", e)))?;
+        let plaintext = session.decrypt(ciphertext).map_err(|_| {
+            CryptoManagerError::InvalidKey("Group message decryption failed".to_string())
+        })?;
+
+        // Save the updated session (message index advanced for replay protection)
+        store.save_megolm_inbound_session(&key, &session)?;
 
         Ok(plaintext)
     }

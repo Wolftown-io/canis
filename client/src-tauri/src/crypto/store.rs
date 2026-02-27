@@ -4,15 +4,15 @@
 
 use std::path::Path;
 
+use base64::{engine::general_purpose::STANDARD, Engine};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use base64::{engine::general_purpose::STANDARD, Engine};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
-use vc_crypto::olm::{OlmAccount, OlmSession};
 #[cfg(feature = "megolm")]
 use vc_crypto::megolm::{MegolmInboundSession, MegolmOutboundSession};
+use vc_crypto::olm::{OlmAccount, OlmSession};
 use zeroize::Zeroizing;
 
 /// Key store errors.
@@ -246,13 +246,15 @@ impl LocalKeyStore {
         session: &MegolmOutboundSession,
     ) -> Result<()> {
         let serialized = serde_json::to_string(session)?;
+        // TODO: Replace metadata XOR obfuscation with AEAD (AES-256-GCM) for Megolm blobs.
+        let encrypted = self.encrypt_metadata_value(&serialized);
         let now = chrono::Utc::now().timestamp();
         let hashed_room_id = self.keyed_hash("megolm:room_outbound", room_id);
 
         self.conn.execute(
             "INSERT OR REPLACE INTO megolm_outbound_sessions (room_id, session_id, serialized, updated_at)
              VALUES (?1, ?2, ?3, ?4)",
-            params![hashed_room_id, session.session_id(), serialized, now],
+            params![hashed_room_id, session.session_id(), encrypted, now],
         )?;
         Ok(())
     }
@@ -271,7 +273,12 @@ impl LocalKeyStore {
         );
 
         match result {
-            Ok(serialized) => Ok(Some(serde_json::from_str(&serialized)?)),
+            Ok(serialized) => {
+                let json = self
+                    .decrypt_metadata_value(&serialized)
+                    .unwrap_or(serialized);
+                Ok(Some(serde_json::from_str(&json)?))
+            }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -285,6 +292,8 @@ impl LocalKeyStore {
         session: &MegolmInboundSession,
     ) -> Result<()> {
         let serialized = serde_json::to_string(session)?;
+        // TODO: Replace metadata XOR obfuscation with AEAD (AES-256-GCM) for Megolm blobs.
+        let encrypted = self.encrypt_metadata_value(&serialized);
         let now = chrono::Utc::now().timestamp();
         let hashed_room_id = self.keyed_hash("megolm:room_inbound", &key.room_id);
         let hashed_sender = self.keyed_hash("megolm:sender", &key.sender_key);
@@ -292,7 +301,7 @@ impl LocalKeyStore {
         self.conn.execute(
             "INSERT OR REPLACE INTO megolm_inbound_sessions (room_id, sender_key, session_id, serialized, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![hashed_room_id, hashed_sender, session.session_id(), serialized, now],
+            params![hashed_room_id, hashed_sender, session.session_id(), encrypted, now],
         )?;
         Ok(())
     }
@@ -313,7 +322,12 @@ impl LocalKeyStore {
         );
 
         match result {
-            Ok(serialized) => Ok(Some(serde_json::from_str(&serialized)?)),
+            Ok(serialized) => {
+                let json = self
+                    .decrypt_metadata_value(&serialized)
+                    .unwrap_or(serialized);
+                Ok(Some(serde_json::from_str(&json)?))
+            }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
