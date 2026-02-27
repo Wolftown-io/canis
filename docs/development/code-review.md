@@ -263,6 +263,15 @@ Characters sind **nicht** Teil von Standard-Reviews. Sie sind für explorative G
 
 ## Workflows
 
+### PR Description Hygiene
+
+Vor dem Öffnen eines PRs:
+
+1. Summary gegen Diff prüfen (stimmt Scope mit den geänderten Dateien überein?)
+2. Server/API/DB/Config-Änderungen explizit im PR-Text nennen
+3. User-visible Änderungen klar benennen
+4. `CHANGELOG.md` unter `[Unreleased]` aktualisieren (oder im PR begründen, warum nicht nötig)
+
 ### Neue Dependency hinzufügen
 
 1. Lizenz prüfen (Compliance-Concern)
