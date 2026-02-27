@@ -29,9 +29,9 @@
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
-    "@sentry/browser": "^8.0.0",
     "@playwright/test": "^1.57.0",
     "@rollup/plugin-commonjs": "^29.0.0",
+    "@sentry/browser": "^8.0.0",
     "@solidjs/testing-library": "^0.8.10",
     "@tauri-apps/cli": "^2.0.0",
     "@types/dompurify": "^3.2.0",
@@ -42,6 +42,7 @@
     "@unocss/preset-icons": "^0.58.9",
     "@unocss/preset-uno": "^0.58.9",
     "@unocss/reset": "^0.58.9",
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
     "eslint": "^8.0.0",
     "eslint-plugin-solid": "^0.13.0",
     "jsdom": "^27.4.0",

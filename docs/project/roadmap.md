@@ -643,6 +643,9 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [ ] **[Ops] Operator Supportability Pack** ([Design](../plans/2026-02-15-operator-supportability-pack-design.md), [Implementation](../plans/2026-02-15-phase-8-reliability-implementation.md))
   - **Context:** Faster triage and diagnosis reduce incident impact.
   - **Strategy:** Ship standard diagnostics bundles, health endpoints, and runbook-indexed troubleshooting flows.
+- [ ] **[Infra] Self-Hosted STUN/TURN Server**
+  - **Context:** The server currently defaults to Google's public STUN server (`stun.l.google.com`), which defeats the purpose of self-hosting — voice NAT traversal traffic passes through a third-party infrastructure.
+  - **Strategy:** Bundle a `coturn` container in the default deployment stack (docker-compose and production infra). Make `STUN_SERVER` and `TURN_SERVER` required config with no third-party fallback. Document operator setup for TURN credentials and RTP port forwarding.
 
 ---
 
