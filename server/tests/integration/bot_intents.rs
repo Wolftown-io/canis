@@ -2,19 +2,21 @@
 
 use axum::body::Body;
 use axum::http::{Method, StatusCode};
+
 use super::helpers::*;
 
 // ============================================================================
 // Intent Persistence Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn update_intents_persists() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let (app_id, _, _) = create_bot_application(&app.pool, user_id).await;
     let token = generate_access_token(&app.config, user_id);
     let mut guard = app.cleanup_guard();
+    guard.add(move |pool| async move { delete_bot_application(&pool, app_id).await });
     guard.delete_user(user_id);
 
     let body = serde_json::json!({
@@ -38,13 +40,14 @@ async fn update_intents_persists() {
     assert!(intents.iter().any(|v| v == "commands"));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn update_intents_reflects_in_get() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let (app_id, _, _) = create_bot_application(&app.pool, user_id).await;
     let token = generate_access_token(&app.config, user_id);
     let mut guard = app.cleanup_guard();
+    guard.add(move |pool| async move { delete_bot_application(&pool, app_id).await });
     guard.delete_user(user_id);
 
     // Update intents
@@ -78,13 +81,14 @@ async fn update_intents_reflects_in_get() {
 // Intent Validation Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn invalid_intent_name_rejected() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let (app_id, _, _) = create_bot_application(&app.pool, user_id).await;
     let token = generate_access_token(&app.config, user_id);
     let mut guard = app.cleanup_guard();
+    guard.add(move |pool| async move { delete_bot_application(&pool, app_id).await });
     guard.delete_user(user_id);
 
     let body = serde_json::json!({
@@ -101,13 +105,14 @@ async fn invalid_intent_name_rejected() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn empty_intents_allowed() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let (app_id, _, _) = create_bot_application(&app.pool, user_id).await;
     let token = generate_access_token(&app.config, user_id);
     let mut guard = app.cleanup_guard();
+    guard.add(move |pool| async move { delete_bot_application(&pool, app_id).await });
     guard.delete_user(user_id);
 
     let body = serde_json::json!({ "intents": [] });
@@ -130,7 +135,7 @@ async fn empty_intents_allowed() {
 // Ownership Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn non_owner_cannot_update_intents() {
     let app = TestApp::new().await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -138,6 +143,7 @@ async fn non_owner_cannot_update_intents() {
     let (app_id, _, _) = create_bot_application(&app.pool, owner_id).await;
     let other_token = generate_access_token(&app.config, other_id);
     let mut guard = app.cleanup_guard();
+    guard.add(move |pool| async move { delete_bot_application(&pool, app_id).await });
     guard.delete_user(owner_id);
     guard.delete_user(other_id);
 
@@ -157,7 +163,7 @@ async fn non_owner_cannot_update_intents() {
 // Default Intent Behavior Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn new_application_has_default_intents() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -181,6 +187,9 @@ async fn new_application_has_default_intents() {
     assert_eq!(resp.status(), StatusCode::CREATED);
 
     let json = body_to_json(resp).await;
+    let app_id = uuid::Uuid::parse_str(json["id"].as_str().unwrap()).unwrap();
+
+    guard.add(move |pool| async move { delete_bot_application(&pool, app_id).await });
     // New applications should have empty gateway_intents by default (from DB default)
     let intents = json["gateway_intents"].as_array().unwrap();
     assert!(intents.is_empty());

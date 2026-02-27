@@ -2,12 +2,13 @@
 
 use axum::body::Body;
 use axum::http::{Method, StatusCode};
+use vc_server::config::Config;
+
 use super::helpers::{
     add_guild_member, body_to_json, create_bot_application, create_channel, create_guild,
     create_test_user, delete_bot_application, delete_guild, delete_user, generate_access_token,
     TestApp,
 };
-use vc_server::config::Config;
 
 /// Helper: create a Config with low limits for testing.
 fn low_limit_config() -> Config {
@@ -25,7 +26,7 @@ fn low_limit_config() -> Config {
 // Guild creation limit
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_guild_creation_limit() {
     let app = TestApp::with_config(low_limit_config()).await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -75,7 +76,7 @@ async fn test_guild_creation_limit() {
 // Member limit on invite join
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_member_limit_on_invite_join() {
     let app = TestApp::with_config(low_limit_config()).await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -127,7 +128,7 @@ async fn test_member_limit_on_invite_join() {
 // Channel limit
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_channel_limit() {
     let app = TestApp::with_config(low_limit_config()).await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -149,6 +150,15 @@ async fn test_channel_limit() {
     .execute(&app.pool)
     .await
     .unwrap();
+
+    let default_role_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*)::BIGINT FROM guild_roles WHERE guild_id = $1 AND is_default = true",
+    )
+    .bind(guild_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    eprintln!("default_role_count={}", default_role_count.0);
 
     // Create 2 channels (at limit)
     for i in 0..2 {
@@ -191,7 +201,7 @@ async fn test_channel_limit() {
 // Role limit
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_role_limit() {
     let app = TestApp::with_config(low_limit_config()).await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -249,7 +259,7 @@ async fn test_role_limit() {
 // Bot limit
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_bot_limit() {
     let app = TestApp::with_config(low_limit_config()).await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -318,7 +328,7 @@ async fn test_bot_limit() {
 // Emoji limit
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_emoji_limit() {
     let app = TestApp::with_config(low_limit_config()).await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -372,7 +382,7 @@ async fn test_emoji_limit() {
 // Member limit on discovery join
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_member_limit_on_discovery_join() {
     let mut config = low_limit_config();
     config.enable_guild_discovery = true;
@@ -417,7 +427,7 @@ async fn test_member_limit_on_discovery_join() {
     assert_eq!(body["error"], "LIMIT_EXCEEDED");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_globally_banned_user_cannot_join_via_discovery() {
     let mut config = low_limit_config();
     config.enable_guild_discovery = true;
@@ -467,7 +477,7 @@ async fn test_globally_banned_user_cannot_join_via_discovery() {
 // Usage endpoint
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_usage_endpoint() {
     let app = TestApp::new().await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -502,7 +512,7 @@ async fn test_usage_endpoint() {
     assert!(body["channels"]["limit"].as_i64().unwrap() > 0);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_usage_requires_membership() {
     let app = TestApp::new().await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -531,7 +541,7 @@ async fn test_usage_requires_membership() {
 // Instance limits endpoint
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_instance_limits_endpoint() {
     let app = TestApp::new().await;
 

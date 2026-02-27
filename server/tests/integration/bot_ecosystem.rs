@@ -7,8 +7,9 @@ use axum::http::Method;
 use fred::interfaces::{ClientLike, EventInterface, KeysInterface, PubsubInterface};
 use http_body_util::BodyExt;
 use serde_json::json;
-use super::helpers::{create_test_user, delete_user, generate_access_token, TestApp};
 use vc_server::db;
+
+use super::helpers::{create_test_user, delete_user, generate_access_token, TestApp};
 
 /// Test creating a bot application.
 #[tokio::test]
@@ -336,30 +337,28 @@ async fn test_register_slash_commands() {
     let app_id = app_data["id"].as_str().unwrap();
 
     // Register commands
-    let register_req = TestApp::request(
-        Method::PUT,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "commands": [
-                {
-                    "name": "hello",
-                    "description": "Says hello",
-                    "options": []
-                },
-                {
-                    "name": "ping",
-                    "description": "Pong!",
-                    "options": []
-                }
-            ]
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let register_req =
+        TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "commands": [
+                        {
+                            "name": "hello",
+                            "description": "Says hello",
+                            "options": []
+                        },
+                        {
+                            "name": "ping",
+                            "description": "Pong!",
+                            "options": []
+                        }
+                    ]
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
 
     let register_resp = app.oneshot(register_req).await;
     assert_eq!(register_resp.status(), 200);
@@ -404,25 +403,23 @@ async fn test_register_command_invalid_name() {
     let app_id = app_data["id"].as_str().unwrap();
 
     // Try to register command with uppercase (invalid)
-    let register_req = TestApp::request(
-        Method::PUT,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "commands": [
-                {
-                    "name": "HelloWorld",
-                    "description": "Invalid name",
-                    "options": []
-                }
-            ]
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let register_req =
+        TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "commands": [
+                        {
+                            "name": "HelloWorld",
+                            "description": "Invalid name",
+                            "options": []
+                        }
+                    ]
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
 
     let register_resp = app.oneshot(register_req).await;
     assert_eq!(register_resp.status(), 400);
@@ -455,35 +452,30 @@ async fn test_list_slash_commands() {
     let app_id = app_data["id"].as_str().unwrap();
 
     // Register commands
-    let register_req = TestApp::request(
-        Method::PUT,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "commands": [
-                {
-                    "name": "test",
-                    "description": "Test command",
-                    "options": []
-                }
-            ]
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let register_req =
+        TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "commands": [
+                        {
+                            "name": "test",
+                            "description": "Test command",
+                            "options": []
+                        }
+                    ]
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
     app.oneshot(register_req).await;
 
     // List commands
-    let list_req = TestApp::request(
-        Method::GET,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .body(Body::empty())
-    .unwrap();
+    let list_req = TestApp::request(Method::GET, &format!("/api/applications/{app_id}/commands"))
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
 
     let list_resp = app.oneshot(list_req).await;
     assert_eq!(list_resp.status(), 200);
@@ -659,25 +651,23 @@ async fn test_delete_slash_command() {
     let app_data: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let app_id = app_data["id"].as_str().unwrap();
 
-    let register_req = TestApp::request(
-        Method::PUT,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "commands": [
-                {
-                    "name": "test",
-                    "description": "Test command",
-                    "options": []
-                }
-            ]
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let register_req =
+        TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "commands": [
+                        {
+                            "name": "test",
+                            "description": "Test command",
+                            "options": []
+                        }
+                    ]
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
 
     let register_resp = app.oneshot(register_req).await;
     let body = register_resp
@@ -702,13 +692,10 @@ async fn test_delete_slash_command() {
     assert_eq!(delete_resp.status(), 204);
 
     // Verify it's gone
-    let list_req = TestApp::request(
-        Method::GET,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .body(Body::empty())
-    .unwrap();
+    let list_req = TestApp::request(Method::GET, &format!("/api/applications/{app_id}/commands"))
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
 
     let list_resp = app.oneshot(list_req).await;
     let body = list_resp.into_body().collect().await.unwrap().to_bytes();
@@ -1016,19 +1003,17 @@ async fn test_slash_command_invocation_publishes_to_bot_channel() {
         .await
         .unwrap();
 
-    let create_msg_req = TestApp::request(
-        Method::POST,
-        &format!("/api/messages/channel/{channel_id}"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "content": "/hello world"
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let create_msg_req =
+        TestApp::request(Method::POST, &format!("/api/messages/channel/{channel_id}"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "content": "/hello world"
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
 
     let create_msg_resp = app.oneshot(create_msg_req).await;
     let create_msg_status = create_msg_resp.status();
@@ -1240,23 +1225,21 @@ async fn test_slash_command_invocation_ambiguous() {
     assert_eq!(create_bot_2_resp.status(), 201);
 
     for app_id in [application_id_1, application_id_2] {
-        let register_cmd_req = TestApp::request(
-            Method::PUT,
-            &format!("/api/applications/{app_id}/commands"),
-        )
-        .header("Authorization", format!("Bearer {token}"))
-        .header("Content-Type", "application/json")
-        .body(Body::from(
-            serde_json::to_string(&json!({
-                "commands": [{
-                    "name": "hello",
-                    "description": "Say hello",
-                    "options": []
-                }]
-            }))
-            .unwrap(),
-        ))
-        .unwrap();
+        let register_cmd_req =
+            TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "commands": [{
+                            "name": "hello",
+                            "description": "Say hello",
+                            "options": []
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap();
         let register_cmd_resp = app.oneshot(register_cmd_req).await;
         assert_eq!(register_cmd_resp.status(), 200);
     }
@@ -1301,19 +1284,17 @@ async fn test_slash_command_invocation_ambiguous() {
         .unwrap();
     }
 
-    let create_msg_req = TestApp::request(
-        Method::POST,
-        &format!("/api/messages/channel/{channel_id}"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "content": "/hello world"
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let create_msg_req =
+        TestApp::request(Method::POST, &format!("/api/messages/channel/{channel_id}"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "content": "/hello world"
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
 
     let create_msg_resp = app.oneshot(create_msg_req).await;
     assert_eq!(create_msg_resp.status(), 400);
@@ -1373,30 +1354,28 @@ async fn test_register_commands_rejects_batch_duplicates() {
     let app_id = app_data["id"].as_str().unwrap();
 
     // Try to register commands with duplicate names in the same batch
-    let register_req = TestApp::request(
-        Method::PUT,
-        &format!("/api/applications/{app_id}/commands"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({
-            "commands": [
-                {
-                    "name": "hello",
-                    "description": "Says hello",
-                    "options": []
-                },
-                {
-                    "name": "hello",
-                    "description": "Also says hello",
-                    "options": []
-                }
-            ]
-        }))
-        .unwrap(),
-    ))
-    .unwrap();
+    let register_req =
+        TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({
+                    "commands": [
+                        {
+                            "name": "hello",
+                            "description": "Says hello",
+                            "options": []
+                        },
+                        {
+                            "name": "hello",
+                            "description": "Also says hello",
+                            "options": []
+                        }
+                    ]
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
 
     let register_resp = app.oneshot(register_req).await;
     assert_eq!(
@@ -1435,23 +1414,21 @@ async fn test_list_guild_commands_shows_all_providers() {
 
     // Register /hello on both bots (global scope)
     for app_id in &app_ids {
-        let register_req = TestApp::request(
-            Method::PUT,
-            &format!("/api/applications/{app_id}/commands"),
-        )
-        .header("Authorization", format!("Bearer {token}"))
-        .header("Content-Type", "application/json")
-        .body(Body::from(
-            serde_json::to_string(&json!({
-                "commands": [{
-                    "name": "hello",
-                    "description": "Say hello",
-                    "options": []
-                }]
-            }))
-            .unwrap(),
-        ))
-        .unwrap();
+        let register_req =
+            TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "commands": [{
+                            "name": "hello",
+                            "description": "Say hello",
+                            "options": []
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap();
         let register_resp = app.oneshot(register_req).await;
         assert_eq!(register_resp.status(), 200);
     }
@@ -1578,23 +1555,21 @@ async fn test_ambiguity_error_includes_bot_names() {
 
     // Register /hello on both
     for app_id in &app_ids {
-        let register_req = TestApp::request(
-            Method::PUT,
-            &format!("/api/applications/{app_id}/commands"),
-        )
-        .header("Authorization", format!("Bearer {token}"))
-        .header("Content-Type", "application/json")
-        .body(Body::from(
-            serde_json::to_string(&json!({
-                "commands": [{
-                    "name": "hello",
-                    "description": "Say hello",
-                    "options": []
-                }]
-            }))
-            .unwrap(),
-        ))
-        .unwrap();
+        let register_req =
+            TestApp::request(Method::PUT, &format!("/api/applications/{app_id}/commands"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "commands": [{
+                            "name": "hello",
+                            "description": "Say hello",
+                            "options": []
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap();
         let register_resp = app.oneshot(register_req).await;
         assert_eq!(register_resp.status(), 200);
     }
@@ -1641,16 +1616,13 @@ async fn test_ambiguity_error_includes_bot_names() {
     }
 
     // Invoke the ambiguous /hello command
-    let msg_req = TestApp::request(
-        Method::POST,
-        &format!("/api/messages/channel/{channel_id}"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({ "content": "/hello world" })).unwrap(),
-    ))
-    .unwrap();
+    let msg_req = TestApp::request(Method::POST, &format!("/api/messages/channel/{channel_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&json!({ "content": "/hello world" })).unwrap(),
+        ))
+        .unwrap();
 
     let msg_resp = app.oneshot(msg_req).await;
     assert_eq!(msg_resp.status(), 400, "Expected 400 for ambiguous command");
@@ -1734,16 +1706,13 @@ async fn test_builtin_ping_returns_pong() {
     .unwrap();
 
     // Send /ping
-    let msg_req = TestApp::request(
-        Method::POST,
-        &format!("/api/messages/channel/{channel_id}"),
-    )
-    .header("Authorization", format!("Bearer {token}"))
-    .header("Content-Type", "application/json")
-    .body(Body::from(
-        serde_json::to_string(&json!({ "content": "/ping" })).unwrap(),
-    ))
-    .unwrap();
+    let msg_req = TestApp::request(Method::POST, &format!("/api/messages/channel/{channel_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&json!({ "content": "/ping" })).unwrap(),
+        ))
+        .unwrap();
 
     let msg_resp = app.oneshot(msg_req).await;
     let status = msg_resp.status();

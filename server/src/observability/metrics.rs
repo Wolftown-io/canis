@@ -9,7 +9,8 @@ use std::sync::OnceLock;
 use opentelemetry::metrics::{Counter, Histogram};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig as _;
-use opentelemetry_sdk::{metrics::SdkMeterProvider, Resource};
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::Resource;
 
 use crate::config::ObservabilityConfig;
 

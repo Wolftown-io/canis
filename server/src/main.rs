@@ -23,8 +23,7 @@ async fn main() -> Result<()> {
     // Initialize observability (tracing-subscriber + OTel providers).
     // The guard MUST remain bound until the end of main — dropping it early
     // shuts down the providers before the server finishes handling requests.
-    let (_otel_guard, _meter_provider) =
-        vc_server::observability::init(&config.observability);
+    let (_otel_guard, _meter_provider) = vc_server::observability::init(&config.observability);
     info!(
         version = env!("CARGO_PKG_VERSION"),
         "Starting VoiceChat Server"
@@ -346,10 +345,9 @@ async fn main() -> Result<()> {
     drop(redis);
     info!("Redis connection closed");
 
-    // 4. Flush and shut down OTel providers.
-    //    `_otel_guard` and `_meter_provider` are dropped here (end of scope),
-    //    which triggers graceful shutdown of the tracer and meter providers.
-    //    All pending spans/metrics are flushed to the OTLP collector.
+    // 4. Flush and shut down OTel providers. `_otel_guard` and `_meter_provider` are dropped here
+    //    (end of scope), which triggers graceful shutdown of the tracer and meter providers. All
+    //    pending spans/metrics are flushed to the OTLP collector.
 
     info!("Server shutdown complete");
 

@@ -35,14 +35,12 @@ impl ObservabilityConfig {
                 .unwrap_or(false),
             otlp_endpoint: env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
                 .unwrap_or_else(|_| "http://localhost:4317".into()),
-            service_name: env::var("OTEL_SERVICE_NAME")
-                .unwrap_or_else(|_| "vc-server".into()),
+            service_name: env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| "vc-server".into()),
             trace_sample_ratio: env::var("OTEL_TRACES_SAMPLER_ARG")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0.1),
-            log_level: env::var("RUST_LOG")
-                .unwrap_or_else(|_| "vc_server=info".into()),
+            log_level: env::var("RUST_LOG").unwrap_or_else(|_| "vc_server=info".into()),
         }
     }
 }
@@ -422,7 +420,9 @@ impl Config {
             turn_server: None,
             turn_username: None,
             turn_credential: None,
-            mfa_encryption_key: None,
+            mfa_encryption_key: Some(
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
+            ),
             require_e2ee_setup: false,
             block_check_fail_open: false,
             cors_allowed_origins: vec!["*".to_string()],

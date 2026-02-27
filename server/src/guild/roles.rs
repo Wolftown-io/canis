@@ -213,21 +213,23 @@ pub async fn create_role(
         )));
     }
 
-    // Check if trying to grant permissions we don't have
     let new_perms = GuildPermissions::from_bits_truncate(body.permissions.unwrap_or(0));
-    can_manage_role(
-        ctx.computed_permissions,
-        ctx.highest_role_position.unwrap_or(i32::MAX),
-        i32::MAX, // New role, no position yet
-        Some(new_perms),
-    )?;
+    if !ctx.is_owner {
+        can_manage_role(
+            ctx.computed_permissions,
+            ctx.highest_role_position.unwrap_or(i32::MAX),
+            i32::MAX, // New role, no position yet
+            Some(new_perms),
+        )?;
+    }
 
     // Get next position (higher number = lower rank)
-    let max_position: (i64,) =
-        sqlx::query_as("SELECT COALESCE(MAX(position), 0) FROM guild_roles WHERE guild_id = $1")
-            .bind(guild_id)
-            .fetch_one(&state.db)
-            .await?;
+    let max_position: (i64,) = sqlx::query_as(
+        "SELECT COALESCE(MAX(position), 0)::BIGINT FROM guild_roles WHERE guild_id = $1",
+    )
+    .bind(guild_id)
+    .fetch_one(&state.db)
+    .await?;
 
     let role_id = Uuid::now_v7();
     let position = max_position.0 as i32 + 1;

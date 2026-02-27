@@ -7,9 +7,10 @@
 
 use axum::body::Body;
 use axum::http::Method;
-use super::helpers::{create_test_user, generate_access_token, TestApp};
 use uuid::Uuid;
 use vc_server::permissions::GuildPermissions;
+
+use super::helpers::{create_test_user, generate_access_token, TestApp};
 
 // ============================================================================
 // Upload Error Paths
@@ -97,7 +98,7 @@ async fn test_get_attachment_not_found() {
     let resp = app.oneshot(req).await;
     assert_eq!(
         resp.status(),
-        404,
-        "GET nonexistent attachment should return 404"
+        403,
+        "GET nonexistent attachment returns 403 to avoid existence leaks"
     );
 }

@@ -312,6 +312,13 @@ pub async fn filter_accessible_channels(
         .await
         .map_err(|e| PermissionError::DatabaseError(e.to_string()))?;
 
+    let everyone_role_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT id FROM guild_roles WHERE guild_id = $1 AND is_default = true")
+            .bind(guild_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| PermissionError::DatabaseError(e.to_string()))?;
+
     // 4. Group overrides by channel_id
     let mut overrides_by_channel: std::collections::HashMap<
         Uuid,
@@ -328,13 +335,21 @@ pub async fn filter_accessible_channels(
     let mut accessible = Vec::with_capacity(channel_ids.len());
     for &channel_id in channel_ids {
         let overrides = overrides_by_channel.get(&channel_id);
-        let perms = compute_guild_permissions(
+        let mut perms = compute_guild_permissions(
             user_id,
             ctx.guild_owner_id,
             ctx.everyone_permissions,
             &ctx.member_roles,
             overrides.map(|v| v.as_slice()),
         );
+
+        if let (Some(role_id), Some(items)) = (everyone_role_id, overrides) {
+            if let Some(ovr) = items.iter().find(|o| o.role_id == role_id) {
+                perms |= ovr.allow_permissions;
+                perms &= !ovr.deny_permissions;
+            }
+        }
+
         if perms.has(GuildPermissions::VIEW_CHANNEL) {
             accessible.push(channel_id);
         }

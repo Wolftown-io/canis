@@ -2,13 +2,14 @@
 
 use axum::body::Body;
 use axum::http::{Method, StatusCode};
+
 use super::helpers::*;
 
 // ============================================================================
 // CRUD Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_webhook_returns_signing_secret() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -41,7 +42,7 @@ async fn create_webhook_returns_signing_secret() {
     assert_eq!(json["active"], true);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn list_webhooks_does_not_return_secret() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -73,7 +74,7 @@ async fn list_webhooks_does_not_return_secret() {
     assert!(list[0].get("signing_secret").is_none());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_webhook_returns_details() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -106,7 +107,7 @@ async fn get_webhook_returns_details() {
     assert_eq!(json["active"], true);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn update_webhook_url_and_events() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -146,7 +147,7 @@ async fn update_webhook_url_and_events() {
     assert_eq!(json["active"], false);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn delete_webhook_succeeds() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -179,7 +180,7 @@ async fn delete_webhook_succeeds() {
 // Ownership Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn non_owner_cannot_manage_webhooks() {
     let app = TestApp::new().await;
     let (owner_id, _) = create_test_user(&app.pool).await;
@@ -212,7 +213,7 @@ async fn non_owner_cannot_manage_webhooks() {
 // Validation Tests
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn invalid_url_rejected() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -239,7 +240,7 @@ async fn invalid_url_rejected() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn empty_events_rejected() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -266,7 +267,7 @@ async fn empty_events_rejected() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn max_5_webhooks_enforced() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;
@@ -309,7 +310,7 @@ async fn max_5_webhooks_enforced() {
 // Delivery Log Test
 // ============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn delivery_log_initially_empty() {
     let app = TestApp::new().await;
     let (user_id, _) = create_test_user(&app.pool).await;

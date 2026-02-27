@@ -31,8 +31,8 @@ use crate::config::ObservabilityConfig;
 /// from metric initialisation is captured).
 ///
 /// # Returns
-/// * `OtelGuard` — drop-on-exit guard; keep it alive for the lifetime of
-///   `main` so providers flush and shut down gracefully.
+/// * `OtelGuard` — drop-on-exit guard; keep it alive for the lifetime of `main` so providers flush
+///   and shut down gracefully.
 /// * `Option<SdkMeterProvider>` — `None` when `config.enabled == false`.
 pub fn init(config: &ObservabilityConfig) -> (OtelGuard, Option<SdkMeterProvider>) {
     let guard = tracing::init(config);

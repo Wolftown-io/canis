@@ -88,7 +88,7 @@ struct RedactingSpanExporter<E> {
 }
 
 impl<E> RedactingSpanExporter<E> {
-    fn new(inner: E) -> Self {
+    const fn new(inner: E) -> Self {
         Self { inner }
     }
 }
@@ -299,7 +299,7 @@ mod tests {
         let ws = include_str!("../ws/mod.rs");
         assert_contains(
             ws,
-            "#[tracing::instrument(skip(state, tx, subscribed_channels, admin_subscribed, activity_state, text),",
+            "skip(state, tx, subscribed_channels, admin_subscribed, activity_state, text),",
         );
 
         let voice = include_str!("../voice/call_handlers.rs");
