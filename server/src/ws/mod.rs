@@ -199,6 +199,33 @@ pub enum ClientEvent {
     AdminUnsubscribe,
 }
 
+impl ClientEvent {
+    /// Return a low-cardinality static name for this event variant (for metrics).
+    pub const fn variant_name(&self) -> &'static str {
+        match self {
+            Self::Ping => "ping",
+            Self::Subscribe { .. } => "subscribe",
+            Self::Unsubscribe { .. } => "unsubscribe",
+            Self::Typing { .. } => "typing",
+            Self::StopTyping { .. } => "stop_typing",
+            Self::VoiceJoin { .. } => "voice_join",
+            Self::VoiceLeave { .. } => "voice_leave",
+            Self::VoiceAnswer { .. } => "voice_answer",
+            Self::VoiceIceCandidate { .. } => "voice_ice_candidate",
+            Self::VoiceMute { .. } => "voice_mute",
+            Self::VoiceUnmute { .. } => "voice_unmute",
+            Self::VoiceStats { .. } => "voice_stats",
+            Self::VoiceScreenShareStart { .. } => "voice_screen_share_start",
+            Self::VoiceScreenShareStop { .. } => "voice_screen_share_stop",
+            Self::VoiceWebcamStart { .. } => "voice_webcam_start",
+            Self::VoiceWebcamStop { .. } => "voice_webcam_stop",
+            Self::SetActivity { .. } => "set_activity",
+            Self::AdminSubscribe => "admin_subscribe",
+            Self::AdminUnsubscribe => "admin_unsubscribe",
+        }
+    }
+}
+
 /// Participant info for voice room state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceParticipant {
@@ -1063,6 +1090,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
     }
 
     info!("WebSocket connected: user={}", user_id);
+    crate::observability::metrics::record_ws_connect();
 
     // Send ready event
     let _ = tx.send(ServerEvent::Ready { user_id }).await;
@@ -1221,6 +1249,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
     }
 
     info!("WebSocket disconnected: user={}", user_id);
+    crate::observability::metrics::record_ws_disconnect();
 }
 
 /// Handle a client message.
@@ -1241,6 +1270,7 @@ pub async fn handle_client_message(
     activity_state: &mut ActivityState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let event: ClientEvent = serde_json::from_str(text)?;
+    crate::observability::metrics::record_ws_message(event.variant_name());
 
     match event {
         ClientEvent::Ping => {

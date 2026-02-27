@@ -65,6 +65,23 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
     Ok(())
 }
 
+/// Enable admin RLS bypass on a transaction.
+///
+/// Sets the `app.admin_bypass` session variable to `'true'` so that RLS
+/// policies on `connection_metrics` and `connection_sessions` allow the
+/// query to read all rows regardless of the row-level security user filter.
+///
+/// The setting is `LOCAL` (transaction-scoped) and automatically reverts
+/// when the transaction commits or rolls back.
+pub async fn set_admin_bypass(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT set_config('app.admin_bypass', 'true', true)")
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
 /// Create Redis client.
 pub async fn create_redis_client(redis_url: &str) -> Result<fred::clients::Client> {
     use fred::prelude::*;

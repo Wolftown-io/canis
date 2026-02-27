@@ -36,7 +36,9 @@ pub async fn handle_voice_event(
 ) -> Result<(), VoiceError> {
     match event {
         ClientEvent::VoiceJoin { channel_id } => {
-            handle_join(sfu, pool, user_id, channel_id, tx).await
+            let result = handle_join(sfu, pool, user_id, channel_id, tx).await;
+            crate::observability::metrics::record_voice_join(result.is_ok());
+            result
         }
         ClientEvent::VoiceLeave { channel_id } => {
             handle_leave(sfu, pool, redis, user_id, channel_id).await
@@ -240,6 +242,7 @@ async fn handle_join(
         channel_id = %channel_id,
         "User joined voice channel"
     );
+    crate::observability::metrics::record_voice_session_start();
 
     Ok(())
 }
@@ -294,6 +297,13 @@ async fn handle_leave(
 
     // Remove peer from room
     if let Some(peer) = room.remove_peer(user_id).await {
+        // Record voice session end metric
+        let duration_s = (chrono::Utc::now() - peer.connected_at)
+            .num_milliseconds()
+            .max(0) as f64
+            / 1000.0;
+        crate::observability::metrics::record_voice_session_end(duration_s);
+
         // Finalize session in background
         let guild_id = get_guild_id(pool, channel_id).await;
         let pool_clone = pool.clone();

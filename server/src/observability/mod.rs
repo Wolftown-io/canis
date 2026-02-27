@@ -39,6 +39,7 @@ pub fn init(config: &ObservabilityConfig) -> (OtelGuard, Option<SdkMeterProvider
     let meter_provider = metrics::init(config);
     if meter_provider.is_some() {
         metrics::register_metrics();
+        metrics::register_process_memory_metric();
     }
     (guard, meter_provider)
 }
