@@ -11,6 +11,8 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 use vc_crypto::olm::{OlmAccount, OlmSession};
+#[cfg(feature = "megolm")]
+use vc_crypto::megolm::{MegolmInboundSession, MegolmOutboundSession};
 use zeroize::Zeroizing;
 
 /// Key store errors.
@@ -39,6 +41,15 @@ pub struct SessionKey {
     pub user_id: Uuid,
     /// Their device's Curve25519 public key (base64).
     pub device_curve25519: String,
+}
+
+/// Key for identifying a Megolm inbound group session.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MegolmInboundKey {
+    /// The channel or group room ID.
+    pub room_id: String,
+    /// The sender's device Curve25519 public key (base64).
+    pub sender_key: String,
 }
 
 /// Metadata about the local key store.
@@ -100,6 +111,21 @@ impl LocalKeyStore {
                 serialized TEXT NOT NULL,
                 updated_at INTEGER NOT NULL,
                 PRIMARY KEY (user_id, device_key)
+            );
+            CREATE TABLE IF NOT EXISTS megolm_outbound_sessions (
+                room_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                serialized TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (room_id)
+            );
+            CREATE TABLE IF NOT EXISTS megolm_inbound_sessions (
+                room_id TEXT NOT NULL,
+                sender_key TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                serialized TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (room_id, sender_key)
             );
             ",
         )?;
@@ -207,6 +233,87 @@ impl LocalKeyStore {
                 let session = OlmSession::deserialize(&serialized, &self.encryption_key)?;
                 Ok(Some(session))
             }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Save a Megolm outbound group session.
+    #[cfg(feature = "megolm")]
+    pub fn save_megolm_outbound_session(
+        &self,
+        room_id: &str,
+        session: &MegolmOutboundSession,
+    ) -> Result<()> {
+        let serialized = serde_json::to_string(session)?;
+        let now = chrono::Utc::now().timestamp();
+        let hashed_room_id = self.keyed_hash("megolm:room_outbound", room_id);
+
+        self.conn.execute(
+            "INSERT OR REPLACE INTO megolm_outbound_sessions (room_id, session_id, serialized, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![hashed_room_id, session.session_id(), serialized, now],
+        )?;
+        Ok(())
+    }
+
+    /// Load a Megolm outbound group session.
+    #[cfg(feature = "megolm")]
+    pub fn load_megolm_outbound_session(
+        &self,
+        room_id: &str,
+    ) -> Result<Option<MegolmOutboundSession>> {
+        let hashed_room_id = self.keyed_hash("megolm:room_outbound", room_id);
+        let result: std::result::Result<String, _> = self.conn.query_row(
+            "SELECT serialized FROM megolm_outbound_sessions WHERE room_id = ?1",
+            params![hashed_room_id],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(serialized) => Ok(Some(serde_json::from_str(&serialized)?)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Save a Megolm inbound group session.
+    #[cfg(feature = "megolm")]
+    pub fn save_megolm_inbound_session(
+        &self,
+        key: &MegolmInboundKey,
+        session: &MegolmInboundSession,
+    ) -> Result<()> {
+        let serialized = serde_json::to_string(session)?;
+        let now = chrono::Utc::now().timestamp();
+        let hashed_room_id = self.keyed_hash("megolm:room_inbound", &key.room_id);
+        let hashed_sender = self.keyed_hash("megolm:sender", &key.sender_key);
+
+        self.conn.execute(
+            "INSERT OR REPLACE INTO megolm_inbound_sessions (room_id, sender_key, session_id, serialized, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![hashed_room_id, hashed_sender, session.session_id(), serialized, now],
+        )?;
+        Ok(())
+    }
+
+    /// Load a Megolm inbound group session.
+    #[cfg(feature = "megolm")]
+    pub fn load_megolm_inbound_session(
+        &self,
+        key: &MegolmInboundKey,
+    ) -> Result<Option<MegolmInboundSession>> {
+        let hashed_room_id = self.keyed_hash("megolm:room_inbound", &key.room_id);
+        let hashed_sender = self.keyed_hash("megolm:sender", &key.sender_key);
+
+        let result: std::result::Result<String, _> = self.conn.query_row(
+            "SELECT serialized FROM megolm_inbound_sessions WHERE room_id = ?1 AND sender_key = ?2",
+            params![hashed_room_id, hashed_sender],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(serialized) => Ok(Some(serde_json::from_str(&serialized)?)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }

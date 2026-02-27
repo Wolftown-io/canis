@@ -10,9 +10,13 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 use vc_crypto::olm::{EncryptedMessage, IdentityKeyPair, OlmAccount};
+#[cfg(feature = "megolm")]
+use vc_crypto::megolm::{MegolmInboundSession, MegolmOutboundSession};
 use vc_crypto::types::{Curve25519PublicKey, KeyId};
 
 use super::store::{KeyStoreMetadata, LocalKeyStore, SessionKey};
+#[cfg(feature = "megolm")]
+use super::store::MegolmInboundKey;
 
 /// Crypto manager errors.
 #[derive(Debug, Error)]
@@ -458,6 +462,85 @@ impl CryptoManager {
             device_curve25519: device_curve25519.to_string(),
         };
         Ok(store.load_session(&session_key)?.is_some())
+    }
+
+    // =========================================================================
+    // Megolm Group Encryption Methods
+    // =========================================================================
+
+    /// Create a new Megolm outbound session for a specific room/group.
+    /// Returns the exportable session key to be distributed via Olm.
+    #[cfg(feature = "megolm")]
+    pub fn create_outbound_group_session(&self, room_id: &str) -> Result<String> {
+        let store = self.store.lock().expect("Mutex poisoned");
+        
+        // Always rotate and create a new outbound session for the room
+        let session = MegolmOutboundSession::new();
+        let session_key = session.session_key();
+
+        store.save_megolm_outbound_session(room_id, &session)?;
+        Ok(session_key)
+    }
+
+    /// Encrypt a message for a group channel using the current Megolm outbound session.
+    #[cfg(feature = "megolm")]
+    pub fn encrypt_group_message(&self, room_id: &str, plaintext: &str) -> Result<String> {
+        let store = self.store.lock().expect("Mutex poisoned");
+        
+        let mut session = store.load_megolm_outbound_session(room_id)?
+            .ok_or_else(|| CryptoManagerError::InvalidKey(format!("No outbound group session for room {}", room_id)))?;
+
+        let ciphertext = session.encrypt(plaintext);
+        
+        // Save the updated session (ratchet advanced)
+        store.save_megolm_outbound_session(room_id, &session)?;
+        Ok(ciphertext)
+    }
+
+    /// Store a Megolm session key received from another user (via an Olm 1:1 message).
+    #[cfg(feature = "megolm")]
+    pub fn add_inbound_group_session(
+        &self,
+        room_id: &str,
+        sender_key: &str,
+        session_key_b64: &str,
+    ) -> Result<()> {
+        let store = self.store.lock().expect("Mutex poisoned");
+        
+        let session = MegolmInboundSession::new(session_key_b64)
+            .map_err(|e| CryptoManagerError::InvalidKey(format!("Invalid megolm session key: {}", e)))?;
+
+        let key = MegolmInboundKey {
+            room_id: room_id.to_string(),
+            sender_key: sender_key.to_string(),
+        };
+
+        store.save_megolm_inbound_session(&key, &session)?;
+        Ok(())
+    }
+
+    /// Decrypt a Megolm group message using a stored inbound session.
+    #[cfg(feature = "megolm")]
+    pub fn decrypt_group_message(
+        &self,
+        room_id: &str,
+        sender_key: &str,
+        ciphertext: &str,
+    ) -> Result<String> {
+        let store = self.store.lock().expect("Mutex poisoned");
+        
+        let key = MegolmInboundKey {
+            room_id: room_id.to_string(),
+            sender_key: sender_key.to_string(),
+        };
+
+        let mut session = store.load_megolm_inbound_session(&key)?
+            .ok_or_else(|| CryptoManagerError::InvalidKey(format!("No inbound group session found for room {} and sender {}", room_id, sender_key)))?;
+
+        let plaintext = session.decrypt(ciphertext)
+            .map_err(|e| CryptoManagerError::InvalidKey(format!("Decryption failed: {}", e)))?;
+
+        Ok(plaintext)
     }
 }
 

@@ -13,7 +13,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 # Internal
 vc-common.workspace = true
-vc-crypto.workspace = true
+vc-crypto = { workspace = true, features = ["megolm"] }
 
 # Tauri
 tauri = { version = "2", features = [] }
