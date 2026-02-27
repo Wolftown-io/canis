@@ -17,6 +17,7 @@ use super::types::{
     AddEntryRequest, CreateWorkspaceRequest, ReorderEntriesRequest, ReorderWorkspacesRequest,
     UpdateWorkspaceRequest, WorkspaceDetailResponse, WorkspaceEntryResponse, WorkspaceEntryRow,
     WorkspaceListItem, WorkspaceListRow, WorkspaceResponse, WorkspaceRow,
+    MAX_WORKSPACE_ICON_LENGTH,
 };
 
 // ============================================================================
@@ -52,7 +53,23 @@ pub async fn create_workspace(
         .validate()
         .map_err(|e| WorkspaceError::Validation(e.to_string()))?;
 
-    // Atomic count check + insert to prevent TOCTOU race
+    if let Some(icon) = request.icon.as_ref() {
+        if icon.chars().count() > MAX_WORKSPACE_ICON_LENGTH {
+            return Err(WorkspaceError::Validation(format!(
+                "Icon must be at most {MAX_WORKSPACE_ICON_LENGTH} characters"
+            )));
+        }
+    }
+
+    let mut tx = state.db.begin().await?;
+
+    // Serialize workspace creation per user to enforce strict limits under concurrency.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 41))")
+        .bind(auth_user.id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Atomic count check + insert inside lock.
     let row = sqlx::query_as::<_, WorkspaceRow>(
         r"
         INSERT INTO workspaces (owner_user_id, name, icon, sort_order)
@@ -65,9 +82,11 @@ pub async fn create_workspace(
     .bind(&request.name)
     .bind(&request.icon)
     .bind(state.config.max_workspaces_per_user)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(WorkspaceError::WorkspaceLimitExceeded)?;
+
+    tx.commit().await?;
 
     let response = WorkspaceResponse::from(row);
 
@@ -210,6 +229,14 @@ pub async fn update_workspace(
     request
         .validate()
         .map_err(|e| WorkspaceError::Validation(e.to_string()))?;
+
+    if let Some(Some(icon)) = request.icon.as_ref() {
+        if icon.chars().count() > MAX_WORKSPACE_ICON_LENGTH {
+            return Err(WorkspaceError::Validation(format!(
+                "Icon must be at most {MAX_WORKSPACE_ICON_LENGTH} characters"
+            )));
+        }
+    }
 
     // icon: None = no change, Some(None) = clear, Some(Some(val)) = set
     let should_update_icon = request.icon.is_some();
@@ -363,7 +390,15 @@ pub async fn add_entry(
         .await
         .map_err(|_| WorkspaceError::ChannelNotFound)?;
 
-    // 5. Atomic insert with entry limit check (prevents TOCTOU race)
+    let mut tx = state.db.begin().await?;
+
+    // Serialize entry creation per workspace to enforce strict limits under concurrency.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 43))")
+        .bind(workspace_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // 5. Atomic insert with entry limit check inside lock.
     let result = sqlx::query_as::<_, (Uuid,)>(
         r"
         INSERT INTO workspace_entries (workspace_id, guild_id, channel_id, position)
@@ -376,11 +411,14 @@ pub async fn add_entry(
     .bind(request.guild_id)
     .bind(request.channel_id)
     .bind(state.config.max_entries_per_workspace)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await;
 
     let entry_id = match result {
-        Ok(Some((id,))) => id,
+        Ok(Some((id,))) => {
+            tx.commit().await?;
+            id
+        }
         Ok(None) => return Err(WorkspaceError::EntryLimitExceeded),
         Err(sqlx::Error::Database(ref db_err)) if db_err.is_unique_violation() => {
             return Err(WorkspaceError::DuplicateEntry);
@@ -510,6 +548,13 @@ pub async fn reorder_entries(
     Path(workspace_id): Path<Uuid>,
     Json(request): Json<ReorderEntriesRequest>,
 ) -> Result<StatusCode, WorkspaceError> {
+    if request.entry_ids.len() > state.config.max_entries_per_workspace as usize {
+        return Err(WorkspaceError::Validation(format!(
+            "entry_ids must contain at most {} items",
+            state.config.max_entries_per_workspace
+        )));
+    }
+
     // Verify workspace ownership
     let workspace_exists =
         sqlx::query("SELECT 1 FROM workspaces WHERE id = $1 AND owner_user_id = $2")
@@ -600,6 +645,13 @@ pub async fn reorder_workspaces(
     auth_user: AuthUser,
     Json(request): Json<ReorderWorkspacesRequest>,
 ) -> Result<StatusCode, WorkspaceError> {
+    if request.workspace_ids.len() > state.config.max_workspaces_per_user as usize {
+        return Err(WorkspaceError::Validation(format!(
+            "workspace_ids must contain at most {} items",
+            state.config.max_workspaces_per_user
+        )));
+    }
+
     let mut tx = state.db.begin().await?;
 
     // Verify all workspace IDs belong to this user AND cover the full set
