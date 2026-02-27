@@ -16,9 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
 ### Added
+- Added 13 new observability metrics: HTTP errors, WebSocket connections/messages, voice sessions/duration/RTP, DB pool stats, auth token refresh, process memory, OTel export failures (#285)
+- Added admin RLS bypass for `connection_metrics` and `connection_sessions` tables for Command Center aggregate queries (#285)
 - Focus modes for intelligent notification routing — suppress notifications during gaming, coding, or streaming sessions with VIP contact overrides and emergency keyword bypass (#253)
 - Auto-activation of focus modes when matching apps are detected (games, IDEs) with support for custom triggers (#253)
 - Focus settings UI with per-mode configuration: suppression level, VIP users/channels, emergency keywords, and trigger categories (#253)
+
+### Changed
+- Renamed `kaiku_auth_attempts_total` metric to `kaiku_auth_login_attempts_total` to match observability contract (#285)
+- Fixed voice join metric to use `outcome` label (was `result`) with `failure` value (was `error`) (#285)
 
 ### Fixed
 - Process scanner now reports correct activity type (coding, listening, watching) instead of hardcoding all detected apps as "game" (#253)

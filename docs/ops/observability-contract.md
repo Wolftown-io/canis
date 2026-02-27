@@ -192,22 +192,24 @@ These follow [OTel DB semantic conventions](https://opentelemetry.io/docs/specs/
 
 | Metric name | Type | Unit | Description |
 |-------------|------|------|-------------|
-| `kaiku_http_request_duration_seconds` | Histogram | seconds | Latency of HTTP handler execution. Buckets: `[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]`. |
+| `kaiku_http_request_duration_ms` | Histogram | ms | Latency of HTTP handler execution. Buckets: `[5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]`. |
 | `kaiku_http_requests_total` | Counter | requests | Total HTTP requests, by method, route, and status code. |
 | `kaiku_http_errors_total` | Counter | requests | HTTP 4xx/5xx responses. |
 | `kaiku_ws_connections_active` | UpDownCounter | connections | Current open WebSocket connections. |
 | `kaiku_ws_reconnects_total` | Counter | reconnects | WebSocket reconnection attempts. |
 | `kaiku_ws_messages_total` | Counter | messages | WebSocket messages dispatched, by event type. |
+| `kaiku_voice_joins_total` | Counter | joins | Total voice join attempts, by outcome (`success`, `failure`). |
 | `kaiku_voice_sessions_active` | UpDownCounter | sessions | Current active voice sessions. |
 | `kaiku_voice_session_duration_seconds` | Histogram | seconds | Duration of completed voice sessions. |
 | `kaiku_voice_rtp_packets_forwarded_total` | Counter | packets | RTP packets forwarded by the SFU. |
 | `kaiku_db_query_duration_seconds` | Histogram | seconds | SQLx query execution time. |
-| `kaiku_db_pool_connections_active` | UpDownCounter | connections | Active database pool connections. |
-| `kaiku_db_pool_connections_idle` | UpDownCounter | connections | Idle database pool connections. |
+| `kaiku_db_pool_connections_active` | Gauge | connections | Active database pool connections. |
+| `kaiku_db_pool_connections_idle` | Gauge | connections | Idle database pool connections. |
 | `kaiku_auth_login_attempts_total` | Counter | attempts | Login attempts, by outcome (`success`, `failure`). |
 | `kaiku_auth_token_refresh_total` | Counter | refreshes | Token refresh operations, by outcome. |
 | `kaiku_otel_export_failures_total` | Counter | failures | OTLP export failures from the SDK. |
 | `kaiku_otel_dropped_spans_total` | Counter | spans | Spans dropped due to queue overflow. |
+| `kaiku_process_memory_bytes` | Gauge | bytes | Process resident set size (RSS) from /proc/self/status. |
 
 ### 5.3 Required client metrics (Tauri native)
 
@@ -441,7 +443,7 @@ The following checks run on every pull request:
 - `cargo clippy` with `#[tracing::instrument]` presence verified on all public functions in `server/src/` (enforced via custom lint or doc check).
 - Integration test suite asserts `trace_id` and `span_id` are present in log output for traced requests.
 - Unit tests for `before_send` hooks in both server and client Sentry configurations.
-- Metric name format check: all `kaiku_*` metric names must match `^kaiku_[a-z][a-z0-9_]*_(total|seconds|bytes|ratio|active|count)$`.
+- Metric name format check: all `kaiku_*` metric names must match `^kaiku_[a-z][a-z0-9_]*_(total|seconds|bytes|ratio|active|count|ms|idle)$`.
 
 ### 11.2 Staging validation
 

@@ -88,7 +88,7 @@ struct RedactingSpanExporter<E> {
 }
 
 impl<E> RedactingSpanExporter<E> {
-    fn new(inner: E) -> Self {
+    const fn new(inner: E) -> Self {
         Self { inner }
     }
 }

@@ -16,7 +16,9 @@ pub mod unread;
 use std::sync::Arc;
 
 use axum::extract::{DefaultBodyLimit, FromRef, State};
+use axum::http::Request;
 use axum::middleware::{from_fn, from_fn_with_state};
+use axum::response::Response;
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
@@ -371,6 +373,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health_check))
         .merge(app_routes)
         // Middleware
+        .layer(from_fn(http_error_counter))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(cors)
@@ -424,6 +427,19 @@ pub(crate) async fn health_check(State(state): State<AppState>) -> Json<HealthRe
         redis: redis_ok,
         rate_limiting: state.rate_limiter.is_some(),
     })
+}
+
+/// Middleware that counts HTTP error responses (4xx/5xx).
+async fn http_error_counter(
+    request: Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> Response {
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    if status >= 400 {
+        crate::observability::metrics::record_http_error(status);
+    }
+    response
 }
 
 /// API documentation routes.

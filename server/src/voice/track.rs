@@ -105,6 +105,7 @@ impl TrackRouter {
     ) {
         // DashMap::get returns a guard that provides lock-free concurrent read access
         if let Some(subscribers) = self.subscriptions.get(&(source_user_id, source_type)) {
+            crate::observability::metrics::record_rtp_packet_forwarded();
             for sub in subscribers.value() {
                 // Write RTP packet to local track (forwards to subscriber)
                 if let Err(e) = sub.local_track.write_rtp(rtp_packet).await {

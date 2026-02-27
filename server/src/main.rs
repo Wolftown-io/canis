@@ -23,8 +23,7 @@ async fn main() -> Result<()> {
     // Initialize observability (tracing-subscriber + OTel providers).
     // The guard MUST remain bound until the end of main — dropping it early
     // shuts down the providers before the server finishes handling requests.
-    let (_otel_guard, _meter_provider) =
-        vc_server::observability::init(&config.observability);
+    let (_otel_guard, meter_provider) = vc_server::observability::init(&config.observability);
     info!(
         version = env!("CARGO_PKG_VERSION"),
         "Starting VoiceChat Server"
@@ -33,6 +32,11 @@ async fn main() -> Result<()> {
     // Initialize database
     let db_pool = db::create_pool(&config.database_url).await?;
     db::run_migrations(&db_pool).await?;
+
+    // Register database pool observable gauges (requires pool + meter provider)
+    if meter_provider.is_some() {
+        vc_server::observability::metrics::register_db_pool_metrics(db_pool.clone());
+    }
 
     // Initialize Redis
     let redis = db::create_redis_client(&config.redis_url).await?;
@@ -104,6 +108,15 @@ async fn main() -> Result<()> {
 
     // Start background cleanup task for voice stats rate limiter to prevent memory leaks
     let voice_cleanup_handle = sfu.start_cleanup_task();
+
+    // Start RTP packet counter flush task (every 5 seconds)
+    let rtp_flush_handle = tokio::spawn(async {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        loop {
+            interval.tick().await;
+            vc_server::observability::metrics::flush_rtp_counter();
+        }
+    });
 
     // Start background cleanup task for database (sessions, prekeys, device transfers, governance)
     let db_pool_clone = db_pool.clone();
@@ -330,10 +343,12 @@ async fn main() -> Result<()> {
     voice_cleanup_handle.abort();
     db_cleanup_handle.abort();
     webhook_worker_handle.abort();
+    rtp_flush_handle.abort();
     // Wait for them to finish (will return Err(JoinError) due to abort, which is expected)
     let _ = voice_cleanup_handle.await;
     let _ = db_cleanup_handle.await;
     let _ = webhook_worker_handle.await;
+    let _ = rtp_flush_handle.await;
     info!("Background cleanup tasks stopped");
 
     // 2. Close database pool gracefully

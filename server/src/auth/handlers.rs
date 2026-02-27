@@ -494,6 +494,7 @@ pub async fn login(
         u
     } else {
         record_failed_auth!();
+        crate::observability::metrics::record_auth_login_attempt(false);
         return Err(AuthError::InvalidCredentials);
     };
 
@@ -502,6 +503,7 @@ pub async fn login(
         h
     } else {
         record_failed_auth!();
+        crate::observability::metrics::record_auth_login_attempt(false);
         return Err(AuthError::InvalidCredentials);
     };
 
@@ -510,6 +512,7 @@ pub async fn login(
 
     if !valid {
         record_failed_auth!();
+        crate::observability::metrics::record_auth_login_attempt(false);
         return Err(AuthError::InvalidCredentials);
     }
 
@@ -573,6 +576,7 @@ pub async fn login(
                 );
             } else {
                 record_failed_auth!();
+                crate::observability::metrics::record_auth_login_attempt(false);
                 return Err(AuthError::InvalidMfaCode);
             }
         }
@@ -610,6 +614,7 @@ pub async fn login(
     let setup_complete = is_setup_complete(&state.db).await?;
 
     tracing::info!(user_id = %user.id, setup_required = !setup_complete, "User logged in");
+    crate::observability::metrics::record_auth_login_attempt(true);
 
     Ok(Json(AuthResponse {
         access_token: tokens.access_token,
@@ -670,10 +675,14 @@ pub async fn refresh_token(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let session = session.ok_or(AuthError::InvalidToken)?;
+    let Some(session) = session else {
+        crate::observability::metrics::record_token_refresh(false);
+        return Err(AuthError::InvalidToken);
+    };
 
     // Verify session belongs to the user in the token
     if session.user_id != user_id {
+        crate::observability::metrics::record_token_refresh(false);
         return Err(AuthError::InvalidToken);
     }
 
@@ -722,6 +731,7 @@ pub async fn refresh_token(
     let setup_complete = is_setup_complete(&state.db).await?;
 
     tracing::info!(user_id = %user_id, "Token refreshed");
+    crate::observability::metrics::record_token_refresh(true);
 
     Ok(Json(AuthResponse {
         access_token: new_tokens.access_token,
