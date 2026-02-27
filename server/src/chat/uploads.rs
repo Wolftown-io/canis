@@ -585,11 +585,13 @@ pub async fn upload_message_with_file(
     // Validate actual file content matches claimed MIME type (magic byte check)
     let file_content_type = validate_file_content(&file_data, &file_content_type)?;
 
+    // Validate message content length if provided
+    if !content.is_empty() {
+        super::messages::validate_message_content(&content)
+            .map_err(|e| UploadError::Validation(e.to_string()))?;
+    }
     // Content filtering on message text (if non-empty, guild channels only)
     if !content.is_empty() {
-        let channel = db::find_channel_by_id(&state.db, channel_id)
-            .await?
-            .ok_or(UploadError::Validation("Channel not found".to_string()))?;
         if let Some(guild_id) = channel.guild_id {
             if let Ok(engine) = state.filter_cache.get_or_build(&state.db, guild_id).await {
                 let result = engine.check(&content);
@@ -642,7 +644,9 @@ pub async fn upload_message_with_file(
 
     // Create the message first
     // Note: Empty content is allowed when attaching files (file-only messages)
-    // This differs from regular text messages which require 1-4000 chars validation
+    // This differs from regular text messages which require validation:
+    // - Regular text: <= 4000 characters (excluding fenced code blocks)
+    // - Total: <= 10000 characters (including code blocks)
     let message = db::create_message(
         &state.db,
         channel_id,

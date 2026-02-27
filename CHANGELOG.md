@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WebSocket upgrade error paths no longer panic on unexpected conditions — replaced `.expect()` calls with a proper `error_response` helper that returns HTTP status codes (TD-05)
 
 ### Changed
+- Message character limits are now evaluated dynamically: standard text is limited to 4,000 characters, while messages containing code blocks can have up to 10,000 total characters.
 - Upload size limits (avatar, emoji, attachment) are now fetched from `GET /api/config/upload-limits` at startup and applied client-side — previously the client used hardcoded defaults that could drift from server configuration (TD-13)
 - Notification sounds now play for the active channel when the application window is in the background
 - Production client builds now selectively strip `console.log` and `console.debug` while preserving `console.error` and `console.warn` for diagnostics (TD-09)
