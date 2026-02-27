@@ -33,6 +33,22 @@ const [focusState, setFocusState] = createSignal<FocusState>({
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
+type VipSetCache = {
+  modeId: string | null;
+  userIdsRef: string[] | null;
+  channelIdsRef: string[] | null;
+  userSet: ReadonlySet<string>;
+  channelSet: ReadonlySet<string>;
+};
+
+const vipSetCache: VipSetCache = {
+  modeId: null,
+  userIdsRef: null,
+  channelIdsRef: null,
+  userSet: EMPTY_SET,
+  channelSet: EMPTY_SET,
+};
+
 /**
  * Build a Set from a mode's VIP list for O(1) lookups.
  * Called on every evaluateFocusPolicy to stay in sync with live preferences.
@@ -40,6 +56,34 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
  */
 function buildVipSet(ids: string[]): ReadonlySet<string> {
   return ids.length > 0 ? new Set(ids) : EMPTY_SET;
+}
+
+function getCachedVipSets(mode: FocusMode): {
+  userSet: ReadonlySet<string>;
+  channelSet: ReadonlySet<string>;
+} {
+  if (vipSetCache.modeId !== mode.id) {
+    vipSetCache.modeId = mode.id;
+    vipSetCache.userIdsRef = null;
+    vipSetCache.channelIdsRef = null;
+    vipSetCache.userSet = EMPTY_SET;
+    vipSetCache.channelSet = EMPTY_SET;
+  }
+
+  if (vipSetCache.userIdsRef !== mode.vipUserIds) {
+    vipSetCache.userIdsRef = mode.vipUserIds;
+    vipSetCache.userSet = buildVipSet(mode.vipUserIds);
+  }
+
+  if (vipSetCache.channelIdsRef !== mode.vipChannelIds) {
+    vipSetCache.channelIdsRef = mode.vipChannelIds;
+    vipSetCache.channelSet = buildVipSet(mode.vipChannelIds);
+  }
+
+  return {
+    userSet: vipSetCache.userSet,
+    channelSet: vipSetCache.channelSet,
+  };
 }
 
 // ============================================================================
@@ -175,13 +219,15 @@ export function evaluateFocusPolicy(
     return "allow";
   }
 
-  // 3. VIP user check (O(1) Set lookup, rebuilt from live preferences)
-  if (event.authorId && buildVipSet(mode.vipUserIds).has(event.authorId)) {
+  const vipSets = getCachedVipSets(mode);
+
+  // 3. VIP user check (O(1) Set lookup)
+  if (event.authorId && vipSets.userSet.has(event.authorId)) {
     return "allow";
   }
 
-  // 4. VIP channel check (O(1) Set lookup, rebuilt from live preferences)
-  if (buildVipSet(mode.vipChannelIds).has(event.channelId)) {
+  // 4. VIP channel check (O(1) Set lookup)
+  if (vipSets.channelSet.has(event.channelId)) {
     return "allow";
   }
 

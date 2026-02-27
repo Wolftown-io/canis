@@ -29,6 +29,9 @@ const MAX_MODES = 10;
 const MAX_VIP_USERS = 50;
 const MAX_VIP_CHANNELS = 50;
 const MAX_KEYWORDS = 5;
+const MAX_MODE_NAME_LEN = 30;
+const MIN_KEYWORD_LEN = 3;
+const MAX_KEYWORD_LEN = 30;
 
 const SUPPRESSION_OPTIONS: { value: FocusSuppressionLevel; label: string; desc: string }[] = [
   { value: "all", label: "Suppress all", desc: "Block all notifications" },
@@ -48,6 +51,10 @@ function generateId(): string {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function unicodeLen(value: string): number {
+  return Array.from(value).length;
+}
 
 const FocusSettings: Component = () => {
   const [keywordInput, setKeywordInput] = createSignal("");
@@ -128,7 +135,8 @@ const FocusSettings: Component = () => {
 
   const handleAddKeyword = (modeId: string) => {
     const keyword = keywordInput().trim();
-    if (!keyword || keyword.length < 3 || keyword.length > 30) return;
+    const keywordLen = unicodeLen(keyword);
+    if (!keyword || keywordLen < MIN_KEYWORD_LEN || keywordLen > MAX_KEYWORD_LEN) return;
 
     const mode = modes().find((m) => m.id === modeId);
     if (!mode || mode.emergencyKeywords.length >= MAX_KEYWORDS) return;
@@ -298,10 +306,13 @@ const FocusSettings: Component = () => {
                         <input
                           type="text"
                           value={mode.name}
-                          maxLength={30}
+                          maxLength={MAX_MODE_NAME_LEN}
                           onInput={(e) => {
                             const name = e.currentTarget.value;
-                            if (name.trim().length > 0) {
+                            if (
+                              unicodeLen(name.trim()) > 0 &&
+                              unicodeLen(name) <= MAX_MODE_NAME_LEN
+                            ) {
                               updateMode(mode.id, { name });
                             }
                           }}
@@ -397,7 +408,7 @@ const FocusSettings: Component = () => {
                           <input
                             type="text"
                             value={keywordInput()}
-                            maxLength={30}
+                            maxLength={MAX_KEYWORD_LEN}
                             onInput={(e) => setKeywordInput(e.currentTarget.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleAddKeyword(mode.id);
