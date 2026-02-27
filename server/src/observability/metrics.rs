@@ -102,6 +102,9 @@ pub fn init(config: &ObservabilityConfig) -> Option<SdkMeterProvider> {
         .build()
         .expect("Failed to build OTLP metric exporter");
 
+    // Wrap the exporter to count export failures.
+    let exporter = FailureCountingMetricExporter::new(exporter);
+
     // `with_periodic_exporter` defaults to a 60-second interval.
     // Override by setting `OTEL_METRIC_EXPORT_INTERVAL` (milliseconds).
     let provider = SdkMeterProvider::builder()
@@ -267,12 +270,12 @@ pub fn register_db_pool_metrics(pool: PgPool) {
         .u64_observable_gauge("kaiku_db_pool_connections_idle")
         .with_description("Idle database pool connections")
         .with_callback(move |observer| {
-            observer.observe(u64::from(pool.num_idle() as u32), &[]);
+            observer.observe(pool.num_idle() as u64, &[]);
         })
         .build();
 }
 
-/// Register process memory gauge (Linux only, reads `/proc/self/statm`).
+/// Register process memory gauge (Linux only, reads `/proc/self/status`).
 ///
 /// Call once at startup after `register_metrics()`.
 pub fn register_process_memory_metric() {
@@ -280,7 +283,7 @@ pub fn register_process_memory_metric() {
 
     meter
         .u64_observable_gauge("kaiku_process_memory_bytes")
-        .with_description("Process resident set size (RSS) from /proc/self/statm")
+        .with_description("Process resident set size (RSS) from /proc/self/status")
         .with_unit("bytes")
         .with_callback(|observer| {
             if let Ok(rss) = read_rss_bytes() {
@@ -338,9 +341,9 @@ pub fn record_ws_disconnect() {
 }
 
 /// Record a dispatched WebSocket message by event type.
-pub fn record_ws_message(event_type: &str) {
+pub fn record_ws_message(event_type: &'static str) {
     if let Some(counter) = WS_MESSAGES_TOTAL.get() {
-        counter.add(1, &[KeyValue::new("ws.event_type", event_type.to_owned())]);
+        counter.add(1, &[KeyValue::new("ws.event_type", event_type)]);
     }
 }
 
@@ -510,7 +513,7 @@ mod tests {
     #[test]
     fn read_rss_bytes_returns_nonzero_on_linux() {
         if cfg!(target_os = "linux") {
-            let rss = read_rss_bytes().expect("/proc/self/statm should be readable");
+            let rss = read_rss_bytes().expect("/proc/self/status should be readable");
             assert!(rss > 0, "RSS should be non-zero for a running process");
         }
     }

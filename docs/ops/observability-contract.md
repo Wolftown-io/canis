@@ -198,6 +198,7 @@ These follow [OTel DB semantic conventions](https://opentelemetry.io/docs/specs/
 | `kaiku_ws_connections_active` | UpDownCounter | connections | Current open WebSocket connections. |
 | `kaiku_ws_reconnects_total` | Counter | reconnects | WebSocket reconnection attempts. |
 | `kaiku_ws_messages_total` | Counter | messages | WebSocket messages dispatched, by event type. |
+| `kaiku_voice_joins_total` | Counter | joins | Total voice join attempts, by outcome (`success`, `failure`). |
 | `kaiku_voice_sessions_active` | UpDownCounter | sessions | Current active voice sessions. |
 | `kaiku_voice_session_duration_seconds` | Histogram | seconds | Duration of completed voice sessions. |
 | `kaiku_voice_rtp_packets_forwarded_total` | Counter | packets | RTP packets forwarded by the SFU. |
@@ -208,7 +209,7 @@ These follow [OTel DB semantic conventions](https://opentelemetry.io/docs/specs/
 | `kaiku_auth_token_refresh_total` | Counter | refreshes | Token refresh operations, by outcome. |
 | `kaiku_otel_export_failures_total` | Counter | failures | OTLP export failures from the SDK. |
 | `kaiku_otel_dropped_spans_total` | Counter | spans | Spans dropped due to queue overflow. |
-| `kaiku_process_memory_bytes` | Gauge | bytes | Process resident set size (RSS) from /proc/self/statm. |
+| `kaiku_process_memory_bytes` | Gauge | bytes | Process resident set size (RSS) from /proc/self/status. |
 
 ### 5.3 Required client metrics (Tauri native)
 
