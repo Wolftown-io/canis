@@ -3,6 +3,7 @@
 //! Handles file uploads to S3-compatible storage and metadata management.
 
 use axum::extract::{Multipart, Path, Query, State};
+use axum::http::HeaderName;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -910,7 +911,12 @@ pub async fn download(
             };
             (key.to_string(), ct)
         }
-        _ => (attachment.s3_key.clone(), attachment.mime_type.clone()),
+        Some(invalid) => {
+            return Err(UploadError::Validation(format!(
+                "Invalid variant '{invalid}'. Supported values are 'thumbnail' and 'medium'"
+            )));
+        }
+        None => (attachment.s3_key.clone(), attachment.mime_type.clone()),
     };
 
     // Fetch from S3
@@ -936,15 +942,24 @@ pub async fn download(
     };
 
     // Set headers
+    let disposition = if content_type.starts_with("image/") || content_type.starts_with("video/") || content_type.starts_with("audio/") {
+        "inline"
+    } else {
+        "attachment"
+    };
     let headers = [
-        (axum::http::header::CONTENT_TYPE, content_type),
+        (axum::http::header::CONTENT_TYPE, content_type.clone()),
         (
             axum::http::header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{display_filename}\""),
+            format!("{disposition}; filename=\"{display_filename}\""),
         ),
         (
             axum::http::header::CACHE_CONTROL,
             "private, max-age=31536000, immutable".to_string(),
+        ),
+        (
+            HeaderName::from_static("x-content-type-options"),
+            "nosniff".to_string(),
         ),
     ];
 

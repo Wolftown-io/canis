@@ -247,6 +247,13 @@ async fn build_export_archive(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Ve
 
 /// Cleanup expired export jobs — delete S3 objects and mark as expired.
 pub async fn cleanup_expired_exports(pool: &PgPool, s3: &Option<S3Client>) -> anyhow::Result<()> {
+    // If S3 is unavailable, skip cleanup entirely to prevent orphaning objects.
+    // Marking jobs as expired without deleting files would make them unrecoverable.
+    if s3.is_none() {
+        tracing::debug!("S3 unavailable — skipping export cleanup to prevent orphaned objects");
+        return Ok(());
+    }
+
     let expired_jobs: Vec<(Uuid, Option<String>)> = sqlx::query_as(
         "SELECT id, s3_key FROM data_export_jobs
          WHERE status = 'completed' AND expires_at < NOW()",
@@ -257,30 +264,38 @@ pub async fn cleanup_expired_exports(pool: &PgPool, s3: &Option<S3Client>) -> an
     if expired_jobs.is_empty() {
         return Ok(());
     }
+    let mut updatable_ids = Vec::new();
 
     for (job_id, s3_key) in &expired_jobs {
-        if let (Some(s3), Some(key)) = (s3, s3_key) {
-            if let Err(e) = s3.delete(key).await {
-                tracing::warn!(
-                    job_id = %job_id,
-                    s3_key = %key,
-                    error = %e,
-                    "Failed to delete expired export from S3"
-                );
+        match (s3, s3_key.as_deref()) {
+            (Some(s3_client), Some(key)) => match s3_client.delete(key).await {
+                Ok(()) => updatable_ids.push(*job_id),
+                Err(e) => {
+                    tracing::warn!(
+                        job_id = %job_id,
+                        s3_key = %key,
+                        error = %e,
+                        "Failed to delete expired export from S3; keeping job retryable"
+                    );
+                }
+            },
+            _ => {
+                updatable_ids.push(*job_id);
             }
         }
     }
 
-    let job_ids: Vec<Uuid> = expired_jobs.iter().map(|(id, _)| *id).collect();
-    sqlx::query(
-        "UPDATE data_export_jobs SET status = 'expired', s3_key = NULL
-         WHERE id = ANY($1)",
-    )
-    .bind(&job_ids)
-    .execute(pool)
-    .await?;
+    if !updatable_ids.is_empty() {
+        sqlx::query(
+            "UPDATE data_export_jobs SET status = 'expired', s3_key = NULL
+             WHERE id = ANY($1)",
+        )
+        .bind(&updatable_ids)
+        .execute(pool)
+        .await?;
+    }
 
-    let count = job_ids.len();
+    let count = updatable_ids.len();
     if count > 0 {
         tracing::debug!(count, "Cleaned up expired export jobs");
     }
