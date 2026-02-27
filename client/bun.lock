@@ -32,6 +32,7 @@
         "@unocss/preset-icons": "^0.58.9",
         "@unocss/preset-uno": "^0.58.9",
         "@unocss/reset": "^0.58.9",
+        "@vitejs/plugin-basic-ssl": "^2.1.4",
         "eslint": "^8.0.0",
         "eslint-plugin-solid": "^0.13.0",
         "jsdom": "^27.4.0",
@@ -505,6 +506,8 @@
     "@unocss/transformer-variant-group": ["@unocss/transformer-variant-group@0.58.9", "", { "dependencies": { "@unocss/core": "0.58.9" } }, "sha512-3A6voHSnFcyw6xpcZT6oxE+KN4SHRnG4z862tdtWvRGcN+jGyNr20ylEZtnbk4xj0VNMeGHHQRZ0WLvmrAwvOQ=="],
 
     "@unocss/vite": ["@unocss/vite@0.58.9", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@rollup/pluginutils": "^5.1.0", "@unocss/config": "0.58.9", "@unocss/core": "0.58.9", "@unocss/inspector": "0.58.9", "@unocss/scope": "0.58.9", "@unocss/transformer-directives": "0.58.9", "chokidar": "^3.6.0", "fast-glob": "^3.3.2", "magic-string": "^0.30.8" }, "peerDependencies": { "vite": "^2.9.0 || ^3.0.0-0 || ^4.0.0 || ^5.0.0-0" } }, "sha512-mmppBuulAHCal+sC0Qz36Y99t0HicAmznpj70Kzwl7g/yvXwm58/DW2OnpCWw+uA8/JBft/+z3zE+XvrI+T1HA=="],
+
+    "@vitejs/plugin-basic-ssl": ["@vitejs/plugin-basic-ssl@2.1.4", "", { "peerDependencies": { "vite": "^6.0.0 || ^7.0.0" } }, "sha512-HXciTXN/sDBYWgeAD4V4s0DN0g72x5mlxQhHxtYu3Tt8BLa6MzcJZUyDVFCdtjNs3bfENVHVzOsmooTVuNgAAw=="],
 
     "@vitest/expect": ["@vitest/expect@4.0.18", "", { "dependencies": { "@standard-schema/spec": "^1.0.0", "@types/chai": "^5.2.2", "@vitest/spy": "4.0.18", "@vitest/utils": "4.0.18", "chai": "^6.2.1", "tinyrainbow": "^3.0.3" } }, "sha512-8sCWUyckXXYvx4opfzVY03EOiYVxyNrHS5QxX3DAIi5dpJAAkyJezHCP77VMX4HKA2LDT/Jpfo8i2r5BE3GnQQ=="],
 

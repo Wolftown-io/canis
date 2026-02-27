@@ -1,12 +1,14 @@
 import { defineConfig } from "vite";
 import solidPlugin from "vite-plugin-solid";
 import UnoCSS from "unocss/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import path from "path";
 
 export default defineConfig({
   plugins: [
     UnoCSS(),
     solidPlugin(),
+    basicSsl(),
   ],
   resolve: {
     alias: {
