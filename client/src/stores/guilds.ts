@@ -158,6 +158,9 @@ export async function selectHome(): Promise<void> {
   const previousGuildId = guildsState.activeGuildId;
   setGuildsState({ activeGuildId: null });
 
+  const { selectFriendsTab } = await import("./dms");
+  selectFriendsTab();
+
   // Load DM channels for home view
   const { loadDMChannels } = await import("./channels");
   await loadDMChannels();

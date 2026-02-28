@@ -5,7 +5,16 @@
  */
 
 import { Component, createSignal, For, onMount, Show } from "solid-js";
-import { Users, Search, UserPlus, Ghost, MessageCircle, Phone, X } from "lucide-solid";
+import {
+  Users,
+  Search,
+  UserPlus,
+  Ghost,
+  MessageCircle,
+  Phone,
+  Loader2,
+  X,
+} from "lucide-solid";
 import {
   friendsState,
   loadFriends,
@@ -22,7 +31,8 @@ import type { Friend } from "@/lib/types";
 import { truncate, formatRelativeTime } from "@/lib/utils";
 import { createDM, joinVoice, startDMCall } from "@/lib/tauri";
 import { dmsState, loadDMs, selectDM } from "@/stores/dms";
-import { startCall } from "@/stores/call";
+import { endCall, startCall } from "@/stores/call";
+import { subscribeChannel } from "@/stores/websocket";
 import { ActivityIndicator } from "@/components/ui";
 import StatusIndicator from "@/components/ui/StatusIndicator";
 import { showToast } from "@/components/ui/Toast";
@@ -34,6 +44,7 @@ const FriendsList: Component = () => {
   const [tab, setTab] = createSignal<FriendsTab>("online");
   const [showAddFriend, setShowAddFriend] = createSignal(false);
   const [filterQuery, setFilterQuery] = createSignal("");
+  const [callingUserId, setCallingUserId] = createSignal<string | null>(null);
 
   onMount(async () => {
     await Promise.all([loadFriends(), loadPendingRequests(), loadBlocked()]);
@@ -134,8 +145,17 @@ const FriendsList: Component = () => {
     }
 
     const dm = await createDM([friendUserId]);
+    const maybeDmId = (dm as unknown as { id?: unknown }).id;
+    const createdChannelId =
+      dm.channel?.id || (typeof maybeDmId === "string" ? maybeDmId : null);
+
+    if (!createdChannelId) {
+      throw new Error("Failed to create DM channel");
+    }
+
+    void subscribeChannel(createdChannelId);
     void loadDMs();
-    return dm.channel.id;
+    return createdChannelId;
   };
 
   const handleOpenChat = async (friendUserId: string) => {
@@ -153,6 +173,10 @@ const FriendsList: Component = () => {
   };
 
   const handleStartFriendCall = async (friend: Friend) => {
+    if (callingUserId() === friend.user_id) return;
+
+    let channelId: string | null = null;
+
     try {
       const friendStatus = getUserStatus(friend.user_id);
       if (friendStatus === "offline") {
@@ -164,18 +188,32 @@ const FriendsList: Component = () => {
         return;
       }
 
-      const channelId = await ensureDMChannelId(friend.user_id);
+      channelId = await ensureDMChannelId(friend.user_id);
       selectDM(channelId);
-      await startDMCall(channelId);
+
+      setCallingUserId(friend.user_id);
       startCall(channelId);
-      await joinVoice(channelId);
+
+      await startDMCall(channelId);
+
+      const isNativeApp = typeof window !== "undefined" && "__TAURI__" in window;
+      if (isNativeApp) {
+        await joinVoice(channelId);
+      }
     } catch (err) {
+      if (channelId) {
+        endCall(channelId, "cancelled");
+      }
       console.error("Failed to start friend call:", err);
       showToast({
         type: "error",
         title: "Could not start call. Please try again.",
         duration: 8000,
       });
+    } finally {
+      setCallingUserId((current) =>
+        current === friend.user_id ? null : current,
+      );
     }
   };
 
@@ -313,6 +351,7 @@ const FriendsList: Component = () => {
                   onUnblock={handleUnblock}
                   onOpenChat={handleOpenChat}
                   onCall={handleStartFriendCall}
+                  isCalling={callingUserId() === friend.user_id}
                 />
               )}
             </For>
@@ -337,6 +376,7 @@ interface FriendItemProps {
   onUnblock: (userId: string) => void;
   onOpenChat: (userId: string) => void;
   onCall: (friend: Friend) => void;
+  isCalling: boolean;
 }
 
 const FriendItem: Component<FriendItemProps> = (props) => {
@@ -429,10 +469,16 @@ const FriendItem: Component<FriendItemProps> = (props) => {
             </button>
             <button
               onClick={() => props.onCall(props.friend)}
-              class="p-2 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-colors"
-              title="Start call"
+              disabled={props.isCalling}
+              class="p-2 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title={props.isCalling ? "Starting call..." : "Start call"}
             >
-              <Phone class="w-4 h-4" />
+              <Show
+                when={props.isCalling}
+                fallback={<Phone class="w-4 h-4" />}
+              >
+                <Loader2 class="w-4 h-4 animate-spin" />
+              </Show>
             </button>
           </div>
           <button

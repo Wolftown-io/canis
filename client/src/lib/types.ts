@@ -95,6 +95,7 @@ export interface UserProfile {
 export interface User extends UserProfile {
   email: string | null;
   mfa_enabled: boolean;
+  status_message?: string | null;
   created_at: string;
 }
 

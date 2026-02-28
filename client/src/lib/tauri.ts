@@ -72,6 +72,7 @@ import type {
   PageRevision,
   RevisionListItem,
   PageCategory,
+  CustomStatus,
 } from "./types";
 
 // Re-export types for convenience
@@ -588,14 +589,30 @@ async function httpRequest<T>(
 
   if (!response.ok) {
     let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    const rawErrorBody = await response.text();
 
     try {
-      const errorBody = await response.json();
+      const errorBody = rawErrorBody ? JSON.parse(rawErrorBody) : null;
       // Detect MFA_REQUIRED from server
-      if (response.status === 403 && errorBody.error === "MFA_REQUIRED") {
+      if (
+        response.status === 403 &&
+        errorBody &&
+        typeof errorBody === "object" &&
+        "error" in errorBody &&
+        errorBody.error === "MFA_REQUIRED"
+      ) {
         throw new Error("MFA_REQUIRED");
       }
-      errorMessage = errorBody.message || errorBody.error || errorMessage;
+      if (errorBody && typeof errorBody === "object") {
+        errorMessage =
+          ("message" in errorBody && typeof errorBody.message === "string"
+            ? errorBody.message
+            : undefined) ||
+          ("error" in errorBody && typeof errorBody.error === "string"
+            ? errorBody.error
+            : undefined) ||
+          errorMessage;
+      }
     } catch (parseError) {
       // Re-throw MFA_REQUIRED without wrapping
       if (
@@ -604,24 +621,14 @@ async function httpRequest<T>(
       ) {
         throw parseError;
       }
-      // Log parse failure but continue with text fallback
+
       console.warn(
         `[httpRequest] Failed to parse error response as JSON for ${path}:`,
         parseError,
       );
 
-      try {
-        const text = await response.text();
-        if (text.length > 0 && text.length < 500) {
-          errorMessage = text;
-        }
-      } catch (textError) {
-        // Log double failure (both JSON and text parsing failed)
-        console.error(
-          `[httpRequest] Failed to parse error response as both JSON and text for ${path}:`,
-          textError,
-        );
-        // Use statusText as final fallback
+      if (rawErrorBody.length > 0 && rawErrorBody.length < 500) {
+        errorMessage = rawErrorBody;
       }
     }
 
@@ -727,6 +734,25 @@ export async function updateStatus(
   browserWs?.send(
     JSON.stringify({ type: "set_status", status: statusMap[status] ?? "Online" }),
   );
+}
+
+export async function updateCustomStatus(
+  status: CustomStatus | null,
+): Promise<void> {
+  const statusMessage = status
+    ? `${status.emoji ? `${status.emoji} ` : ""}${status.text}`.trim()
+    : null;
+
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("update_profile", {
+      request: {
+        status_message: statusMessage,
+      },
+    });
+  }
+
+  await httpRequest("POST", "/auth/me", { status_message: statusMessage });
 }
 
 export async function register(

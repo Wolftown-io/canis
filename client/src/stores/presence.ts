@@ -8,6 +8,7 @@
 import { createStore, produce } from "solid-js/store";
 import type {
   Activity,
+  CustomStatus,
   FocusTriggerCategory,
   UserPresence,
   UserStatus,
@@ -17,7 +18,7 @@ import {
   stopIdleDetection,
   setIdleTimeout,
 } from "@/lib/idleDetector";
-import { updateStatus } from "@/lib/tauri";
+import { updateCustomStatus, updateStatus } from "@/lib/tauri";
 import { preferences } from "./preferences";
 import { currentUser, updateUser } from "./auth";
 
@@ -155,6 +156,7 @@ export function updateUserPresence(
     produce((state) => {
       state.users[userId] = {
         status: normalizedStatus,
+        customStatus: state.users[userId]?.customStatus,
         activity:
           activity !== undefined ? activity : state.users[userId]?.activity,
         lastSeen:
@@ -251,6 +253,7 @@ let previousStatus: UserStatus = "online";
 
 // Track if user manually set idle or dnd (don't auto-restore in that case)
 let wasManuallySetIdle = false;
+let customStatusClearTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Set the current user's presence status.
@@ -337,20 +340,65 @@ export function markManualStatusChange(status: UserStatus): void {
  */
 export function patchUser(userId: string, diff: Record<string, unknown>): void {
   // Update presence state if there are presence-related fields
-  if ("status" in diff || "activity" in diff) {
+  if (
+    "status" in diff ||
+    "activity" in diff ||
+    "status_message" in diff ||
+    "custom_status" in diff
+  ) {
     setPresenceState(
       produce((state) => {
-        if (state.users[userId]) {
-          if ("status" in diff) {
-            state.users[userId].status = normalizePresenceStatus(
-              String(diff.status),
-            );
+        const hasCustomStatusPatch =
+          "status_message" in diff || "custom_status" in diff;
+
+        if (!state.users[userId]) {
+          if (!hasCustomStatusPatch) {
+            return;
           }
-          if ("activity" in diff) {
-            state.users[userId].activity = diff.activity as
-              | Activity
-              | null
-              | undefined;
+          state.users[userId] = { status: "offline" };
+        }
+
+        if ("status" in diff) {
+          state.users[userId].status = normalizePresenceStatus(String(diff.status));
+        }
+
+        if ("activity" in diff) {
+          state.users[userId].activity = diff.activity as
+            | Activity
+            | null
+            | undefined;
+        }
+
+        if ("custom_status" in diff) {
+          const raw = diff.custom_status;
+          if (raw && typeof raw === "object" && "text" in raw) {
+            const parsed = raw as {
+              text?: unknown;
+              emoji?: unknown;
+              expiresAt?: unknown;
+            };
+
+            if (typeof parsed.text === "string" && parsed.text.trim().length > 0) {
+              state.users[userId].customStatus = {
+                text: parsed.text.trim(),
+                emoji: typeof parsed.emoji === "string" ? parsed.emoji : undefined,
+                expiresAt:
+                  typeof parsed.expiresAt === "string"
+                    ? parsed.expiresAt
+                    : undefined,
+              };
+            } else {
+              state.users[userId].customStatus = null;
+            }
+          } else {
+            state.users[userId].customStatus = null;
+          }
+        } else if ("status_message" in diff) {
+          const statusMessage = diff.status_message;
+          if (typeof statusMessage === "string" && statusMessage.trim().length > 0) {
+            state.users[userId].customStatus = { text: statusMessage.trim() };
+          } else {
+            state.users[userId].customStatus = null;
           }
         }
       }),
@@ -368,6 +416,7 @@ export function patchUser(userId: string, diff: Record<string, unknown>): void {
         "display_name",
         "avatar_url",
         "status",
+        "status_message",
         "email",
         "mfa_enabled",
       ];
@@ -381,6 +430,50 @@ export function patchUser(userId: string, diff: Record<string, unknown>): void {
         updateUser(updates);
       }
     });
+  }
+}
+
+export async function setMyCustomStatus(
+  status: CustomStatus | null,
+): Promise<void> {
+  const user = currentUser();
+  if (!user) return;
+
+  try {
+    await updateCustomStatus(status);
+
+    setPresenceState(
+      produce((state) => {
+        if (!state.users[user.id]) {
+          state.users[user.id] = { status: user.status };
+        }
+        state.users[user.id].customStatus = status;
+      }),
+    );
+
+    const statusMessage = status
+      ? `${status.emoji ? `${status.emoji} ` : ""}${status.text}`.trim()
+      : null;
+    updateUser({ status_message: statusMessage });
+
+    if (customStatusClearTimer) {
+      clearTimeout(customStatusClearTimer);
+      customStatusClearTimer = null;
+    }
+
+    if (status?.expiresAt) {
+      const expiresAtMs = Date.parse(status.expiresAt);
+      if (Number.isFinite(expiresAtMs)) {
+        const delayMs = expiresAtMs - Date.now();
+        if (delayMs > 0) {
+          customStatusClearTimer = setTimeout(() => {
+            void setMyCustomStatus(null);
+          }, delayMs);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[Presence] Failed to update custom status:", e);
   }
 }
 

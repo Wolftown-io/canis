@@ -38,21 +38,31 @@ export async function loadDMs(): Promise<void> {
     const dms = await tauri.getDMList();
     setDmsState({ dms, isLoading: false });
 
+    const subscribeAll = async () => {
+      await Promise.all(
+        dms.map((dm) =>
+          subscribeChannel(dm.id).catch((err) =>
+            console.warn(`Failed to subscribe to DM channel ${dm.id}:`, err),
+          ),
+        ),
+      );
+    };
+
     // Wait for WebSocket connection (event-driven, not polling)
     const connected = await waitForConnection();
     if (!connected) {
       console.warn("[DMs] WebSocket not connected after waiting, skipping subscriptions");
+
+      const subscribeAfterConnect = () => {
+        void subscribeAll();
+      };
+
+      window.addEventListener("ws-connected", subscribeAfterConnect, { once: true });
       return;
     }
 
     // Subscribe to all DM channels in parallel
-    await Promise.all(
-      dms.map((dm) =>
-        subscribeChannel(dm.id).catch((err) =>
-          console.warn(`Failed to subscribe to DM channel ${dm.id}:`, err)
-        )
-      )
-    );
+    await subscribeAll();
   } catch (err) {
     console.error("Failed to load DMs:", err);
     setDmsState({

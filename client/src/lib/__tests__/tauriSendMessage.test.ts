@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sendMessageWithStatus } from "../tauri";
+import { sendMessageWithStatus, updateCustomStatus } from "../tauri";
 
 describe("sendMessageWithStatus", () => {
   beforeEach(() => {
@@ -29,5 +29,48 @@ describe("sendMessageWithStatus", () => {
 
     expect(textMock).toHaveBeenCalledTimes(1);
     expect(jsonMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateCustomStatus", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("sends status_message to /auth/me in browser mode", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue(""),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateCustomStatus({ text: "In queue", emoji: "X" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/auth\/me$/),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ status_message: "X In queue" }),
+      }),
+    );
+  });
+
+  it("sends null status_message when clearing custom status", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue(""),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateCustomStatus(null);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/auth\/me$/),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ status_message: null }),
+      }),
+    );
   });
 });

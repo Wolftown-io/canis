@@ -24,6 +24,7 @@ pub struct User {
     pub external_id: Option<String>,
     /// Avatar image URL.
     pub avatar_url: Option<String>,
+    pub status_message: Option<String>,
     /// Current online status.
     pub status: UserStatus,
     /// Encrypted MFA secret for TOTP.

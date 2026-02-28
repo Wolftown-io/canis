@@ -57,7 +57,15 @@ struct UserResponse {
     email: Option<String>,
     avatar_url: Option<String>,
     status: String,
+    status_message: Option<String>,
     mfa_enabled: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdateProfileRequest {
+    pub display_name: Option<String>,
+    pub email: Option<String>,
+    pub status_message: Option<Option<String>>,
 }
 
 impl From<UserResponse> for User {
@@ -67,6 +75,7 @@ impl From<UserResponse> for User {
             username: r.username,
             display_name: r.display_name,
             avatar_url: r.avatar_url,
+            status_message: r.status_message,
             email: r.email,
             mfa_enabled: r.mfa_enabled,
             status: match r.status.as_str() {
@@ -331,6 +340,43 @@ pub async fn get_auth_info(state: State<'_, AppState>) -> Result<Option<(String,
         (Some(url), Some(token)) => Ok(Some((url.clone(), token.clone()))),
         _ => Ok(None),
     }
+}
+
+#[command]
+pub async fn update_profile(
+    state: State<'_, AppState>,
+    request: UpdateProfileRequest,
+) -> Result<(), String> {
+    let (server_url, token) = get_auth_context(&state).await?;
+
+    let response = state
+        .http
+        .post(format!("{server_url}/auth/me"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| format!("Profile update request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Profile update failed: {body}"));
+    }
+
+    let mut auth = state.auth.write().await;
+    if let Some(ref mut user) = auth.user {
+        if let Some(display_name) = request.display_name {
+            user.display_name = display_name;
+        }
+        if request.email.is_some() {
+            user.email = request.email;
+        }
+        if let Some(status_message) = request.status_message {
+            user.status_message = status_message;
+        }
+    }
+
+    Ok(())
 }
 
 /// OIDC login response returned to the frontend.

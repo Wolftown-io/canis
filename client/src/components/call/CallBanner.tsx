@@ -62,8 +62,11 @@ const CallBanner: Component<CallBannerProps> = (props) => {
     try {
       joinCall(props.channelId);
       await joinDMCall(props.channelId);
-      // Start voice connection after signaling join
-      await joinVoice(props.channelId);
+
+      const isNativeApp = typeof window !== "undefined" && "__TAURI__" in window;
+      if (isNativeApp) {
+        await joinVoice(props.channelId);
+      }
     } catch (err) {
       console.error("Failed to join call:", err);
       // Reset state on error

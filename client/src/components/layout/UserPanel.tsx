@@ -18,7 +18,7 @@ import {
 import { Settings, Shield, LogOut } from "lucide-solid";
 import { authState, logout } from "@/stores/auth";
 import { adminState, checkAdminStatus } from "@/stores/admin";
-import { getUserPresence } from "@/stores/presence";
+import { getUserPresence, setMyCustomStatus } from "@/stores/presence";
 import Avatar from "@/components/ui/Avatar";
 import StatusPicker from "@/components/ui/StatusPicker";
 import CustomStatusModal from "@/components/ui/CustomStatusModal";
@@ -44,9 +44,8 @@ const UserPanel: Component = () => {
     return getUserPresence(userId)?.customStatus ?? null;
   };
 
-  const handleCustomStatusSave = async (_status: CustomStatus | null) => {
-    // No-op: backend does not support custom status yet (PresenceUpdate only handles online/away/busy/offline).
-    // Wire this up when a custom_status field is added to the presence system.
+  const handleCustomStatusSave = async (status: CustomStatus | null) => {
+    await setMyCustomStatus(status);
   };
 
   onMount(() => {

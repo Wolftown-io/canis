@@ -122,6 +122,7 @@ pub struct UserProfile {
     pub avatar_url: Option<String>,
     /// Online status.
     pub status: String,
+    pub status_message: Option<String>,
     /// Whether MFA is enabled.
     pub mfa_enabled: bool,
     /// When the account is scheduled for permanent deletion (if requested).
@@ -170,6 +171,7 @@ pub struct UpdateProfileRequest {
     /// New email address (optional, set to null to clear).
     #[validate(email)]
     pub email: Option<String>,
+    pub status_message: Option<Option<String>>,
 }
 
 /// Update profile response.
@@ -821,13 +823,21 @@ pub async fn logout(
 )]
 #[tracing::instrument(fields(user_id = %auth_user.id))]
 pub async fn get_profile(auth_user: AuthUser) -> Json<UserProfile> {
+    let status = match auth_user.status {
+        crate::db::UserStatus::Online => "online",
+        crate::db::UserStatus::Away => "away",
+        crate::db::UserStatus::Busy => "busy",
+        crate::db::UserStatus::Offline => "offline",
+    };
+
     Json(UserProfile {
         id: auth_user.id.to_string(),
         username: auth_user.username,
         display_name: auth_user.display_name,
         email: auth_user.email,
         avatar_url: auth_user.avatar_url,
-        status: "online".to_string(),
+        status: status.to_string(),
+        status_message: auth_user.status_message,
         mfa_enabled: auth_user.mfa_enabled,
         deletion_scheduled_at: auth_user.deletion_scheduled_at.map(|dt| dt.to_rfc3339()),
     })
@@ -983,6 +993,7 @@ pub async fn upload_avatar(
         email: user.email,
         avatar_url: user.avatar_url,
         status: status_str.to_string(),
+        status_message: user.status_message,
         mfa_enabled: user.mfa_secret.is_some(),
         deletion_scheduled_at: user.deletion_scheduled_at.map(|dt| dt.to_rfc3339()),
     }))
@@ -1018,8 +1029,16 @@ pub async fn update_profile(
     body.validate()
         .map_err(|e| AuthError::Validation(e.to_string()))?;
 
+    if let Some(Some(status_message)) = &body.status_message {
+        if status_message.chars().count() > 128 {
+            return Err(AuthError::Validation(
+                "status_message must be at most 128 characters".to_string(),
+            ));
+        }
+    }
+
     // Check if there's anything to update
-    if body.display_name.is_none() && body.email.is_none() {
+    if body.display_name.is_none() && body.email.is_none() && body.status_message.is_none() {
         return Err(AuthError::Validation("No fields to update".to_string()));
     }
 
@@ -1053,6 +1072,13 @@ pub async fn update_profile(
         diff.insert("email".to_string(), serde_json::json!(email));
         updated_fields.push("email".to_string());
     }
+    if let Some(ref status_message) = body.status_message {
+        diff.insert(
+            "status_message".to_string(),
+            serde_json::json!(status_message),
+        );
+        updated_fields.push("status_message".to_string());
+    }
 
     // Update database
     let _updated_user = update_user_profile(
@@ -1060,6 +1086,7 @@ pub async fn update_profile(
         auth_user.id,
         body.display_name.as_deref(),
         body.email.as_ref().map(|e| Some(e.as_str())),
+        body.status_message.as_ref().map(|m| m.as_deref()),
     )
     .await
     .map_err(AuthError::Database)?;

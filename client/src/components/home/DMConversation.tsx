@@ -19,7 +19,7 @@ import MessageList from "@/components/messages/MessageList";
 import MessageInput from "@/components/messages/MessageInput";
 import TypingIndicator from "@/components/messages/TypingIndicator";
 import { CallBanner } from "@/components/call";
-import { callState, startCall, isInCallForChannel } from "@/stores/call";
+import { callState, endCall, startCall, isInCallForChannel } from "@/stores/call";
 import {
   startDMCall,
   joinVoice,
@@ -46,11 +46,16 @@ const DMConversation: Component = () => {
 
     setIsStartingCall(true);
     try {
-      await startDMCall(currentDM.id);
       startCall(currentDM.id);
-      // Start voice connection immediately as the initiator
-      await joinVoice(currentDM.id);
+
+      await startDMCall(currentDM.id);
+
+      const isNativeApp = typeof window !== "undefined" && "__TAURI__" in window;
+      if (isNativeApp) {
+        await joinVoice(currentDM.id);
+      }
     } catch (err) {
+      endCall(currentDM.id, "cancelled");
       console.error("Failed to start call:", err);
     } finally {
       setIsStartingCall(false);

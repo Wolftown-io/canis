@@ -9,7 +9,7 @@ use uuid::Uuid;
 use super::error::AuthError;
 use super::jwt::validate_access_token;
 use crate::api::AppState;
-use crate::db::{find_user_by_id, User};
+use crate::db::{find_user_by_id, User, UserStatus};
 
 /// Authenticated user injected into request extensions.
 ///
@@ -27,6 +27,8 @@ pub struct AuthUser {
     pub email: Option<String>,
     /// Avatar URL (if set).
     pub avatar_url: Option<String>,
+    pub status: UserStatus,
+    pub status_message: Option<String>,
     /// Whether MFA is enabled.
     pub mfa_enabled: bool,
     /// When the account is scheduled for permanent deletion (if requested).
@@ -41,6 +43,8 @@ impl From<User> for AuthUser {
             display_name: user.display_name,
             email: user.email,
             avatar_url: user.avatar_url,
+            status: user.status,
+            status_message: user.status_message,
             mfa_enabled: user.mfa_secret.is_some(),
             deletion_scheduled_at: user.deletion_scheduled_at,
         }

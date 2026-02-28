@@ -1568,7 +1568,19 @@ async fn handle_pubsub(redis: Client, params: HandlePubsubParams) {
         debug!("Subscribed to admin events channel");
     }
 
-    // Subscribe to friends' presence channels
+    let own_presence_channel = channels::user_presence(params.user_id);
+    if let Err(e) = subscriber.subscribe(&own_presence_channel).await {
+        warn!(
+            "Failed to subscribe to own presence channel for user {}: {}",
+            params.user_id, e
+        );
+    } else {
+        debug!(
+            "Subscribed to own presence channel: {}",
+            own_presence_channel
+        );
+    }
+
     for friend_id in &params.friend_ids {
         let presence_channel = channels::user_presence(*friend_id);
         if let Err(e) = subscriber.subscribe(&presence_channel).await {

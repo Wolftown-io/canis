@@ -151,6 +151,7 @@ pub async fn update_user_profile(
     user_id: Uuid,
     display_name: Option<&str>,
     email: Option<Option<&str>>, // Some(Some(email)) = set, Some(None) = clear, None = no change
+    status_message: Option<Option<&str>>,
 ) -> sqlx::Result<User> {
     let mut builder = QueryBuilder::new("UPDATE users SET updated_at = NOW()");
 
@@ -159,6 +160,9 @@ pub async fn update_user_profile(
     }
     if let Some(mail) = email {
         builder.push(", email = ").push_bind(mail);
+    }
+    if let Some(message) = status_message {
+        builder.push(", status_message = ").push_bind(message);
     }
 
     builder

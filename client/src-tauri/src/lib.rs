@@ -80,6 +80,7 @@ pub fn run() {
             commands::auth::logout,
             commands::auth::get_current_user,
             commands::auth::get_auth_info,
+            commands::auth::update_profile,
             commands::auth::register,
             commands::auth::oidc_authorize,
             commands::auth::mfa_setup,
@@ -264,6 +265,7 @@ pub struct User {
     pub avatar_url: Option<String>,
     pub status: UserStatus,
     pub email: Option<String>,
+    pub status_message: Option<String>,
     pub mfa_enabled: bool,
 }
 
