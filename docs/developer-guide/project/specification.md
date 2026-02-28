@@ -320,4 +320,4 @@ A self-hosted voice and text chat platform for gaming communities, optimized for
 
 - [ARCHITECTURE.md](../architecture/overview.md) - Technical Architecture
 - [STANDARDS.md](../development/standards.md) - Standards and Protocols Used
-- [LICENSE_COMPLIANCE.md](../../LICENSE_COMPLIANCE.md) - License Compliance for All Dependencies
+- [LICENSE_COMPLIANCE.md](../../../LICENSE_COMPLIANCE.md) - License Compliance for All Dependencies

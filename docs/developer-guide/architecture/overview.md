@@ -695,4 +695,4 @@ For future K8s deployments requiring horizontal scaling, the current Valkey-base
 
 - [PROJECT_SPEC.md](../project/specification.md) - Project Requirements
 - [STANDARDS.md](../development/standards.md) - Standards Used
-- [LICENSE_COMPLIANCE.md](../../LICENSE_COMPLIANCE.md) - License Review
+- [LICENSE_COMPLIANCE.md](../../../LICENSE_COMPLIANCE.md) - License Review

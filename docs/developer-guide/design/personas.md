@@ -310,4 +310,4 @@ Depending on the type of change, different personas should be prioritized:
 - [PROJECT_SPEC.md](../project/specification.md) – Project Requirements
 - [ARCHITECTURE.md](../architecture/overview.md) – Technical Architecture
 - [STANDARDS.md](../development/standards.md) – Standards Used
-- [LICENSE_COMPLIANCE.md](../../LICENSE_COMPLIANCE.md) – License Compliance
+- [LICENSE_COMPLIANCE.md](../../../LICENSE_COMPLIANCE.md) – License Compliance

@@ -608,4 +608,4 @@ cargo deny check licenses
 
 - [PROJECT_SPEC.md](../project/specification.md) - Project Requirements
 - [ARCHITECTURE.md](../architecture/overview.md) - Technical Architecture
-- [LICENSE_COMPLIANCE.md](../../LICENSE_COMPLIANCE.md) - Detailed License Review
+- [LICENSE_COMPLIANCE.md](../../../LICENSE_COMPLIANCE.md) - Detailed License Review

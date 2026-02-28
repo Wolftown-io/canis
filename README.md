@@ -30,7 +30,7 @@ Echoing the quiet precision of the North, Kaiku ensures your pack stays connecte
 
 Kaiku is designed from the ground up for **self-hosting**, giving you absolute sovereignty over your community's data and communication infrastructure. Unlike corporate alternatives that harvest your conversations, Kaiku ensures true freedom. Whether you are running a casual guild server or a massive esports organization, Kaiku scales with you.
 
-👉 **[Read the Official Self-Hosting Guide](docs/self-hosting.md)** to learn how to deploy Kaiku using Docker, configure your TURN/STUN servers, and manage user access.
+👉 **[Read the Official Admin Guide](docs/admin-guide/self-hosting.md)** to learn how to deploy Kaiku using Docker, configure your TURN/STUN servers, and manage user access.
 
 ## <span style="color: #88C0D0;">🏗️ Architecture</span>
 
@@ -39,13 +39,13 @@ Built for maximum performance and minimum bloat:
 - **Backend/Desktop Integration**: Tauri (Rust) for native OS-level performance with a tiny memory footprint.
 - **Audio Engine**: Fine-tuned WebRTC for flawless real-time communication.
 
-👉 **[Explore the Architecture Overview](docs/architecture.md)**
+👉 **[Explore the Architecture Overview](docs/developer-guide/architecture/architecture.md)**
 
 ## <span style="color: #88C0D0;">🔒 Security & Privacy</span>
 
 We don't want your data. All direct messages and private group calls utilize **Olm cryptographic ratchet** (similar to Signal) for true end-to-end encryption. 
 
-👉 **[Review our Security & Encryption Protocols](docs/security.md)**
+👉 **[Review our Security & Encryption Protocols](docs/developer-guide/security/security.md)**
 
 ## <span style="color: #88C0D0;">🚀 Quick Start (Development)</span>
 
