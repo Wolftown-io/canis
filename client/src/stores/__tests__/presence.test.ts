@@ -29,9 +29,14 @@ vi.mock("@/stores/auth", () => ({
   updateUser: vi.fn(),
 }));
 
+vi.mock("@/stores/friends", () => ({
+  setFriendsState: vi.fn(),
+}));
+
 import { updateCustomStatus, updateStatus } from "@/lib/tauri";
 import { startIdleDetection, stopIdleDetection } from "@/lib/idleDetector";
 import { currentUser } from "@/stores/auth";
+import { setFriendsState } from "@/stores/friends";
 import {
   presenceState,
   setPresenceState,
@@ -254,6 +259,19 @@ describe("presence store", () => {
         "Grinding ranked",
       );
     });
+
+    it("patches friend store status_message when user patch contains custom status", async () => {
+      patchUser("friend-1", { status_message: "On call" });
+
+      await Promise.resolve();
+
+      expect(setFriendsState).toHaveBeenCalledWith("friends", expect.any(Function));
+      expect(setFriendsState).toHaveBeenCalledWith(
+        "pendingRequests",
+        expect.any(Function),
+      );
+      expect(setFriendsState).toHaveBeenCalledWith("blocked", expect.any(Function));
+    });
   });
 
   describe("setMyCustomStatus", () => {
@@ -265,7 +283,7 @@ describe("presence store", () => {
       expect(updateCustomStatus).toHaveBeenCalledWith({
         text: "In queue",
         emoji: "🎮",
-      });
+      }, "Me");
       expect(presenceState.users["me"].customStatus?.text).toBe("In queue");
       expect(presenceState.users["me"].customStatus?.emoji).toBe("🎮");
     });
@@ -279,7 +297,7 @@ describe("presence store", () => {
 
       await setMyCustomStatus(null);
 
-      expect(updateCustomStatus).toHaveBeenCalledWith(null);
+      expect(updateCustomStatus).toHaveBeenCalledWith(null, "Me");
       expect(presenceState.users["me"].customStatus).toBeNull();
     });
   });

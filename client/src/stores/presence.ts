@@ -21,6 +21,7 @@ import {
 import { updateCustomStatus, updateStatus } from "@/lib/tauri";
 import { preferences } from "./preferences";
 import { currentUser, updateUser } from "./auth";
+import { setFriendsState } from "./friends";
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -403,6 +404,50 @@ export function patchUser(userId: string, diff: Record<string, unknown>): void {
         }
       }),
     );
+
+    const nextFriendStatusMessage = (() => {
+      if ("custom_status" in diff) {
+        const raw = diff.custom_status;
+        if (raw && typeof raw === "object" && "text" in raw) {
+          const parsed = raw as {
+            text?: unknown;
+            emoji?: unknown;
+          };
+
+          if (typeof parsed.text === "string" && parsed.text.trim().length > 0) {
+            return `${typeof parsed.emoji === "string" ? `${parsed.emoji} ` : ""}${parsed.text}`.trim();
+          }
+        }
+
+        return null;
+      }
+
+      if ("status_message" in diff) {
+        const statusMessage = diff.status_message;
+        if (typeof statusMessage === "string" && statusMessage.trim().length > 0) {
+          return statusMessage.trim();
+        }
+
+        return null;
+      }
+
+      return undefined;
+    })();
+
+    if (nextFriendStatusMessage !== undefined) {
+      const patchStatusMessage = <T extends { user_id: string; status_message: string | null }>(
+        list: T[],
+      ): T[] =>
+        list.map((entry) =>
+          entry.user_id === userId
+            ? { ...entry, status_message: nextFriendStatusMessage }
+            : entry,
+        );
+
+      setFriendsState("friends", (prev) => patchStatusMessage(prev));
+      setFriendsState("pendingRequests", (prev) => patchStatusMessage(prev));
+      setFriendsState("blocked", (prev) => patchStatusMessage(prev));
+    }
   }
 
   // Update current user in auth store if this is the current user
@@ -440,7 +485,7 @@ export async function setMyCustomStatus(
   if (!user) return;
 
   try {
-    await updateCustomStatus(status);
+    await updateCustomStatus(status, user.display_name);
 
     setPresenceState(
       produce((state) => {

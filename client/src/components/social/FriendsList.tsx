@@ -389,9 +389,13 @@ const FriendItem: Component<FriendItemProps> = (props) => {
     return props.friend.is_online ? "online" : "offline";
   };
 
-  const customStatusText = () => {
-    const customStatus = getUserPresence(props.friend.user_id)?.customStatus?.text;
-    return customStatus || props.friend.status_message || "";
+  const customStatusDisplay = () => {
+    const customStatus = getUserPresence(props.friend.user_id)?.customStatus;
+    if (customStatus?.text?.trim()) {
+      return `${customStatus.emoji ? `${customStatus.emoji} ` : ""}${customStatus.text}`.trim();
+    }
+
+    return props.friend.status_message?.trim() || "";
   };
 
   const offlineLastSeenText = () => {
@@ -417,18 +421,16 @@ const FriendItem: Component<FriendItemProps> = (props) => {
 
       {/* Info */}
       <div class="flex-1 min-w-0">
+        <div class="font-semibold text-text-primary truncate">
+          {props.friend.display_name}
+        </div>
         <div class="flex items-center gap-2 min-w-0">
-          <div class="font-semibold text-text-primary truncate">
-            {props.friend.display_name}
-          </div>
-          <Show when={status() !== "offline" && customStatusText().trim().length > 0}>
+          <div class="text-sm text-text-secondary truncate">@{props.friend.username}</div>
+          <Show when={customStatusDisplay().length > 0}>
             <div class="text-xs text-text-secondary truncate max-w-48">
-              {truncate(customStatusText().trim(), 36)}
+              {truncate(customStatusDisplay(), 36)}
             </div>
           </Show>
-        </div>
-        <div class="text-sm text-text-secondary truncate">
-          @{props.friend.username}
         </div>
         <Show when={offlineLastSeenText()}>
           <div class="text-xs text-text-secondary/80 truncate">{offlineLastSeenText()}</div>
