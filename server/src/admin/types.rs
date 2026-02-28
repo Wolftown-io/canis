@@ -114,7 +114,6 @@ impl IntoResponse for AdminError {
 // Request types
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ElevateRequest {
-    pub mfa_code: String,
     pub reason: Option<String>,
 }
 

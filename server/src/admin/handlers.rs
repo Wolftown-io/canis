@@ -31,8 +31,6 @@ use super::types::{
     SystemAdminUser,
 };
 use crate::api::AppState;
-use crate::auth::mfa_crypto::decrypt_mfa_secret;
-use crate::db::find_user_by_id;
 use crate::permissions::models::AuditLogEntry;
 use crate::permissions::queries::{create_elevated_session, write_audit_log};
 use crate::ws::{broadcast_admin_event, ServerEvent};
@@ -667,11 +665,12 @@ pub async fn get_audit_log(
     }))
 }
 
-/// Elevate admin session with MFA verification.
+/// Elevate admin session.
 ///
 /// `POST /api/admin/elevate`
 ///
-/// MFA must be enrolled on the admin account. Returns `MfaRequired` if not.
+/// Confirms elevation of the current admin session. MFA verification will be
+/// added in a future iteration.
 #[utoipa::path(
     post,
     path = "/api/admin/elevate",
@@ -687,53 +686,7 @@ pub async fn elevate_session(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<ElevateRequest>,
 ) -> Result<Json<ElevateResponse>, AdminError> {
-    // Load user to check MFA status
-    let user = find_user_by_id(&state.db, admin.user_id)
-        .await?
-        .ok_or(AdminError::NotAdmin)?;
-
-    // MFA is required for admin session elevation
-    let mfa_secret_encrypted = user.mfa_secret.ok_or(AdminError::MfaRequired)?;
-
-    // Validate MFA code format (6 digits)
-    if body.mfa_code.len() != 6 || !body.mfa_code.chars().all(|c| c.is_ascii_digit()) {
-        return Err(AdminError::InvalidMfaCode);
-    }
-
-    // Get and validate encryption key
-    let encryption_key = state
-        .config
-        .mfa_encryption_key
-        .as_ref()
-        .ok_or_else(|| AdminError::Validation("MFA encryption not configured".to_string()))?;
-
-    let key_bytes = hex::decode(encryption_key)
-        .map_err(|_| AdminError::Validation("Invalid MFA encryption key".to_string()))?;
-
-    // Decrypt MFA secret
-    let mfa_secret = decrypt_mfa_secret(&mfa_secret_encrypted, &key_bytes)
-        .map_err(|_| AdminError::InvalidMfaCode)?;
-
-    // Verify TOTP code
-    let totp = totp_rs::TOTP::new(
-        totp_rs::Algorithm::SHA1,
-        6,
-        1,
-        30,
-        totp_rs::Secret::Encoded(mfa_secret)
-            .to_bytes()
-            .map_err(|_| AdminError::InvalidMfaCode)?,
-        Some("VoiceChat".to_string()),
-        admin.username.clone(),
-    )
-    .map_err(|_| AdminError::InvalidMfaCode)?;
-
-    if !totp
-        .check_current(&body.mfa_code)
-        .map_err(|_| AdminError::InvalidMfaCode)?
-    {
-        return Err(AdminError::InvalidMfaCode);
-    }
+    // TODO: Re-add MFA verification here once the MFA enrollment flow is implemented.
 
     // Find or create a session for this user
     // We need a valid session_id that references sessions table

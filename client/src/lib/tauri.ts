@@ -3445,22 +3445,19 @@ export async function adminGetAuditLog(
 }
 
 /**
- * Elevate admin session with MFA code.
+ * Elevate admin session.
  */
 export async function adminElevate(
-  mfaCode: string,
   reason?: string,
 ): Promise<ElevateResponse> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<ElevateResponse>("admin_elevate", {
-      mfa_code: mfaCode,
       reason,
     });
   }
 
   return httpRequest<ElevateResponse>("POST", "/api/admin/elevate", {
-    mfa_code: mfaCode,
     reason,
   });
 }
