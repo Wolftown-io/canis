@@ -89,9 +89,21 @@ fn build_resource(config: &ObservabilityConfig) -> Resource {
 /// [`SdkMeterProvider::shutdown`] during graceful shutdown.  Dropping the
 /// provider without calling `shutdown` triggers shutdown in the `Drop` impl,
 /// but explicit shutdown during the orderly teardown phase is preferred.
-pub fn init(config: &ObservabilityConfig) -> Option<SdkMeterProvider> {
+pub fn init(
+    config: &ObservabilityConfig,
+    metric_tx: tokio::sync::mpsc::Sender<super::ingestion::CapturedMetricSample>,
+) -> Option<SdkMeterProvider> {
+    // Always add the native metric exporter so samples are captured to DB
+    // even when OTLP export is disabled.
+    let native_exporter = super::ingestion::NativeMetricExporter::new(metric_tx);
+
     if !config.enabled {
-        return None;
+        // No OTLP export — only the native exporter
+        let provider = SdkMeterProvider::builder()
+            .with_periodic_exporter(native_exporter)
+            .build();
+        global::set_meter_provider(provider.clone());
+        return Some(provider);
     }
 
     let resource = build_resource(config);
@@ -110,6 +122,7 @@ pub fn init(config: &ObservabilityConfig) -> Option<SdkMeterProvider> {
     let provider = SdkMeterProvider::builder()
         .with_resource(resource)
         .with_periodic_exporter(exporter)
+        .with_periodic_exporter(native_exporter)
         .build();
 
     global::set_meter_provider(provider.clone());

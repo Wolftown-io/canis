@@ -39,7 +39,6 @@ interface AdminQuickModalProps {
 
 const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
   const navigate = useNavigate();
-  const [mfaCode, setMfaCode] = createSignal("");
   const [timeRemaining, setTimeRemaining] = createSignal(
     getElevationTimeRemaining(),
   );
@@ -61,19 +60,9 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
     }
   });
 
-  // Handle MFA input - only allow 6 digits
-  const handleMfaInput = (e: InputEvent) => {
-    const input = e.target as HTMLInputElement;
-    const value = input.value.replace(/\D/g, "").slice(0, 6);
-    setMfaCode(value);
-  };
-
   // Handle elevation
   const handleElevate = async () => {
-    if (mfaCode().length === 6) {
-      await elevateSession(mfaCode());
-      setMfaCode("");
-    }
+    await elevateSession();
   };
 
   // Handle de-elevation
@@ -147,44 +136,31 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
                 when={adminState.isElevated}
                 fallback={
                   /* Not Elevated State */
-                  <div class="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
+                  <div class="p-4 rounded-lg bg-white/8 border border-white/15 space-y-3">
                     <div class="flex items-center gap-2 text-text-primary">
                       <Shield class="w-4 h-4" />
-                      <span class="text-sm">Session not elevated</span>
+                      <span class="text-sm font-medium">Session not elevated</span>
                     </div>
-                    <div class="space-y-2">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="Enter MFA code"
-                        value={mfaCode()}
-                        onInput={handleMfaInput}
-                        class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-text-primary placeholder-text-secondary/50 focus:outline-none focus:border-accent-primary text-center tracking-widest font-mono"
-                        maxLength={6}
-                      />
-                      <button
-                        onClick={handleElevate}
-                        disabled={
-                          mfaCode().length !== 6 || adminState.isElevating
-                        }
-                        class="w-full px-4 py-2 rounded-lg bg-accent-primary text-white font-medium transition-colors hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {adminState.isElevating
-                          ? "Elevating..."
-                          : "Elevate Session"}
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleElevate}
+                      disabled={adminState.isElevating}
+                      class="w-full px-4 py-2 rounded-lg bg-accent-primary text-white font-medium transition-colors hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {adminState.isElevating
+                        ? "Elevating..."
+                        : "Elevate Session"}
+                    </button>
                   </div>
                 }
               >
                 {/* Elevated State */}
-                <div class="p-4 rounded-lg bg-status-warning/10 border border-status-warning/30 space-y-3">
+                <div class="p-4 rounded-lg bg-status-warning/15 border border-status-warning/50 space-y-3">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2 text-status-warning">
                       <ShieldAlert class="w-4 h-4" />
-                      <span class="text-sm font-medium">Session Elevated</span>
+                      <span class="text-sm font-semibold">Session Elevated</span>
                     </div>
-                    <span class="text-xs text-text-secondary">
+                    <span class="text-xs font-medium text-text-primary/70">
                       {timeRemaining()} remaining
                     </span>
                   </div>
@@ -206,7 +182,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
 
               <div class="grid grid-cols-3 gap-3">
                 {/* Users */}
-                <div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
+                <div class="p-3 rounded-lg bg-white/8 border border-white/15 text-center">
                   <Users class="w-5 h-5 mx-auto mb-1 text-emerald-400" />
                   <div class="text-lg font-bold text-text-primary">
                     {adminState.stats?.user_count ?? "-"}
@@ -215,7 +191,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
                 </div>
 
                 {/* Guilds */}
-                <div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
+                <div class="p-3 rounded-lg bg-white/8 border border-white/15 text-center">
                   <Building2 class="w-5 h-5 mx-auto mb-1 text-blue-400" />
                   <div class="text-lg font-bold text-text-primary">
                     {adminState.stats?.guild_count ?? "-"}
@@ -224,7 +200,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
                 </div>
 
                 {/* Banned */}
-                <div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
+                <div class="p-3 rounded-lg bg-white/8 border border-white/15 text-center">
                   <Ban class="w-5 h-5 mx-auto mb-1 text-status-error" />
                   <div class="text-lg font-bold text-text-primary">
                     {adminState.stats?.banned_count ?? "-"}
@@ -236,7 +212,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
 
             {/* Error Display */}
             <Show when={adminState.error}>
-              <div class="p-3 rounded-lg bg-status-error/10 border border-status-error/30 text-status-error text-sm">
+              <div class="p-3 rounded-lg bg-status-error/15 border border-status-error/50 text-status-error text-sm font-medium">
                 {adminState.error}
               </div>
             </Show>
@@ -244,7 +220,7 @@ const AdminQuickModal: Component<AdminQuickModalProps> = (props) => {
             {/* Open Full Dashboard Button */}
             <button
               onClick={handleOpenDashboard}
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-text-primary font-medium transition-colors hover:bg-white/10"
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-white/8 border border-white/15 text-text-primary font-medium transition-colors hover:bg-white/15"
             >
               <span>Open Full Dashboard</span>
               <ExternalLink class="w-4 h-4" />

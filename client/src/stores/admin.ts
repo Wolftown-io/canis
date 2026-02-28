@@ -245,16 +245,15 @@ export async function loadAdminStats(): Promise<void> {
 }
 
 /**
- * Elevate admin session with MFA code
+ * Elevate admin session
  */
 export async function elevateSession(
-  mfaCode: string,
   reason?: string,
 ): Promise<boolean> {
   setAdminState({ isElevating: true, error: null });
 
   try {
-    const response = await tauri.adminElevate(mfaCode, reason);
+    const response = await tauri.adminElevate(reason);
     setAdminState({
       isElevated: response.elevated,
       elevationExpiresAt: response.expires_at,

@@ -704,11 +704,10 @@ pub async fn admin_get_audit_log(
 // Session Elevation Commands
 // ============================================================================
 
-/// Elevate admin session with MFA verification.
+/// Elevate admin session.
 #[command]
 pub async fn admin_elevate(
     state: State<'_, AppState>,
-    mfa_code: String,
     reason: Option<String>,
 ) -> Result<ElevateResponse, String> {
     let (server_url, token) = {
@@ -722,7 +721,6 @@ pub async fn admin_elevate(
     debug!("Elevating admin session");
 
     let body = serde_json::json!({
-        "mfa_code": mfa_code,
         "reason": reason,
     });
 

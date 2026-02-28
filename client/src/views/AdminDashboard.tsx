@@ -43,11 +43,13 @@ import {
   AdminSettings,
   type AdminPanel,
 } from "@/components/admin";
+import AdminQuickModal from "@/components/admin/AdminQuickModal";
 
 const AdminDashboard: Component = () => {
   const navigate = useNavigate();
   const [activePanel, setActivePanel] = createSignal<AdminPanel>("overview");
   const [timeRemaining, setTimeRemaining] = createSignal<string>("");
+  const [showElevateModal, setShowElevateModal] = createSignal(false);
 
   // Check admin status and load stats on mount
   onMount(async () => {
@@ -129,10 +131,13 @@ const AdminDashboard: Component = () => {
           <Show
             when={adminState.isElevated}
             fallback={
-              <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-text-secondary text-sm">
+              <button
+                onClick={() => setShowElevateModal(true)}
+                class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-status-warning/15 text-status-warning text-sm font-medium hover:bg-status-warning/25 transition-colors cursor-pointer"
+              >
                 <ShieldAlert class="w-4 h-4" />
                 Not Elevated
-              </div>
+              </button>
             }
           >
             <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-status-success/20 text-status-success text-sm font-medium">
@@ -267,17 +272,17 @@ const AdminDashboard: Component = () => {
                   {/* Elevation Notice */}
                   <Show when={!adminState.isElevated}>
                     <section>
-                      <div class="p-4 rounded-xl bg-status-warning/10 border border-status-warning/30">
+                      <div class="p-4 rounded-xl bg-status-warning/15 border border-status-warning/50">
                         <div class="flex items-start gap-3">
                           <ShieldAlert class="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
                           <div>
-                            <h3 class="text-sm font-medium text-status-warning">
+                            <h3 class="text-sm font-semibold text-status-warning">
                               Session Not Elevated
                             </h3>
-                            <p class="text-sm text-text-secondary mt-1">
-                              Some admin actions require session elevation. Use
-                              the quick access modal (Ctrl+Shift+A) to elevate
-                              your session with MFA verification.
+                            <p class="text-sm text-text-primary/80 mt-1">
+                              Some admin actions require session elevation.
+                              Click the badge above or press Ctrl+Shift+A to
+                              elevate your session.
                             </p>
                           </div>
                         </div>
@@ -315,6 +320,11 @@ const AdminDashboard: Component = () => {
           </div>
         </Show>
       </main>
+
+      {/* Elevation Modal */}
+      <Show when={showElevateModal()}>
+        <AdminQuickModal onClose={() => setShowElevateModal(false)} />
+      </Show>
     </div>
   );
 };

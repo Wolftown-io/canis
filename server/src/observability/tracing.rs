@@ -21,6 +21,8 @@ use tracing_subscriber::{EnvFilter, Layer, Registry};
 
 use crate::config::ObservabilityConfig;
 
+use super::ingestion::{CapturedLogEvent, CapturedSpan, NativeLogLayer, NativeSpanProcessor};
+
 /// RAII guard that shuts down the `OTel` providers when dropped.
 ///
 /// Bind the returned guard to a variable that lives until end of `main`; if it
@@ -130,7 +132,7 @@ where
     }
 }
 
-fn is_forbidden_attribute_key(key: &str) -> bool {
+pub(crate) fn is_forbidden_attribute_key(key: &str) -> bool {
     const FORBIDDEN_PATTERNS: [&str; 10] = [
         "password",
         "token",
@@ -190,16 +192,24 @@ fn build_resource(config: &ObservabilityConfig) -> Resource {
 /// The returned [`OtelGuard`] **must** remain bound to a variable for the
 /// lifetime of the application; dropping it triggers graceful shutdown of both
 /// providers.
-pub fn init(config: &ObservabilityConfig) -> OtelGuard {
+pub fn init(
+    config: &ObservabilityConfig,
+    log_tx: tokio::sync::mpsc::Sender<CapturedLogEvent>,
+    span_tx: tokio::sync::mpsc::Sender<CapturedSpan>,
+) -> OtelGuard {
+    let native_log_layer = NativeLogLayer::new(log_tx);
+
     if !config.enabled {
-        // Observability disabled — install a minimal JSON subscriber and return
-        // a no-op guard so the rest of the startup code is identical.
+        // Observability disabled — install a minimal JSON subscriber with
+        // the native log layer (WARN/ERROR still go to native storage) and
+        // return a no-op guard so the rest of the startup code is identical.
         let filter = EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| EnvFilter::new(config.log_level.clone()));
 
         Registry::default()
             .with(filter)
             .with(RedactionLayer)
+            .with(native_log_layer)
             .with(tracing_subscriber::fmt::layer().json())
             .init();
 
@@ -224,10 +234,13 @@ pub fn init(config: &ObservabilityConfig) -> OtelGuard {
 
     let batch_processor = BatchSpanProcessor::builder(span_exporter).build();
 
+    let native_span_processor = NativeSpanProcessor::new(span_tx);
+
     let tracer_provider = SdkTracerProvider::builder()
         .with_resource(resource.clone())
         .with_sampler(sampler)
         .with_span_processor(batch_processor)
+        .with_span_processor(native_span_processor)
         .build();
 
     // ── Logger provider (log bridge) ─────────────────────────────────────────
@@ -258,6 +271,7 @@ pub fn init(config: &ObservabilityConfig) -> OtelGuard {
     Registry::default()
         .with(filter)
         .with(RedactionLayer)
+        .with(native_log_layer)
         .with(otel_trace_layer)
         .with(otel_log_layer)
         .with(tracing_subscriber::fmt::layer().json())

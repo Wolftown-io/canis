@@ -211,6 +211,24 @@ pub struct Config {
 
     /// Observability and telemetry configuration
     pub observability: ObservabilityConfig,
+
+    // ========================================================================
+    // Command Center
+    // ========================================================================
+    /// Deployment environment label (e.g., "production", "staging", "development")
+    pub environment: String,
+
+    /// Grafana dashboard URL (optional)
+    pub grafana_url: Option<String>,
+
+    /// Tempo tracing UI URL (optional)
+    pub tempo_url: Option<String>,
+
+    /// Loki log viewer URL (optional)
+    pub loki_url: Option<String>,
+
+    /// Prometheus UI URL (optional)
+    pub prometheus_url: Option<String>,
 }
 
 impl Config {
@@ -357,6 +375,11 @@ impl Config {
                 .unwrap_or(25)
                 .max(1),
             observability: ObservabilityConfig::from_env(),
+            environment: env::var("KAIKU_ENV").unwrap_or_else(|_| "production".into()),
+            grafana_url: env::var("GRAFANA_URL").ok(),
+            tempo_url: env::var("TEMPO_URL").ok(),
+            loki_url: env::var("LOKI_URL").ok(),
+            prometheus_url: env::var("PROMETHEUS_URL").ok(),
         })
     }
 
@@ -450,6 +473,11 @@ impl Config {
                 trace_sample_ratio: 0.1,
                 log_level: "vc_server=info".into(),
             },
+            environment: "test".into(),
+            grafana_url: None,
+            tempo_url: None,
+            loki_url: None,
+            prometheus_url: None,
         }
     }
 }
