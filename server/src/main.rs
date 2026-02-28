@@ -23,7 +23,8 @@ async fn main() -> Result<()> {
     // Initialize observability (tracing-subscriber + OTel providers).
     // The guard MUST remain bound until the end of main — dropping it early
     // shuts down the providers before the server finishes handling requests.
-    let (_otel_guard, meter_provider) = vc_server::observability::init(&config.observability);
+    let (otel_guard, meter_provider, ingestion_channels) =
+        vc_server::observability::init(&config.observability);
     info!(
         version = env!("CARGO_PKG_VERSION"),
         "Starting VoiceChat Server"
@@ -33,10 +34,24 @@ async fn main() -> Result<()> {
     let db_pool = db::create_pool(&config.database_url).await?;
     db::run_migrations(&db_pool).await?;
 
-    // Register database pool observable gauges (requires pool + meter provider)
-    if meter_provider.is_some() {
-        vc_server::observability::metrics::register_db_pool_metrics(db_pool.clone());
-    }
+    // Register database pool observable gauges (meter provider is always active)
+    vc_server::observability::metrics::register_db_pool_metrics(db_pool.clone());
+
+    // Spawn native telemetry ingestion workers (log events + trace index + metrics)
+    let ingestion_handles = vc_server::observability::ingestion::spawn_ingestion_workers(
+        db_pool.clone(),
+        ingestion_channels.log_rx,
+        ingestion_channels.span_rx,
+        ingestion_channels.metric_rx,
+    );
+
+    // Spawn telemetry retention + rollup refresh job (hourly)
+    let retention_handle =
+        vc_server::observability::retention::spawn_retention_task(db_pool.clone());
+
+    // Spawn voice health score refresh task (every 10s)
+    let voice_health_handle =
+        vc_server::observability::voice::spawn_voice_health_task(db_pool.clone());
 
     // Initialize Redis
     let redis = db::create_redis_client(&config.redis_url).await?;
@@ -339,32 +354,43 @@ async fn main() -> Result<()> {
 
     info!("HTTP server stopped, cleaning up background tasks...");
 
-    // 1. Abort background cleanup tasks
+    // 1. Abort non-draining background tasks
     voice_cleanup_handle.abort();
     db_cleanup_handle.abort();
     webhook_worker_handle.abort();
     rtp_flush_handle.abort();
-    // Wait for them to finish (will return Err(JoinError) due to abort, which is expected)
+    retention_handle.abort();
+    voice_health_handle.abort();
     let _ = voice_cleanup_handle.await;
     let _ = db_cleanup_handle.await;
     let _ = webhook_worker_handle.await;
     let _ = rtp_flush_handle.await;
+    let _ = retention_handle.await;
+    let _ = voice_health_handle.await;
     info!("Background cleanup tasks stopped");
 
-    // 2. Close database pool gracefully
-    // This waits for active queries to complete (up to acquire_timeout)
+    // 2. Flush and shut down OTel providers. Dropping these closes the
+    //    channel senders (NativeLogLayer, NativeSpanProcessor,
+    //    NativeMetricExporter), which lets the ingestion workers drain
+    //    remaining items and terminate naturally.
+    drop(otel_guard);
+    drop(meter_provider);
+    info!("OTel providers shut down, draining ingestion channels...");
+
+    // 3. Wait for ingestion workers to drain (no abort — they exit when
+    //    their channel senders are dropped above).
+    let _ = ingestion_handles.log_handle.await;
+    let _ = ingestion_handles.span_handle.await;
+    let _ = ingestion_handles.metric_handle.await;
+    info!("Ingestion workers drained");
+
+    // 4. Close database pool gracefully
     db_pool.close().await;
     info!("Database pool closed");
 
-    // 3. Close Redis connection
-    // fred doesn't have an explicit close, but dropping the client handles cleanup
+    // 5. Close Redis connection
     drop(redis);
     info!("Redis connection closed");
-
-    // 4. Flush and shut down OTel providers.
-    //    `_otel_guard` and `_meter_provider` are dropped here (end of scope),
-    //    which triggers graceful shutdown of the tracer and meter providers.
-    //    All pending spans/metrics are flushed to the OTLP collector.
 
     info!("Server shutdown complete");
 

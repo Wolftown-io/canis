@@ -398,15 +398,10 @@ pub async fn query_top_routes(
     let limit = limit.min(MAX_PAGE_SIZE);
     let from = clamp_from_time(from, to);
 
-    let order = if sort_by_errors {
-        "error_count"
-    } else {
-        "avg_p95"
-    };
-
-    // Safe status_code cast: only cast values matching digit-only pattern
-    let sql = format!(
-        "SELECT \
+    // Two separate query strings to avoid format! SQL injection pattern.
+    // Safe status_code cast: only cast values matching digit-only pattern.
+    const BASE: &str = "\
+        SELECT \
              labels->>'http.route' AS route, \
              SUM(value_count) AS request_count, \
              SUM(CASE \
@@ -419,10 +414,16 @@ pub async fn query_top_routes(
          WHERE metric_name = 'kaiku_http_request_duration_ms' \
            AND ts >= $1 AND ts <= $2 \
            AND labels->>'http.route' IS NOT NULL \
-         GROUP BY labels->>'http.route' \
-         ORDER BY {order} DESC NULLS LAST \
-         LIMIT $3"
-    );
+         GROUP BY labels->>'http.route'";
+
+    const ORDER_BY_ERRORS: &str = " ORDER BY error_count DESC NULLS LAST LIMIT $3";
+    const ORDER_BY_P95: &str = " ORDER BY avg_p95 DESC NULLS LAST LIMIT $3";
+
+    let sql = if sort_by_errors {
+        format!("{BASE}{ORDER_BY_ERRORS}")
+    } else {
+        format!("{BASE}{ORDER_BY_P95}")
+    };
 
     sqlx::query_as::<_, TopRouteEntry>(&sql)
         .bind(from)
