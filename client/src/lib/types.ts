@@ -803,6 +803,7 @@ export interface Friend {
   avatar_url: string | null;
   status_message: string | null;
   is_online: boolean;
+  last_seen?: string | null;
   friendship_id: string;
   friendship_status: FriendshipStatus;
   created_at: string;

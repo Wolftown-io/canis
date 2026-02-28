@@ -282,7 +282,13 @@ export function setFriendOnlineStatus(userId: string, status: UserStatus): void 
 
   setFriendsState("friends", (prev) =>
     prev.map((friend) =>
-      friend.user_id === userId ? { ...friend, is_online: isOnline } : friend,
+      friend.user_id === userId
+        ? {
+            ...friend,
+            is_online: isOnline,
+            last_seen: isOnline ? null : new Date().toISOString(),
+          }
+        : friend,
     ),
   );
 }

@@ -5,7 +5,7 @@
  */
 
 import { Component, createSignal, For, onMount, Show } from "solid-js";
-import { Users, Search, UserPlus, Ghost } from "lucide-solid";
+import { Users, Search, UserPlus, Ghost, MessageCircle, Phone, X } from "lucide-solid";
 import {
   friendsState,
   loadFriends,
@@ -17,8 +17,12 @@ import {
   removeFriend,
   unblockUser,
 } from "@/stores/friends";
-import { getUserActivity, getUserStatus } from "@/stores/presence";
+import { getUserActivity, getUserPresence, getUserStatus } from "@/stores/presence";
 import type { Friend } from "@/lib/types";
+import { truncate, formatRelativeTime } from "@/lib/utils";
+import { createDM, joinVoice, startDMCall } from "@/lib/tauri";
+import { dmsState, loadDMs, selectDM } from "@/stores/dms";
+import { startCall } from "@/stores/call";
 import { ActivityIndicator } from "@/components/ui";
 import StatusIndicator from "@/components/ui/StatusIndicator";
 import { showToast } from "@/components/ui/Toast";
@@ -111,6 +115,65 @@ const FriendsList: Component = () => {
       showToast({
         type: "error",
         title: "Could not unblock user. Please try again.",
+        duration: 8000,
+      });
+    }
+  };
+
+  const findDirectDM = (friendUserId: string) =>
+    dmsState.dms.find(
+      (dm) =>
+        dm.participants.length === 2 &&
+        dm.participants.some((participant) => participant.user_id === friendUserId),
+    );
+
+  const ensureDMChannelId = async (friendUserId: string): Promise<string> => {
+    const existing = findDirectDM(friendUserId);
+    if (existing) {
+      return existing.id;
+    }
+
+    const dm = await createDM([friendUserId]);
+    void loadDMs();
+    return dm.channel.id;
+  };
+
+  const handleOpenChat = async (friendUserId: string) => {
+    try {
+      const channelId = await ensureDMChannelId(friendUserId);
+      selectDM(channelId);
+    } catch (err) {
+      console.error("Failed to open DM:", err);
+      showToast({
+        type: "error",
+        title: "Could not open chat. Please try again.",
+        duration: 8000,
+      });
+    }
+  };
+
+  const handleStartFriendCall = async (friend: Friend) => {
+    try {
+      const friendStatus = getUserStatus(friend.user_id);
+      if (friendStatus === "offline") {
+        showToast({
+          type: "warning",
+          title: "This friend is offline right now.",
+          duration: 6000,
+        });
+        return;
+      }
+
+      const channelId = await ensureDMChannelId(friend.user_id);
+      selectDM(channelId);
+      await startDMCall(channelId);
+      startCall(channelId);
+      await joinVoice(channelId);
+    } catch (err) {
+      console.error("Failed to start friend call:", err);
+      showToast({
+        type: "error",
+        title: "Could not start call. Please try again.",
         duration: 8000,
       });
     }
@@ -248,6 +311,8 @@ const FriendsList: Component = () => {
                   onReject={handleReject}
                   onRemove={handleRemove}
                   onUnblock={handleUnblock}
+                  onOpenChat={handleOpenChat}
+                  onCall={handleStartFriendCall}
                 />
               )}
             </For>
@@ -270,6 +335,8 @@ interface FriendItemProps {
   onReject: (friendshipId: string) => void;
   onRemove: (friendshipId: string) => void;
   onUnblock: (userId: string) => void;
+  onOpenChat: (userId: string) => void;
+  onCall: (friend: Friend) => void;
 }
 
 const FriendItem: Component<FriendItemProps> = (props) => {
@@ -280,6 +347,20 @@ const FriendItem: Component<FriendItemProps> = (props) => {
     }
 
     return props.friend.is_online ? "online" : "offline";
+  };
+
+  const customStatusText = () => {
+    const customStatus = getUserPresence(props.friend.user_id)?.customStatus?.text;
+    return customStatus || props.friend.status_message || "";
+  };
+
+  const offlineLastSeenText = () => {
+    const lastSeen = getUserPresence(props.friend.user_id)?.lastSeen || props.friend.last_seen;
+    if (!lastSeen || status() !== "offline") {
+      return null;
+    }
+
+    return `Last seen ${formatRelativeTime(lastSeen)}`;
   };
 
   return (
@@ -296,16 +377,22 @@ const FriendItem: Component<FriendItemProps> = (props) => {
 
       {/* Info */}
       <div class="flex-1 min-w-0">
-        <div class="font-semibold text-text-primary truncate">
-          {props.friend.display_name}
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="font-semibold text-text-primary truncate">
+            {props.friend.display_name}
+          </div>
+          <Show when={status() !== "offline" && customStatusText().trim().length > 0}>
+            <div class="text-xs text-text-secondary truncate max-w-48">
+              {truncate(customStatusText().trim(), 36)}
+            </div>
+          </Show>
         </div>
         <div class="text-sm text-text-secondary truncate">
           @{props.friend.username}
-          <Show when={props.friend.status_message}>
-            {" "}
-            - {props.friend.status_message}
-          </Show>
         </div>
+        <Show when={offlineLastSeenText()}>
+          <div class="text-xs text-text-secondary/80 truncate">{offlineLastSeenText()}</div>
+        </Show>
         {/* Activity indicator */}
         <Show when={getUserActivity(props.friend.user_id)}>
           <ActivityIndicator
@@ -332,11 +419,29 @@ const FriendItem: Component<FriendItemProps> = (props) => {
           </button>
         </Show>
         <Show when={props.tab === "all" || props.tab === "online"}>
+          <div class="flex items-center gap-2 mr-4">
+            <button
+              onClick={() => props.onOpenChat(props.friend.user_id)}
+              class="p-2 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-colors"
+              title="Open chat"
+            >
+              <MessageCircle class="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => props.onCall(props.friend)}
+              class="p-2 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-colors"
+              title="Start call"
+            >
+              <Phone class="w-4 h-4" />
+            </button>
+          </div>
           <button
             onClick={() => props.onRemove(props.friend.friendship_id)}
-            class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            class="p-2 text-red-400 rounded-lg hover:bg-red-500/20 hover:text-red-300 transition-colors"
+            title="Remove Friend"
+            aria-label="Remove Friend"
           >
-            Remove
+            <X class="w-4 h-4" />
           </button>
         </Show>
         <Show when={props.tab === "blocked"}>

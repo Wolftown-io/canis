@@ -34,6 +34,7 @@ pub struct Friend {
     pub avatar_url: Option<String>,
     pub status_message: Option<String>,
     pub is_online: bool,
+    pub last_seen: Option<chrono::DateTime<chrono::Utc>>,
     pub friendship_id: Uuid,
     pub friendship_status: FriendshipStatus,
     pub created_at: chrono::DateTime<chrono::Utc>,

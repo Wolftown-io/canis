@@ -143,7 +143,8 @@ pub async fn list_friends(
             u.display_name,
             u.avatar_url,
             u.status_message,
-            false as is_online,
+            CASE WHEN u.status = 'offline' THEN false ELSE true END as is_online,
+            CASE WHEN u.status = 'offline' THEN u.updated_at ELSE NULL END as last_seen,
             f.id as friendship_id,
             f.status as "friendship_status",
             f.created_at
@@ -188,7 +189,8 @@ pub async fn list_pending_requests(
             u.display_name,
             u.avatar_url,
             u.status_message,
-            false as is_online,
+            CASE WHEN u.status = 'offline' THEN false ELSE true END as is_online,
+            CASE WHEN u.status = 'offline' THEN u.updated_at ELSE NULL END as last_seen,
             f.id as friendship_id,
             f.status as "friendship_status",
             f.created_at
@@ -230,7 +232,8 @@ pub async fn list_blocked(
             u.display_name,
             u.avatar_url,
             u.status_message,
-            false as is_online,
+            CASE WHEN u.status = 'offline' THEN false ELSE true END as is_online,
+            CASE WHEN u.status = 'offline' THEN u.updated_at ELSE NULL END as last_seen,
             f.id as friendship_id,
             f.status as "friendship_status",
             f.created_at
