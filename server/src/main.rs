@@ -20,6 +20,9 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     let config = config::Config::from_env()?;
 
+    // Record server start time for uptime reporting in admin summary
+    vc_server::admin::observability::init_start_time();
+
     // Initialize observability (tracing-subscriber + OTel providers).
     // The guard MUST remain bound until the end of main — dropping it early
     // shuts down the providers before the server finishes handling requests.

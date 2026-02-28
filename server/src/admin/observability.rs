@@ -18,8 +18,14 @@ use super::types::{AdminError, SystemAdminUser};
 use crate::api::AppState;
 use crate::observability::storage;
 
-/// Server start time (set on first access, approximates process start).
+/// Server start time. Call [`init_start_time`] early in `main()` for accuracy.
 static START_TIME: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// Record the server start time. Call once during startup (before serving
+/// requests) so that `uptime_seconds` in the summary endpoint is accurate.
+pub fn init_start_time() {
+    START_TIME.get_or_init(Instant::now);
+}
 
 fn server_uptime_seconds() -> u64 {
     START_TIME.get_or_init(Instant::now).elapsed().as_secs()
@@ -360,7 +366,7 @@ pub async fn summary(
         server_metadata: ServerMetadata {
             version: env!("CARGO_PKG_VERSION"),
             uptime_seconds: server_uptime_seconds(),
-            environment: std::env::var("KAIKU_ENV").unwrap_or_else(|_| "production".into()),
+            environment: state.config.environment.clone(),
             active_user_count: user_count,
             guild_count,
         },
@@ -388,6 +394,15 @@ pub async fn trends(
         return Err(AdminError::Validation(
             "At most 10 metrics can be requested at once".into(),
         ));
+    }
+
+    // Validate metric names match the kaiku_ prefix convention
+    for name in &params.metric {
+        if !name.starts_with("kaiku_") {
+            return Err(AdminError::Validation(format!(
+                "Metric name must start with 'kaiku_': {name}"
+            )));
+        }
     }
 
     let (from, to) = params.range.to_time_bounds();
@@ -632,5 +647,23 @@ mod tests {
         let err: i64 = 5;
         let rate = err as f64 / req as f64 * 100.0;
         assert!((rate - 5.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn top_routes_sort_deserialization() {
+        let latency: TopRoutesSort = serde_json::from_str(r#""latency""#).unwrap();
+        assert!(matches!(latency, TopRoutesSort::Latency));
+
+        let errors: TopRoutesSort = serde_json::from_str(r#""errors""#).unwrap();
+        assert!(matches!(errors, TopRoutesSort::Errors));
+
+        // Invalid values are rejected
+        assert!(serde_json::from_str::<TopRoutesSort>(r#""foobar""#).is_err());
+    }
+
+    #[test]
+    fn metric_name_prefix_validation() {
+        assert!("kaiku_http_requests_total".starts_with("kaiku_"));
+        assert!(!"prometheus_up".starts_with("kaiku_"));
     }
 }
