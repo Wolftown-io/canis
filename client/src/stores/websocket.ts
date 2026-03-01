@@ -37,6 +37,7 @@ import {
   callEndedExternally,
   participantJoined,
   participantLeft,
+  callState,
   type EndReason,
 } from "./call";
 import {
@@ -353,7 +354,11 @@ export async function initWebSocket(): Promise<void> {
     pending.push(
       listen<{ channel_id: string; user_id: string; username: string }>("ws:call_participant_joined", (event) => {
         participantJoined(event.payload.channel_id, event.payload.user_id);
-        callConnected(event.payload.channel_id, [event.payload.user_id]);
+        // Only transition to connected on the first join (not on subsequent participants)
+        const status = callState.currentCall.status;
+        if (status === "outgoing_ringing" || status === "connecting") {
+          callConnected(event.payload.channel_id, [event.payload.user_id]);
+        }
       }),
     );
 
@@ -1082,8 +1087,13 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
     case "call_participant_joined":
       console.log("[WebSocket] Participant joined call:", event.username);
       participantJoined(event.channel_id, event.user_id);
-      // When someone joins, transition to connected state if we're connecting
-      callConnected(event.channel_id, [event.user_id]);
+      // Only transition to connected on the first join (not on subsequent participants)
+      {
+        const status = callState.currentCall.status;
+        if (status === "outgoing_ringing" || status === "connecting") {
+          callConnected(event.channel_id, [event.user_id]);
+        }
+      }
       break;
 
     case "call_participant_left":

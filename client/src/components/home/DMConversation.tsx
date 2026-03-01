@@ -18,6 +18,7 @@ import { currentUser } from "@/stores/auth";
 import MessageList from "@/components/messages/MessageList";
 import MessageInput from "@/components/messages/MessageInput";
 import TypingIndicator from "@/components/messages/TypingIndicator";
+import { showToast } from "@/components/ui/Toast";
 import { CallBanner } from "@/components/call";
 import { callState, startCall, endCall, isInCallForChannel } from "@/stores/call";
 import {
@@ -124,6 +125,12 @@ const DMConversation: Component = () => {
       setIsEditingName(false);
     } catch (err) {
       console.error("Failed to update DM name:", err);
+      showToast({
+        type: "error",
+        title: "Could not rename conversation. Please try again.",
+        duration: 5000,
+      });
+      setIsEditingName(false);
     }
   };
 
