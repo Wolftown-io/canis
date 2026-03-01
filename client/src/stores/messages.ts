@@ -354,11 +354,18 @@ export async function addMessage(message: Message): Promise<void> {
   if (existing.some((m) => m.id === processedMessage.id)) {
     return;
   }
-  // If this is a confirmed echo of our own message, replace the pending placeholder
+  // If this is a confirmed echo of our own message, replace the oldest pending placeholder
   const me = currentUser();
-  const hasPending = me && processedMessage.author.id === me.id && existing.some((m) => m.id.startsWith("pending:"));
-  const base = hasPending ? existing.filter((m) => !m.id.startsWith("pending:")) : existing;
-  setMessagesState("byChannel", channelId, [...base, processedMessage]);
+  if (me && processedMessage.author.id === me.id) {
+    const pendingIdx = existing.findIndex((m) => m.id.startsWith("pending:"));
+    if (pendingIdx !== -1) {
+      const base = [...existing];
+      base.splice(pendingIdx, 1);
+      setMessagesState("byChannel", channelId, [...base, processedMessage]);
+      return;
+    }
+  }
+  setMessagesState("byChannel", channelId, [...existing, processedMessage]);
 }
 
 /**

@@ -19,7 +19,7 @@ import MessageList from "@/components/messages/MessageList";
 import MessageInput from "@/components/messages/MessageInput";
 import TypingIndicator from "@/components/messages/TypingIndicator";
 import { CallBanner } from "@/components/call";
-import { callState, startCall, isInCallForChannel } from "@/stores/call";
+import { callState, startCall, endCall, isInCallForChannel } from "@/stores/call";
 import {
   startDMCall,
   joinVoice,
@@ -54,6 +54,8 @@ const DMConversation: Component = () => {
       await joinVoice(currentDM.id);
     } catch (err) {
       console.error("Failed to start call:", err);
+      // Roll back optimistic call state on failure
+      endCall(currentDM.id, "cancelled");
     } finally {
       setIsStartingCall(false);
     }

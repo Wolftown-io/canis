@@ -1349,6 +1349,11 @@ export async function connect(): Promise<void> {
     setWsState({ status: "connecting", error: null });
     connectStartTime = Date.now();
     await tauri.wsConnect();
+    // In browser mode, wsConnect resolves after onopen; update store state here
+    // (Tauri mode updates via the ws:connected event listener instead)
+    if (!isTauri) {
+      setWsState({ status: "connected", reconnectAttempt: 0, error: null });
+    }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setWsState({ status: "disconnected", error });
