@@ -116,6 +116,7 @@ export async function initAuth(): Promise<void> {
       ]);
 
       // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+      initIdleDetection();
     }
   } catch (err) {
     console.error("Failed to restore session:", err);
