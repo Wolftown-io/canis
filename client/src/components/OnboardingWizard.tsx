@@ -251,6 +251,11 @@ const OnboardingWizard: Component = () => {
     try {
       await joinViaInviteCode(code);
       setInviteCode("");
+      showToast({
+        type: "success",
+        title: "Joined!",
+        message: "You've joined the server.",
+      });
     } catch (err: unknown) {
       console.error("Failed to join via invite code:", err);
       showToast({
