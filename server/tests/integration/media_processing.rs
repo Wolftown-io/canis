@@ -113,6 +113,9 @@ async fn test_variant_download_not_found() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_image_upload_generates_metadata() {
+    if !super::helpers::rustfs_available().await {
+        return;
+    }
     let (app, _bucket) = super::helpers::fresh_test_app_with_s3().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let token = generate_access_token(&app.config, user_id);
@@ -173,6 +176,9 @@ async fn test_image_upload_generates_metadata() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_non_image_upload_no_metadata() {
+    if !super::helpers::rustfs_available().await {
+        return;
+    }
     let (app, _bucket) = super::helpers::fresh_test_app_with_s3().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let token = generate_access_token(&app.config, user_id);
@@ -223,6 +229,9 @@ async fn test_non_image_upload_no_metadata() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_variant_download_returns_webp() {
+    if !super::helpers::rustfs_available().await {
+        return;
+    }
     let (app, _bucket) = super::helpers::fresh_test_app_with_s3().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let token = generate_access_token(&app.config, user_id);
@@ -286,6 +295,9 @@ async fn test_variant_download_returns_webp() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_variant_fallback_to_original() {
+    if !super::helpers::rustfs_available().await {
+        return;
+    }
     let (app, _bucket) = super::helpers::fresh_test_app_with_s3().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let token = generate_access_token(&app.config, user_id);
@@ -348,6 +360,9 @@ async fn test_variant_fallback_to_original() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_invalid_variant_returns_validation_error() {
+    if !super::helpers::rustfs_available().await {
+        return;
+    }
     let (app, _bucket) = super::helpers::fresh_test_app_with_s3().await;
     let (user_id, _) = create_test_user(&app.pool).await;
     let token = generate_access_token(&app.config, user_id);

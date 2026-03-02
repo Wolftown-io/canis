@@ -167,7 +167,7 @@ impl Drop for CleanupGuard {
         }
 
         let pool = self.pool.clone();
-        let _ = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -178,8 +178,18 @@ impl Drop for CleanupGuard {
                 }
             });
         })
-        .join();
+        .join()
+        .expect("Cleanup thread panicked");
     }
+}
+
+pub async fn rustfs_available() -> bool {
+    tokio::time::timeout(
+        std::time::Duration::from_millis(300),
+        tokio::net::TcpStream::connect("127.0.0.1:9000"),
+    )
+    .await
+    .is_ok_and(|result| result.is_ok())
 }
 
 // ============================================================================
@@ -429,12 +439,18 @@ pub fn generate_access_token(config: &Config, user_id: Uuid) -> String {
 
 /// Delete a user by ID (cascades to friendships, reports, etc.).
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) {
-    if let Err(err) = sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(user_id)
-        .execute(pool)
-        .await
-    {
-        tracing::warn!(%user_id, %err, "Failed to delete test user");
+    for attempt in 0..5 {
+        match sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(user_id)
+            .execute(pool)
+            .await
+        {
+            Ok(_) => return,
+            Err(sqlx::Error::PoolTimedOut) if attempt < 4 => {
+                tokio::time::sleep(std::time::Duration::from_millis(50 * (attempt + 1))).await;
+            }
+            Err(err) => panic!("Failed to delete test user: {err}"),
+        }
     }
 }
 

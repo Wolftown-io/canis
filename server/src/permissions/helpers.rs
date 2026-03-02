@@ -21,6 +21,8 @@ pub struct MemberPermissionContext {
     /// Permissions from the @everyone role.
     pub everyone_permissions: GuildPermissions,
 
+    pub everyone_role_id: Option<Uuid>,
+
     /// All roles assigned to this member (excluding @everyone).
     pub member_roles: Vec<GuildRole>,
 
@@ -114,6 +116,7 @@ pub async fn get_member_permission_context(
     .fetch_optional(pool)
     .await?;
 
+    let everyone_role_id = everyone_role.as_ref().map(|r| r.id);
     let everyone_permissions = everyone_role.map(|r| r.permissions).unwrap_or_default();
 
     // Get all roles assigned to the member
@@ -146,6 +149,7 @@ pub async fn get_member_permission_context(
     Ok(Some(MemberPermissionContext {
         guild_owner_id: guild_info.guild_owner_id,
         everyone_permissions,
+        everyone_role_id,
         member_roles,
         computed_permissions,
         highest_role_position,
@@ -229,6 +233,7 @@ pub async fn require_channel_access(
         return Ok(MemberPermissionContext {
             guild_owner_id: Uuid::nil(), // No owner for DMs
             everyone_permissions: GuildPermissions::empty(),
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::all(), // Full access to participant
             highest_role_position: None,
@@ -255,13 +260,19 @@ pub async fn require_channel_access(
         .map_err(|e| PermissionError::DatabaseError(e.to_string()))?;
 
     // Compute channel-specific permissions
-    let perms = compute_guild_permissions(
+    let mut perms = compute_guild_permissions(
         user_id,
         ctx.guild_owner_id,
         ctx.everyone_permissions,
         &ctx.member_roles,
         Some(&overrides),
     );
+    if let Some(everyone_role_id) = ctx.everyone_role_id {
+        if let Some(override_entry) = overrides.iter().find(|ovr| ovr.role_id == everyone_role_id) {
+            perms |= override_entry.allow_permissions;
+            perms &= !override_entry.deny_permissions;
+        }
+    }
 
     if !perms.has(GuildPermissions::VIEW_CHANNEL) {
         return Err(PermissionError::MissingPermission(
@@ -328,13 +339,21 @@ pub async fn filter_accessible_channels(
     let mut accessible = Vec::with_capacity(channel_ids.len());
     for &channel_id in channel_ids {
         let overrides = overrides_by_channel.get(&channel_id);
-        let perms = compute_guild_permissions(
+        let mut perms = compute_guild_permissions(
             user_id,
             ctx.guild_owner_id,
             ctx.everyone_permissions,
             &ctx.member_roles,
             overrides.map(|v| v.as_slice()),
         );
+        if let Some(everyone_role_id) = ctx.everyone_role_id {
+            if let Some(override_entry) =
+                overrides.and_then(|v| v.iter().find(|ovr| ovr.role_id == everyone_role_id))
+            {
+                perms |= override_entry.allow_permissions;
+                perms &= !override_entry.deny_permissions;
+            }
+        }
         if perms.has(GuildPermissions::VIEW_CHANNEL) {
             accessible.push(channel_id);
         }
@@ -358,6 +377,7 @@ mod tests {
         let ctx = MemberPermissionContext {
             guild_owner_id: Uuid::new_v4(),
             everyone_permissions: GuildPermissions::SEND_MESSAGES,
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::SEND_MESSAGES | GuildPermissions::VOICE_CONNECT,
             highest_role_position: None,
@@ -374,6 +394,7 @@ mod tests {
         let ctx = MemberPermissionContext {
             guild_owner_id: Uuid::new_v4(),
             everyone_permissions: GuildPermissions::SEND_MESSAGES,
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::SEND_MESSAGES | GuildPermissions::MANAGE_ROLES,
             highest_role_position: Some(50),
@@ -393,6 +414,7 @@ mod tests {
         let ctx = MemberPermissionContext {
             guild_owner_id: Uuid::new_v4(),
             everyone_permissions: GuildPermissions::SEND_MESSAGES,
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::SEND_MESSAGES,
             highest_role_position: None,
@@ -409,6 +431,7 @@ mod tests {
         let ctx = MemberPermissionContext {
             guild_owner_id: owner_id,
             everyone_permissions: GuildPermissions::SEND_MESSAGES,
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::all(), // Owners have all permissions
             highest_role_position: None,
@@ -426,6 +449,7 @@ mod tests {
         let ctx_no_roles = MemberPermissionContext {
             guild_owner_id: Uuid::new_v4(),
             everyone_permissions: GuildPermissions::empty(),
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::empty(),
             highest_role_position: None,
@@ -437,6 +461,7 @@ mod tests {
         let ctx_with_roles = MemberPermissionContext {
             guild_owner_id: Uuid::new_v4(),
             everyone_permissions: GuildPermissions::empty(),
+            everyone_role_id: None,
             member_roles: vec![], // Roles would be here but we just test the position
             computed_permissions: GuildPermissions::KICK_MEMBERS,
             highest_role_position: Some(50),
@@ -456,6 +481,7 @@ mod tests {
         let ctx = MemberPermissionContext {
             guild_owner_id: owner_id,
             everyone_permissions: GuildPermissions::empty(),
+            everyone_role_id: None,
             member_roles: vec![],
             computed_permissions: GuildPermissions::all(),
             highest_role_position: None,
