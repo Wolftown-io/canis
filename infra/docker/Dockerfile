@@ -32,9 +32,10 @@ RUN mkdir -p shared/vc-common/src shared/vc-crypto/src server/src client/src-tau
 # Build dependencies only (this layer will be cached)
 RUN cargo build --release --package vc-server 2>/dev/null || true
 
-# Copy actual source code
+# Copy actual source code (touch to invalidate cargo cache from dummy build)
 COPY shared/ shared/
 COPY server/ server/
+RUN find shared/ server/ -name "*.rs" -exec touch {} +
 
 # Copy SQLx offline query cache (required for building without a database)
 COPY .sqlx/ .sqlx/
