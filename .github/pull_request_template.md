@@ -18,6 +18,7 @@
 - [ ] `bun run test:run` (client)
 - [ ] `cargo fmt --check`
 - [ ] `SQLX_OFFLINE=true cargo clippy -- -D warnings`
+- [ ] `python3 scripts/check_ci_guardrails.py`
 
 ## Changelog
 

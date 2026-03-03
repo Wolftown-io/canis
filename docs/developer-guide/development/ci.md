@@ -46,7 +46,7 @@ Platform-specific notes:
 |----------|--------|-------|
 | Ubuntu | Requires `libvpx-dev`, `libpipewire-0.3-dev`, and other system deps | |
 | macOS | Requires `libvpx` via Homebrew | |
-| Windows | `continue-on-error: true` | `libvpx` not available via choco; `env-libvpx-sys` build fails |
+| Windows | Uses `vcpkg` + explicit `VPX_*` env vars | `vpx.lib` is copied to `libvpx.lib` for `env-libvpx-sys` compatibility |
 
 Icons in `client/src-tauri/icons/` must be committed to the repo. The Tauri bundler needs `icon.ico` for deb packaging and `icon.icns` for macOS.
 
@@ -80,4 +80,14 @@ cargo deny check licenses
 
 # Frontend
 cd client && bunx tsc --noEmit && bun run build
+```
+
+## CI Guardrails
+
+Use the incident-driven guardrails in `docs/developer-guide/development/ci-guardrails.md`.
+
+Automated check:
+
+```bash
+python3 scripts/check_ci_guardrails.py
 ```
