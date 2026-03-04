@@ -109,7 +109,15 @@ impl S3Client {
         Ok(Self {
             client,
             bucket: config.s3_bucket.clone(),
-            presign_expiry: Duration::from_secs(config.s3_presign_expiry as u64),
+            // Safety: s3_presign_expiry is clamped to >= 1 at parse time in Config::from_env
+            presign_expiry: Duration::from_secs(u64::try_from(config.s3_presign_expiry).map_err(
+                |_| {
+                    S3Error::Config(format!(
+                        "s3_presign_expiry must be positive, got {}",
+                        config.s3_presign_expiry
+                    ))
+                },
+            )?),
         })
     }
 

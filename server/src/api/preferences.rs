@@ -107,6 +107,7 @@ const MAX_KEYWORD_LEN: usize = 30;
 const MIN_KEYWORD_LEN: usize = 3;
 const MAX_MODE_NAME_LEN: usize = 30;
 
+/// Counts Unicode scalar values (code points), matching `Array.from(str).length` in JavaScript.
 fn unicode_len(s: &str) -> usize {
     s.chars().count()
 }
