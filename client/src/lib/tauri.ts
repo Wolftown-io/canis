@@ -402,7 +402,9 @@ function scheduleTokenRefresh() {
 }
 
 /**
- * Refresh the access token using the refresh token.
+ * Refresh the access token. Browser mode sends a credentialed request so the
+ * server reads the HttpOnly cookie; Tauri mode sends the refresh token in the
+ * request body.
  */
 export async function refreshAccessToken(): Promise<boolean> {
   try {
@@ -414,11 +416,11 @@ export async function refreshAccessToken(): Promise<boolean> {
     // (server reads the HttpOnly cookie automatically).
     const fetchOptions: RequestInit = {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       credentials: "include",
     };
     if (browserState.refreshToken) {
       // Tauri / explicit token flow
+      fetchOptions.headers = { "Content-Type": "application/json" };
       fetchOptions.body = JSON.stringify({
         refresh_token: browserState.refreshToken,
       });
@@ -472,8 +474,8 @@ export async function refreshAccessToken(): Promise<boolean> {
 // On browser load, attempt to restore session from HttpOnly cookie.
 // The cookie is sent automatically; the server returns a fresh access token.
 if (!isTauri && !browserState.accessToken) {
-  refreshAccessToken().catch(() => {
-    /* no stored session — user needs to log in */
+  refreshAccessToken().catch((error) => {
+    console.warn("[Auth] Session restore failed:", error);
   });
 }
 
@@ -485,9 +487,10 @@ async function httpRequest<T>(
 ): Promise<T> {
   const token = browserState.accessToken;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = {};
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;

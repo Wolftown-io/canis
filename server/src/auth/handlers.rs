@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Multipart, Path, State};
 use axum::http::header::USER_AGENT;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Json};
 use axum_extra::extract::CookieJar;
@@ -37,6 +37,17 @@ use crate::db::{
 use crate::ratelimit::NormalizedIp;
 use crate::util::format_file_size;
 use crate::ws::broadcast_user_patch;
+
+/// Extract a refresh token from either the JSON body or `HttpOnly` cookie.
+fn extract_refresh_token(body_token: Option<String>, jar: &CookieJar) -> AuthResult<String> {
+    body_token
+        .or_else(|| {
+            jar.get(cookies::REFRESH_COOKIE_NAME)
+                .map(|c| c.value().to_owned())
+        })
+        .filter(|t| !t.is_empty())
+        .ok_or(AuthError::InvalidToken)
+}
 
 // ============================================================================
 // Request/Response Types
@@ -723,7 +734,7 @@ pub async fn login(
     post,
     path = "/auth/refresh",
     tag = "auth",
-    request_body = RefreshRequest,
+    request_body(content = RefreshRequest, description = "Required for Tauri clients; browser clients use HttpOnly cookie instead"),
     responses(
         (status = 200, description = "Token refreshed successfully", body = AuthResponse),
         (status = 401, description = "Invalid or expired token"),
@@ -739,13 +750,7 @@ pub async fn refresh_token(
     body: Option<Json<RefreshRequest>>,
 ) -> AuthResult<(CookieJar, Json<AuthResponse>)> {
     // Read refresh token from JSON body (Tauri) or HttpOnly cookie (browser)
-    let raw_token = body
-        .map(|b| b.0.refresh_token)
-        .or_else(|| {
-            jar.get(cookies::REFRESH_COOKIE_NAME)
-                .map(|c| c.value().to_owned())
-        })
-        .ok_or(AuthError::InvalidToken)?;
+    let raw_token = extract_refresh_token(body.map(|b| b.0.refresh_token), &jar)?;
 
     // Validate the refresh token (JWT validation)
     let claims = validate_refresh_token(&raw_token, &state.config.jwt_public_key)?;
@@ -855,7 +860,7 @@ pub async fn refresh_token(
     post,
     path = "/auth/logout",
     tag = "auth",
-    request_body = LogoutRequest,
+    request_body(content = LogoutRequest, description = "Required for Tauri clients; browser clients use HttpOnly cookie instead"),
     responses(
         (status = 200, description = "Logged out successfully"),
     ),
@@ -869,13 +874,7 @@ pub async fn logout(
     body: Option<Json<LogoutRequest>>,
 ) -> AuthResult<CookieJar> {
     // Read refresh token from JSON body (Tauri) or HttpOnly cookie (browser)
-    let raw_token = body
-        .map(|b| b.0.refresh_token)
-        .or_else(|| {
-            jar.get(cookies::REFRESH_COOKIE_NAME)
-                .map(|c| c.value().to_owned())
-        })
-        .ok_or(AuthError::InvalidToken)?;
+    let raw_token = extract_refresh_token(body.map(|b| b.0.refresh_token), &jar)?;
 
     // Verify the session belongs to the authenticated user before deleting
     let token_hash = hash_token(&raw_token);
@@ -1791,9 +1790,10 @@ pub async fn oidc_authorize(
         (status = 400, description = "Invalid callback parameters"),
     ),
 )]
-#[tracing::instrument(skip(state, query))]
+#[tracing::instrument(skip(state, jar, query))]
 pub async fn oidc_callback(
     State(state): State<AppState>,
+    jar: CookieJar,
     axum::extract::Query(query): axum::extract::Query<OidcCallbackQuery>,
 ) -> Result<Response, AuthError> {
     let oidc_manager = state
@@ -2023,7 +2023,13 @@ pub async fn oidc_callback(
             .append_pair("setup_required", &(!setup_complete).to_string());
         Ok(Redirect::temporary(redirect_url.as_str()).into_response())
     } else {
-        // Browser flow: return HTML with postMessage to opener
+        // Browser flow: set HttpOnly refresh cookie + return HTML with postMessage
+        let jar = jar.add(cookies::build_refresh_cookie(
+            &tokens.refresh_token,
+            state.config.jwt_refresh_expiry,
+            &state.config,
+        ));
+
         // JSON-encode tokens to prevent any injection via token values
         let payload = serde_json::json!({
             "type": "oidc-callback",
@@ -2043,7 +2049,7 @@ if (window.opener) {{
 }}
 </script></body></html>"#,
         );
-        Ok((StatusCode::OK, axum::response::Html(html)).into_response())
+        Ok((jar, axum::response::Html(html)).into_response())
     }
 }
 

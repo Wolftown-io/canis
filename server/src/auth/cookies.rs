@@ -12,14 +12,22 @@ use crate::config::Config;
 /// Cookie name for the refresh token.
 pub const REFRESH_COOKIE_NAME: &str = "kaiku_refresh";
 
-/// Build an `HttpOnly` cookie that stores the refresh token.
-pub fn build_refresh_cookie<'c>(token: &str, max_age_secs: i64, config: &Config) -> Cookie<'c> {
-    let mut cookie = Cookie::build((REFRESH_COOKIE_NAME, token.to_owned()))
+/// Parse the configured `SameSite` policy string into the enum variant.
+fn parse_same_site(config: &Config) -> SameSite {
+    match config.cookie_same_site.as_str() {
+        "strict" => SameSite::Strict,
+        "none" => SameSite::None,
+        _ => SameSite::Lax,
+    }
+}
+
+/// Build a base cookie with shared security attributes.
+fn base_cookie(config: &Config) -> Cookie<'static> {
+    let mut cookie = Cookie::build((REFRESH_COOKIE_NAME, String::new()))
         .http_only(true)
-        .same_site(SameSite::Strict)
+        .same_site(parse_same_site(config))
         .path("/auth")
         .secure(config.cookie_secure)
-        .max_age(Duration::seconds(max_age_secs))
         .build();
 
     if let Some(domain) = &config.cookie_domain {
@@ -29,19 +37,17 @@ pub fn build_refresh_cookie<'c>(token: &str, max_age_secs: i64, config: &Config)
     cookie
 }
 
-/// Build a cookie that clears the refresh token (max-age = 0).
+/// Build an `HttpOnly` cookie that stores the refresh token.
+pub fn build_refresh_cookie(token: &str, max_age_secs: i64, config: &Config) -> Cookie<'static> {
+    let mut cookie = base_cookie(config);
+    cookie.set_value(token.to_owned());
+    cookie.set_max_age(Duration::seconds(max_age_secs));
+    cookie
+}
+
+/// Build a cookie that instructs the browser to delete the refresh token (Max-Age=0).
 pub fn build_clear_cookie(config: &Config) -> Cookie<'static> {
-    let mut cookie = Cookie::build((REFRESH_COOKIE_NAME, ""))
-        .http_only(true)
-        .same_site(SameSite::Strict)
-        .path("/auth")
-        .secure(config.cookie_secure)
-        .max_age(Duration::ZERO)
-        .build();
-
-    if let Some(domain) = &config.cookie_domain {
-        cookie.set_domain(domain.clone());
-    }
-
+    let mut cookie = base_cookie(config);
+    cookie.set_max_age(Duration::ZERO);
     cookie
 }

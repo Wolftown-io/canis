@@ -152,6 +152,11 @@ pub struct Config {
     /// Override via `COOKIE_DOMAIN` env var.
     pub cookie_domain: Option<String>,
 
+    /// `SameSite` policy for auth cookies: `lax`, `strict`, or `none` (default: `lax`).
+    /// Use `strict` for same-origin deployments, `none` for cross-origin (requires Secure).
+    /// Override via `COOKIE_SAMESITE` env var.
+    pub cookie_same_site: String,
+
     /// SMTP server hostname (optional, enables password reset emails)
     pub smtp_host: Option<String>,
 
@@ -315,7 +320,10 @@ impl Config {
                 .ok()
                 .map(|v| v.to_lowercase() == "true" || v == "1")
                 .unwrap_or(!cfg!(debug_assertions)),
-            cookie_domain: env::var("COOKIE_DOMAIN").ok(),
+            cookie_domain: env::var("COOKIE_DOMAIN").ok().filter(|d| !d.is_empty()),
+            cookie_same_site: env::var("COOKIE_SAMESITE")
+                .unwrap_or_else(|_| "lax".to_string())
+                .to_lowercase(),
             smtp_host: env::var("SMTP_HOST").ok(),
             smtp_port: env::var("SMTP_PORT")
                 .ok()
@@ -463,6 +471,7 @@ impl Config {
             cors_allowed_origins: vec!["*".to_string()],
             cookie_secure: false,
             cookie_domain: None,
+            cookie_same_site: "lax".to_string(),
             smtp_host: None,
             smtp_port: 587,
             smtp_username: None,
