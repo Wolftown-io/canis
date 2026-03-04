@@ -117,11 +117,13 @@ pub fn create_router(state: AppState) -> Router {
     // In production, set CORS_ALLOWED_ORIGINS to specific origins
     let cors = if state.config.cors_allowed_origins.iter().any(|o| o == "*") {
         tracing::warn!("CORS configured with wildcard origin — restrict via CORS_ALLOWED_ORIGINS in production");
-        // Development mode: allow any origin
+        // Development mode: mirror the request origin so allow_credentials works
+        // (wildcard origin is incompatible with credentials)
         CorsLayer::new()
-            .allow_origin(Any)
+            .allow_origin(tower_http::cors::AllowOrigin::mirror_request())
             .allow_methods(Any)
             .allow_headers(Any)
+            .allow_credentials(true)
     } else {
         // Production mode: restrict to configured origins
         use axum::http::{header, HeaderName, Method};

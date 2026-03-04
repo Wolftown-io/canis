@@ -7,6 +7,7 @@ use axum::http::header::USER_AGENT;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Json};
+use axum_extra::extract::CookieJar;
 use chrono::{Duration, Utc};
 use fred::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -16,6 +17,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use super::backup_codes::{find_matching_backup_code, generate_backup_codes, BACKUP_CODE_COUNT};
+use super::cookies;
 use super::error::{AuthError, AuthResult};
 use super::jwt::{generate_token_pair, validate_refresh_token};
 use super::mfa_crypto::{decrypt_mfa_secret, encrypt_mfa_secret};
@@ -293,13 +295,14 @@ mod tests {
     ),
     security(()),
 )]
-#[tracing::instrument(skip(state, body), fields(username = %body.username))]
+#[tracing::instrument(skip(state, jar, body), fields(username = %body.username))]
 pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
+    jar: CookieJar,
     Json(body): Json<RegisterRequest>,
-) -> AuthResult<Json<AuthResponse>> {
+) -> AuthResult<(CookieJar, Json<AuthResponse>)> {
     // Validate input first
     body.validate()
         .map_err(|e| AuthError::Validation(e.to_string()))?;
@@ -499,13 +502,22 @@ pub async fn register(
         tracing::info!(user_id = %user.id, username = %user.username, "User registered");
     }
 
-    Ok(Json(AuthResponse {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_in: tokens.access_expires_in,
-        token_type: "Bearer".to_string(),
-        setup_required: !setup_complete,
-    }))
+    let jar = jar.add(cookies::build_refresh_cookie(
+        &tokens.refresh_token,
+        state.config.jwt_refresh_expiry,
+        &state.config,
+    ));
+
+    Ok((
+        jar,
+        Json(AuthResponse {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.access_expires_in,
+            token_type: "Bearer".to_string(),
+            setup_required: !setup_complete,
+        }),
+    ))
 }
 
 /// Login with username/password.
@@ -523,14 +535,15 @@ pub async fn register(
     ),
     security(()),
 )]
-#[tracing::instrument(skip(state, body, normalized_ip), fields(username = %body.username))]
+#[tracing::instrument(skip(state, jar, body, normalized_ip), fields(username = %body.username))]
 pub async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     normalized_ip: Option<Extension<NormalizedIp>>,
     headers: HeaderMap,
+    jar: CookieJar,
     Json(body): Json<LoginRequest>,
-) -> AuthResult<Json<AuthResponse>> {
+) -> AuthResult<(CookieJar, Json<AuthResponse>)> {
     // Helper macro to record failed auth (if rate limiter is configured)
     // SECURITY: Fails request if rate limiter is down (fail-closed pattern)
     macro_rules! record_failed_auth {
@@ -681,13 +694,22 @@ pub async fn login(
     tracing::info!(user_id = %user.id, setup_required = !setup_complete, "User logged in");
     crate::observability::metrics::record_auth_login_attempt(true);
 
-    Ok(Json(AuthResponse {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_in: tokens.access_expires_in,
-        token_type: "Bearer".to_string(),
-        setup_required: !setup_complete,
-    }))
+    let jar = jar.add(cookies::build_refresh_cookie(
+        &tokens.refresh_token,
+        state.config.jwt_refresh_expiry,
+        &state.config,
+    ));
+
+    Ok((
+        jar,
+        Json(AuthResponse {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.access_expires_in,
+            token_type: "Bearer".to_string(),
+            setup_required: !setup_complete,
+        }),
+    ))
 }
 
 /// Refresh access token using refresh token.
@@ -708,20 +730,30 @@ pub async fn login(
     ),
     security(()),
 )]
-#[tracing::instrument(skip(state, body))]
+#[tracing::instrument(skip(state, jar, body))]
 pub async fn refresh_token(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(body): Json<RefreshRequest>,
-) -> AuthResult<Json<AuthResponse>> {
+    jar: CookieJar,
+    body: Option<Json<RefreshRequest>>,
+) -> AuthResult<(CookieJar, Json<AuthResponse>)> {
+    // Read refresh token from JSON body (Tauri) or HttpOnly cookie (browser)
+    let raw_token = body
+        .map(|b| b.0.refresh_token)
+        .or_else(|| {
+            jar.get(cookies::REFRESH_COOKIE_NAME)
+                .map(|c| c.value().to_owned())
+        })
+        .ok_or(AuthError::InvalidToken)?;
+
     // Validate the refresh token (JWT validation)
-    let claims = validate_refresh_token(&body.refresh_token, &state.config.jwt_public_key)?;
+    let claims = validate_refresh_token(&raw_token, &state.config.jwt_public_key)?;
 
     // Parse user ID
     let user_id: Uuid = claims.sub.parse().map_err(|_| AuthError::InvalidToken)?;
 
-    let token_hash = hash_token(&body.refresh_token);
+    let token_hash = hash_token(&raw_token);
 
     // Wrap session lookup, deletion, and creation in a transaction with FOR UPDATE
     // to prevent race conditions in token rotation.
@@ -798,13 +830,22 @@ pub async fn refresh_token(
     tracing::info!(user_id = %user_id, "Token refreshed");
     crate::observability::metrics::record_token_refresh(true);
 
-    Ok(Json(AuthResponse {
-        access_token: new_tokens.access_token,
-        refresh_token: new_tokens.refresh_token,
-        expires_in: new_tokens.access_expires_in,
-        token_type: "Bearer".to_string(),
-        setup_required: !setup_complete,
-    }))
+    let jar = jar.add(cookies::build_refresh_cookie(
+        &new_tokens.refresh_token,
+        state.config.jwt_refresh_expiry,
+        &state.config,
+    ));
+
+    Ok((
+        jar,
+        Json(AuthResponse {
+            access_token: new_tokens.access_token,
+            refresh_token: new_tokens.refresh_token,
+            expires_in: new_tokens.access_expires_in,
+            token_type: "Bearer".to_string(),
+            setup_required: !setup_complete,
+        }),
+    ))
 }
 
 /// Logout and invalidate session.
@@ -820,14 +861,24 @@ pub async fn refresh_token(
     ),
     security(("bearer_auth" = [])),
 )]
-#[tracing::instrument(skip(state, body), fields(user_id = %auth_user.id))]
+#[tracing::instrument(skip(state, jar, body), fields(user_id = %auth_user.id))]
 pub async fn logout(
     State(state): State<AppState>,
     auth_user: AuthUser,
-    Json(body): Json<LogoutRequest>,
-) -> AuthResult<()> {
+    jar: CookieJar,
+    body: Option<Json<LogoutRequest>>,
+) -> AuthResult<CookieJar> {
+    // Read refresh token from JSON body (Tauri) or HttpOnly cookie (browser)
+    let raw_token = body
+        .map(|b| b.0.refresh_token)
+        .or_else(|| {
+            jar.get(cookies::REFRESH_COOKIE_NAME)
+                .map(|c| c.value().to_owned())
+        })
+        .ok_or(AuthError::InvalidToken)?;
+
     // Verify the session belongs to the authenticated user before deleting
-    let token_hash = hash_token(&body.refresh_token);
+    let token_hash = hash_token(&raw_token);
     let session = find_session_by_token_hash(&state.db, &token_hash)
         .await?
         .ok_or(AuthError::InvalidToken)?;
@@ -840,7 +891,7 @@ pub async fn logout(
 
     tracing::info!(user_id = %auth_user.id, "User logged out");
 
-    Ok(())
+    Ok(jar.add(cookies::build_clear_cookie(&state.config)))
 }
 
 /// Get current user profile.

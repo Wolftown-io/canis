@@ -18,6 +18,8 @@ futures.workspace = true
 
 # Web
 axum.workspace = true
+axum-extra.workspace = true
+time.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tokio-tungstenite.workspace = true

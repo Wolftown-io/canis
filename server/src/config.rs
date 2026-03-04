@@ -144,6 +144,14 @@ pub struct Config {
     /// Set to specific origins in production (e.g., "<https://app.example.com>")
     pub cors_allowed_origins: Vec<String>,
 
+    /// Whether to set the Secure flag on auth cookies (default: true in release, false in debug).
+    /// Override via `COOKIE_SECURE` env var.
+    pub cookie_secure: bool,
+
+    /// Optional domain for auth cookies. If unset, cookies are scoped to the request host.
+    /// Override via `COOKIE_DOMAIN` env var.
+    pub cookie_domain: Option<String>,
+
     /// SMTP server hostname (optional, enables password reset emails)
     pub smtp_host: Option<String>,
 
@@ -303,6 +311,11 @@ impl Config {
                         .collect()
                 })
                 .unwrap_or_else(|| vec!["*".to_string()]),
+            cookie_secure: env::var("COOKIE_SECURE")
+                .ok()
+                .map(|v| v.to_lowercase() == "true" || v == "1")
+                .unwrap_or(!cfg!(debug_assertions)),
+            cookie_domain: env::var("COOKIE_DOMAIN").ok(),
             smtp_host: env::var("SMTP_HOST").ok(),
             smtp_port: env::var("SMTP_PORT")
                 .ok()
@@ -448,6 +461,8 @@ impl Config {
             require_e2ee_setup: false,
             block_check_fail_open: false,
             cors_allowed_origins: vec!["*".to_string()],
+            cookie_secure: false,
+            cookie_domain: None,
             smtp_host: None,
             smtp_port: 587,
             smtp_username: None,

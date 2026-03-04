@@ -722,6 +722,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Attachment downloads now use presigned S3 URLs via `GET /api/messages/attachments/{id}/url` with Authorization header — JWT tokens are no longer exposed in URLs, preventing leaks via browser history, server logs, and referrer headers (#290)
+- Browser mode now stores refresh tokens as HttpOnly cookies instead of localStorage, preventing XSS token theft; access tokens are kept in memory only and restored via cookie-based refresh on page reload; Tauri clients continue using JSON body for backward compatibility (#288)
 - Image upload processing now enforces a 64 MB decoded memory budget (`max_alloc`) and reduces the maximum image dimension from 8192px to 4096px to prevent memory pressure from concurrent large image uploads (#268)
 - Enabled Content Security Policy (CSP) in Tauri webview to prevent script injection (#295)
 - Disabled `withGlobalTauri` to restrict IPC bridge access to explicit imports only (#295)
