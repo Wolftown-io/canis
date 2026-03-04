@@ -19,6 +19,7 @@
 pub mod ingestion;
 pub mod metrics;
 pub mod retention;
+pub mod sqlx_metrics;
 pub mod storage;
 pub mod tracing;
 pub mod voice;

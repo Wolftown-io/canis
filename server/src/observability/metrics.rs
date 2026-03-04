@@ -48,8 +48,7 @@ static VOICE_SESSION_DURATION_SECONDS: OnceLock<Histogram<f64>> = OnceLock::new(
 static VOICE_RTP_PACKETS_FORWARDED: AtomicU64 = AtomicU64::new(0);
 static VOICE_RTP_COUNTER: OnceLock<Counter<u64>> = OnceLock::new();
 
-/// Registered but not wired to individual queries — sqlx 0.8 has no query
-/// interceptor. Can be wired per-query in a follow-up.
+/// `SQLx` query execution time, wired via `SqlxMetricsLayer` tracing layer.
 static DB_QUERY_DURATION_SECONDS: OnceLock<Histogram<f64>> = OnceLock::new();
 
 static AUTH_TOKEN_REFRESH_TOTAL: OnceLock<Counter<u64>> = OnceLock::new();
@@ -407,6 +406,13 @@ pub fn record_otel_export_failure() {
     }
 }
 
+/// Record a database query duration in seconds.
+pub fn record_db_query_duration(duration_s: f64) {
+    if let Some(histogram) = DB_QUERY_DURATION_SECONDS.get() {
+        histogram.record(duration_s, &[]);
+    }
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -505,6 +511,7 @@ mod tests {
         flush_rtp_counter();
         record_token_refresh(true);
         record_otel_export_failure();
+        record_db_query_duration(0.5);
     }
 
     #[test]

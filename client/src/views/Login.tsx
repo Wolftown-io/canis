@@ -26,6 +26,7 @@ function providerIcon(hint: string | null) {
 
 const Login: Component = () => {
   const navigate = useNavigate();
+  const isTauri = "__TAURI__" in window;
   const defaultServerUrl = import.meta.env.VITE_SERVER_URL || window.location.origin;
   const [serverUrl, setServerUrl] = createSignal(defaultServerUrl);
   const [username, setUsername] = createSignal("");
@@ -58,10 +59,6 @@ const Login: Component = () => {
     setLocalError("");
     clearError();
 
-    if (!serverUrl().trim()) {
-      setLocalError("Server URL is required");
-      return;
-    }
     if (!username().trim()) {
       setLocalError("Username is required");
       return;
@@ -195,23 +192,24 @@ const Login: Component = () => {
           Login to continue to Kaiku
         </p>
 
-        {/* Server URL (always shown) */}
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-text-secondary mb-1">
-            Server URL
-          </label>
-          <input
-            type="url"
-            class="input-field"
-            placeholder="https://chat.example.com"
-            value={serverUrl()}
-            onInput={(e) => handleServerUrlChange(e.currentTarget.value)}
-            disabled={
-              authState.isLoading || !!oidcLoading() || authState.mfaRequired
-            }
-            required
-          />
-        </div>
+        <Show when={isTauri}>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-text-secondary mb-1">
+              Server URL
+            </label>
+            <input
+              type="url"
+              class="input-field"
+              placeholder="https://chat.example.com"
+              value={serverUrl()}
+              onInput={(e) => handleServerUrlChange(e.currentTarget.value)}
+              disabled={
+                authState.isLoading || !!oidcLoading() || authState.mfaRequired
+              }
+              required
+            />
+          </div>
+        </Show>
 
         {/* MFA Code Step */}
         <Show when={authState.mfaRequired}>

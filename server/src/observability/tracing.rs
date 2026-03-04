@@ -20,6 +20,7 @@ use tracing_subscriber::util::SubscriberInitExt as _;
 use tracing_subscriber::{EnvFilter, Layer, Registry};
 
 use super::ingestion::{CapturedLogEvent, CapturedSpan, NativeLogLayer, NativeSpanProcessor};
+use super::sqlx_metrics::SqlxMetricsLayer;
 use crate::config::ObservabilityConfig;
 
 /// RAII guard that shuts down the `OTel` providers when dropped.
@@ -208,6 +209,7 @@ pub fn init(
         Registry::default()
             .with(filter)
             .with(RedactionLayer)
+            .with(SqlxMetricsLayer)
             .with(native_log_layer)
             .with(tracing_subscriber::fmt::layer().json())
             .init();
@@ -270,6 +272,7 @@ pub fn init(
     Registry::default()
         .with(filter)
         .with(RedactionLayer)
+        .with(SqlxMetricsLayer)
         .with(native_log_layer)
         .with(otel_trace_layer)
         .with(otel_log_layer)
