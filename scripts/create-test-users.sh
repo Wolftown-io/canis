@@ -83,10 +83,10 @@ create_user() {
 }
 
 # Create test users
-create_user "admin" "Admin User" "admin@localhost" "admin123"
-create_user "alice" "Alice Developer" "alice@localhost" "password123"
-create_user "bob" "Bob Tester" "bob@localhost" "password123"
-create_user "charlie" "Charlie QA" "charlie@localhost" "password123"
+create_user "admin" "Admin User" "admin@example.com" "admin123"
+create_user "alice" "Alice Developer" "alice@example.com" "password123"
+create_user "bob" "Bob Tester" "bob@example.com" "password123"
+create_user "charlie" "Charlie QA" "charlie@example.com" "password123"
 
 echo ""
 log_success "Test users created!"

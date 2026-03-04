@@ -7,7 +7,7 @@
         services-up services-down migrate \
         docker-up docker-down docker-logs docker-clean \
         db-migrate db-reset db-seed \
-        test-everyone-security e2e-real e2e-real-smoke \
+        test-everyone-security \
         build release
 
 # Default target
@@ -19,7 +19,7 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-COMPOSE_CMD := $(shell if command -v docker >/dev/null 2>&1; then echo "docker compose"; elif command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; else echo "docker compose"; fi)
+COMPOSE_CMD := ./scripts/compose-dev.sh
 
 #==============================================================================
 # Help
@@ -123,14 +123,6 @@ test-server: ## Run server tests only
 test-watch: ## Run tests in watch mode
 	cargo watch -x 'nextest run' 2>/dev/null || cargo watch -x test
 
-e2e-real: ## Run real Playwright gate flow with clean stack
-	@./scripts/run-e2e-real.sh
-
-e2e-real-smoke: ## Run real Playwright smoke suite (gates, status, chat)
-	@./scripts/run-e2e-real.sh --spec e2e/gates.spec.ts
-	@./scripts/run-e2e-real.sh --spec e2e/status-presence.spec.ts
-	@./scripts/run-e2e-real.sh --spec e2e/chat-core.spec.ts
-
 test-everyone-security: ## Run ignored @everyone security integration test in Docker
 	@./scripts/test-everyone-security.sh
 
@@ -206,12 +198,12 @@ db-status: ## Show migration status
 	sqlx migrate info --source server/migrations
 
 db-shell: ## Open psql shell
-	@$(COMPOSE_CMD) -f docker-compose.dev.yml exec postgres psql -U voicechat -d voicechat
+	@docker exec -it voicechat-dev-postgres psql -U voicechat -d voicechat
 
 db-seed: ## Seed database with test data
 	@echo "$(CYAN)Seeding database...$(RESET)"
 	@if [ -f server/seeds/dev.sql ]; then \
-		$(COMPOSE_CMD) -f docker-compose.dev.yml exec -T postgres psql -U voicechat -d voicechat < server/seeds/dev.sql; \
+		docker exec -i voicechat-dev-postgres psql -U voicechat -d voicechat < server/seeds/dev.sql; \
 	else \
 		echo "$(YELLOW)No seed file found at server/seeds/dev.sql$(RESET)"; \
 	fi
