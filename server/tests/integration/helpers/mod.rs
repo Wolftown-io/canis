@@ -167,12 +167,12 @@ impl Drop for CleanupGuard {
         }
 
         let pool = self.pool.clone();
-        let handle = tokio::runtime::Handle::current();
-
-        // Spawn a blocking thread to run async cleanup.
-        // This works regardless of tokio runtime flavor.
         std::thread::spawn(move || {
-            handle.block_on(async move {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create cleanup runtime");
+            runtime.block_on(async move {
                 for action in actions {
                     action(pool.clone()).await;
                 }
@@ -181,6 +181,15 @@ impl Drop for CleanupGuard {
         .join()
         .expect("Cleanup thread panicked");
     }
+}
+
+pub async fn rustfs_available() -> bool {
+    tokio::time::timeout(
+        std::time::Duration::from_millis(300),
+        tokio::net::TcpStream::connect("127.0.0.1:9000"),
+    )
+    .await
+    .is_ok_and(|result| result.is_ok())
 }
 
 // ============================================================================
@@ -430,11 +439,19 @@ pub fn generate_access_token(config: &Config, user_id: Uuid) -> String {
 
 /// Delete a user by ID (cascades to friendships, reports, etc.).
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) {
-    sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .expect("Failed to delete test user");
+    for attempt in 0..5 {
+        match sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(user_id)
+            .execute(pool)
+            .await
+        {
+            Ok(_) => return,
+            Err(sqlx::Error::PoolTimedOut) if attempt < 4 => {
+                tokio::time::sleep(std::time::Duration::from_millis(50 * (attempt + 1))).await;
+            }
+            Err(err) => panic!("Failed to delete test user: {err}"),
+        }
+    }
 }
 
 /// Create an accepted friendship between two users.
@@ -748,7 +765,8 @@ pub async fn delete_guild(pool: &PgPool, guild_id: Uuid) {
 pub async fn create_bot_application(pool: &PgPool, owner_id: Uuid) -> (Uuid, Uuid, String) {
     let app_id = Uuid::now_v7();
     let bot_user_id = Uuid::now_v7();
-    let bot_username = format!("bot_{}", &app_id.to_string()[..8]);
+    let bot_username_seed = bot_user_id.simple().to_string();
+    let bot_username = format!("bot_{}", &bot_username_seed[20..]);
 
     // Create bot user
     sqlx::query(

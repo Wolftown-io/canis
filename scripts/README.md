@@ -52,6 +52,20 @@ Validates documentation governance guardrails:
 python3 scripts/check_docs_governance.py
 ```
 
+### `check_ci_guardrails.py`
+
+Validates CI anti-regression rules derived from previous CI breakages:
+
+1. Windows libvpx setup stays aligned across CI workflows
+2. Setup integration tests keep DB-isolated strict assertions
+3. Attachment anti-enumeration tests keep deterministic 403 behavior
+
+**Usage**:
+
+```bash
+python3 scripts/check_ci_guardrails.py
+```
+
 ### `generate_release_notes.py`
 
 Generates standardized milestone release notes from `CHANGELOG.md` `[Unreleased]`.

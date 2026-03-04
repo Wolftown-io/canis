@@ -15,31 +15,13 @@
 
 use std::sync::Arc;
 
-use serial_test::serial;
 use sqlx::PgPool;
-use vc_server::config::Config;
 use vc_server::db;
 
 /// Test that first user registration grants admin and subsequent registrations do not.
 /// This simulates the sequential registration flow.
-#[tokio::test]
-#[serial(setup)]
-async fn test_first_user_receives_admin_sequential() {
-    let config = Config::default_for_test();
-    let pool: PgPool = db::create_pool(&config.database_url)
-        .await
-        .expect("Failed to connect to DB");
-
-    // Clean slate - delete bot installations first (installed_by FK to users has no CASCADE)
-    sqlx::query("DELETE FROM guild_bot_installations")
-        .execute(&pool)
-        .await
-        .expect("Failed to clear guild_bot_installations");
-    sqlx::query("DELETE FROM users")
-        .execute(&pool)
-        .await
-        .expect("Failed to clear users");
-
+#[sqlx::test]
+async fn test_first_user_receives_admin_sequential(pool: PgPool) {
     // Ensure setup is not marked complete
     sqlx::query("UPDATE server_config SET value = 'false' WHERE key = 'setup_complete'")
         .execute(&pool)
@@ -163,16 +145,6 @@ async fn test_first_user_receives_admin_sequential() {
         "Second user should NOT be granted admin permissions"
     );
 
-    // Cleanup
-    sqlx::query("DELETE FROM guild_bot_installations")
-        .execute(&pool)
-        .await
-        .expect("Failed to cleanup guild_bot_installations");
-    sqlx::query("DELETE FROM users")
-        .execute(&pool)
-        .await
-        .expect("Failed to cleanup users");
-
     println!("✅ First user admin grant test passed");
     println!("    First user: {username1} (admin: {is_admin1})");
     println!("    Second user: {username2} (admin: {is_admin2})");
@@ -180,25 +152,9 @@ async fn test_first_user_receives_admin_sequential() {
 
 /// Test that concurrent registrations only grant admin to ONE user.
 /// This simulates a race condition where multiple registration attempts happen simultaneously.
-#[tokio::test]
-#[serial(setup)]
-async fn test_concurrent_registrations_only_one_gets_admin() {
-    let config = Config::default_for_test();
-    let pool: Arc<PgPool> = Arc::new(
-        db::create_pool(&config.database_url)
-            .await
-            .expect("Failed to connect to DB"),
-    );
-
-    // Clean slate - delete bot installations first (installed_by FK to users has no CASCADE)
-    sqlx::query("DELETE FROM guild_bot_installations")
-        .execute(pool.as_ref())
-        .await
-        .expect("Failed to clear guild_bot_installations");
-    sqlx::query("DELETE FROM users")
-        .execute(pool.as_ref())
-        .await
-        .expect("Failed to clear users");
+#[sqlx::test]
+async fn test_concurrent_registrations_only_one_gets_admin(pool: PgPool) {
+    let pool: Arc<PgPool> = Arc::new(pool);
 
     sqlx::query("UPDATE server_config SET value = 'false' WHERE key = 'setup_complete'")
         .execute(pool.as_ref())
@@ -314,31 +270,15 @@ async fn test_concurrent_registrations_only_one_gets_admin() {
         "All {num_concurrent} users should have been created"
     );
 
-    // Cleanup
-    sqlx::query("DELETE FROM guild_bot_installations")
-        .execute(pool.as_ref())
-        .await
-        .expect("Failed to cleanup guild_bot_installations");
-    sqlx::query("DELETE FROM users")
-        .execute(pool.as_ref())
-        .await
-        .expect("Failed to cleanup users");
-
     println!("✅ Concurrent registration test passed");
     println!("    {num_concurrent} concurrent registrations, exactly 1 received admin");
 }
 
 /// Test that concurrent setup completion attempts only succeed once.
 /// This verifies the compare-and-swap pattern in the setup complete endpoint.
-#[tokio::test]
-#[serial(setup)]
-async fn test_concurrent_setup_completion_only_one_succeeds() {
-    let config = Config::default_for_test();
-    let pool: Arc<PgPool> = Arc::new(
-        db::create_pool(&config.database_url)
-            .await
-            .expect("Failed to connect to DB"),
-    );
+#[sqlx::test]
+async fn test_concurrent_setup_completion_only_one_succeeds(pool: PgPool) {
+    let pool: Arc<PgPool> = Arc::new(pool);
 
     // Setup: Ensure setup is NOT complete
     sqlx::query("UPDATE server_config SET value = 'false' WHERE key = 'setup_complete'")
@@ -435,17 +375,6 @@ async fn test_concurrent_setup_completion_only_one_succeeds() {
         Some(true),
         "Setup should be marked complete"
     );
-
-    // Cleanup - reset server_config to defaults
-    sqlx::query("UPDATE server_config SET value = 'false' WHERE key = 'setup_complete'")
-        .execute(pool.as_ref())
-        .await
-        .expect("Failed to reset setup_complete");
-
-    sqlx::query("UPDATE server_config SET value = '\"Kaiku Server\"' WHERE key = 'server_name'")
-        .execute(pool.as_ref())
-        .await
-        .expect("Failed to reset server_name");
 
     println!("✅ Concurrent setup completion test passed");
     println!("    {num_concurrent} concurrent attempts, exactly 1 succeeded");

@@ -10,7 +10,7 @@ use axum::http::Method;
 use uuid::Uuid;
 use vc_server::permissions::GuildPermissions;
 
-use super::helpers::{create_test_user, generate_access_token, TestApp};
+use super::helpers::{body_to_json, create_test_user, generate_access_token, TestApp};
 
 // ============================================================================
 // Upload Error Paths
@@ -98,7 +98,84 @@ async fn test_get_attachment_not_found() {
     let resp = app.oneshot(req).await;
     assert_eq!(
         resp.status(),
-        404,
-        "GET nonexistent attachment should return 404"
+        403,
+        "GET nonexistent attachment should return 403"
     );
+    let body = body_to_json(resp).await;
+    assert_eq!(body["error"], "FORBIDDEN");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_get_attachment_anti_enumeration_parity() {
+    let app = TestApp::new().await;
+    let (owner_id, _) = create_test_user(&app.pool).await;
+    let (outsider_id, _) = create_test_user(&app.pool).await;
+    let owner_token = generate_access_token(&app.config, owner_id);
+    let outsider_token = generate_access_token(&app.config, outsider_id);
+
+    let perms = GuildPermissions::VIEW_CHANNEL | GuildPermissions::SEND_MESSAGES;
+    let guild_id = super::helpers::create_guild_with_default_role(&app.pool, owner_id, perms).await;
+    let channel_id =
+        super::helpers::create_channel(&app.pool, guild_id, "attachment-enum-test").await;
+    let message_id =
+        super::helpers::insert_message(&app.pool, channel_id, owner_id, "secret file").await;
+    super::helpers::insert_attachment(&app.pool, message_id).await;
+    let attachment_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM file_attachments WHERE message_id = $1")
+            .bind(message_id)
+            .fetch_one(&app.pool)
+            .await
+            .expect("Failed to fetch inserted attachment id");
+
+    let mut guard = app.cleanup_guard();
+    guard.add(move |pool| async move { super::helpers::delete_guild(&pool, guild_id).await });
+    guard.delete_user(owner_id);
+    guard.delete_user(outsider_id);
+
+    let owner_req = TestApp::request(
+        Method::GET,
+        &format!("/api/messages/attachments/{attachment_id}"),
+    )
+    .header("Authorization", format!("Bearer {owner_token}"))
+    .body(Body::empty())
+    .unwrap();
+    let owner_resp = app.oneshot(owner_req).await;
+    assert_eq!(
+        owner_resp.status(),
+        200,
+        "Owner should access existing attachment"
+    );
+
+    let existing_req = TestApp::request(
+        Method::GET,
+        &format!("/api/messages/attachments/{attachment_id}"),
+    )
+    .header("Authorization", format!("Bearer {outsider_token}"))
+    .body(Body::empty())
+    .unwrap();
+    let existing_resp = app.oneshot(existing_req).await;
+    assert_eq!(
+        existing_resp.status(),
+        403,
+        "Unauthorized user should get 403 for existing attachment"
+    );
+    let existing_body = body_to_json(existing_resp).await;
+    assert_eq!(existing_body["error"], "FORBIDDEN");
+
+    let missing_id = Uuid::now_v7();
+    let missing_req = TestApp::request(
+        Method::GET,
+        &format!("/api/messages/attachments/{missing_id}"),
+    )
+    .header("Authorization", format!("Bearer {outsider_token}"))
+    .body(Body::empty())
+    .unwrap();
+    let missing_resp = app.oneshot(missing_req).await;
+    assert_eq!(
+        missing_resp.status(),
+        403,
+        "Unauthorized user should get 403 for nonexistent attachment"
+    );
+    let missing_body = body_to_json(missing_resp).await;
+    assert_eq!(missing_body["error"], "FORBIDDEN");
 }

@@ -2,7 +2,6 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Kaiku",
   "identifier": "com.kaiku.app",
-  "_identifier_note": "TODO: Change to the real Kaiku domain once available (e.g. app.kaiku.chat)",
   "version": "0.1.0",
   "build": {
     "beforeDevCommand": "bun run dev",
