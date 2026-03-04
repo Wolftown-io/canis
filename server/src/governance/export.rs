@@ -240,8 +240,8 @@ pub async fn process_export_job(
             }
         }
         Err(e) => {
-            // Mark as failed
-            sqlx::query(
+            // Mark as failed — use if-let so the original error is never discarded
+            if let Err(db_err) = sqlx::query(
                 "UPDATE data_export_jobs
                  SET status = 'failed', error_message = $1, completed_at = NOW()
                  WHERE id = $2",
@@ -249,7 +249,15 @@ pub async fn process_export_job(
             .bind(e.to_string())
             .bind(job_id)
             .execute(pool)
-            .await?;
+            .await
+            {
+                tracing::error!(
+                    job_id = %job_id,
+                    original_error = %e,
+                    db_error = %db_err,
+                    "Failed to mark export job as failed; stale-job recovery will handle it"
+                );
+            }
 
             return Err(e);
         }

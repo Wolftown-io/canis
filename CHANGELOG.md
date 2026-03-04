@@ -565,6 +565,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Phased update strategy executed in subsequent releases
 
 ### Fixed
+- S3 presign expiry cast uses checked conversion instead of truncating `as u64`, with a minimum clamp of 1 second at config parse time
+- Export error path no longer discards the original build error when the subsequent status UPDATE fails — stale-job recovery handles the orphan (#265)
+- Focus mode VIP set cache now uses O(1) reference equality instead of O(n log n) JSON hash comparison on every policy evaluation (#258)
+- Focus settings inputs no longer use HTML `maxLength` (UTF-16 code units) which miscounted emoji — server-side validation uses Unicode code points consistently (#257)
 - Data export friends query referenced non-existent `friend_requests` table — fixed to use `friendships` table with correct `updated_at` column (#289)
 - Friend presence indicators now update immediately on WebSocket reconnect instead of showing stale online/offline status until next full refresh (#314)
 - Unread badge polling no longer hammers the server after receiving a 429 rate-limit response — backs off exponentially instead of retrying immediately (#314)

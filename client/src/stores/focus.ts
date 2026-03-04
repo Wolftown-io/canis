@@ -29,65 +29,47 @@ const [focusState, setFocusState] = createSignal<FocusState>({
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
-type VipSetCache = {
-  modeId: string | null;
-  userIdsHash: string | null;
-  channelIdsHash: string | null;
-  userSet: ReadonlySet<string>;
-  channelSet: ReadonlySet<string>;
-};
-
-const vipSetCache: VipSetCache = {
-  modeId: null,
-  userIdsHash: null,
-  channelIdsHash: null,
-  userSet: EMPTY_SET,
-  channelSet: EMPTY_SET,
-};
-
 /**
  * Build a Set from a mode's VIP list for O(1) lookups.
  * Called on every evaluateFocusPolicy to stay in sync with live preferences.
  * Lists are capped at 50 entries so construction cost is negligible.
  */
-function buildVipSet(ids: string[]): ReadonlySet<string> {
+function buildVipSet(ids: readonly string[]): ReadonlySet<string> {
   return ids.length > 0
     ? new Set(ids.map((id) => id.toLowerCase()))
     : EMPTY_SET;
 }
 
-function hashVipIds(ids: string[]): string {
-  return JSON.stringify([...ids].map((id) => id.toLowerCase()).sort());
-}
+// Module-level cache using reference equality (O(1) per check)
+let cachedModeId: string | null = null;
+let cachedVipUserIds: readonly string[] | null = null;
+let cachedVipChannelIds: readonly string[] | null = null;
+let cachedUserSet: ReadonlySet<string> = EMPTY_SET;
+let cachedChannelSet: ReadonlySet<string> = EMPTY_SET;
 
 function getCachedVipSets(mode: FocusMode): {
   userSet: ReadonlySet<string>;
   channelSet: ReadonlySet<string>;
 } {
-  if (vipSetCache.modeId !== mode.id) {
-    vipSetCache.modeId = mode.id;
-    vipSetCache.userIdsHash = null;
-    vipSetCache.channelIdsHash = null;
-    vipSetCache.userSet = EMPTY_SET;
-    vipSetCache.channelSet = EMPTY_SET;
+  if (cachedModeId !== mode.id) {
+    cachedModeId = mode.id;
+    cachedVipUserIds = null;
+    cachedVipChannelIds = null;
+    cachedUserSet = EMPTY_SET;
+    cachedChannelSet = EMPTY_SET;
   }
 
-  const userIdsHash = hashVipIds(mode.vipUserIds);
-  if (vipSetCache.userIdsHash !== userIdsHash) {
-    vipSetCache.userIdsHash = userIdsHash;
-    vipSetCache.userSet = buildVipSet(mode.vipUserIds);
+  if (cachedVipUserIds !== mode.vipUserIds) {
+    cachedVipUserIds = mode.vipUserIds;
+    cachedUserSet = buildVipSet(mode.vipUserIds);
   }
 
-  const channelIdsHash = hashVipIds(mode.vipChannelIds);
-  if (vipSetCache.channelIdsHash !== channelIdsHash) {
-    vipSetCache.channelIdsHash = channelIdsHash;
-    vipSetCache.channelSet = buildVipSet(mode.vipChannelIds);
+  if (cachedVipChannelIds !== mode.vipChannelIds) {
+    cachedVipChannelIds = mode.vipChannelIds;
+    cachedChannelSet = buildVipSet(mode.vipChannelIds);
   }
 
-  return {
-    userSet: vipSetCache.userSet,
-    channelSet: vipSetCache.channelSet,
-  };
+  return { userSet: cachedUserSet, channelSet: cachedChannelSet };
 }
 
 // ============================================================================

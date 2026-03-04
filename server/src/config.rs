@@ -255,7 +255,8 @@ impl Config {
             s3_presign_expiry: env::var("S3_PRESIGN_EXPIRY")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(3600), // 1 hour
+                .unwrap_or(3600) // 1 hour
+                .max(1),
             s3_access_key: env::var("AWS_ACCESS_KEY_ID").ok(),
             s3_secret_key: env::var("AWS_SECRET_ACCESS_KEY").ok(),
             allowed_mime_types: env::var("ALLOWED_MIME_TYPES").ok().map(|s| {

@@ -352,7 +352,6 @@ const FocusSettings: Component = () => {
                         <input
                           type="text"
                           value={mode.name}
-                          maxLength={MAX_MODE_NAME_LEN}
                           onInput={(e) => {
                             const name = e.currentTarget.value;
                             if (
@@ -482,12 +481,9 @@ const FocusSettings: Component = () => {
                       </div>
                       <Show when={mode.emergencyKeywords.length < MAX_KEYWORDS}>
                         <div class="flex gap-2">
-                          {/* NOTE: maxLength counts UTF-16 code units; server counts Unicode code points.
-                              Emoji (surrogate pairs) count as 2 here but 1 on server. This is conservative. */}
                           <input
                             type="text"
                             value={keywordInput()}
-                            maxLength={MAX_KEYWORD_LEN}
                             onInput={(e) =>
                               setKeywordInput(e.currentTarget.value)
                             }
