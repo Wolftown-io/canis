@@ -69,6 +69,80 @@ struct ExportPreferences {
     preferences: serde_json::Value,
 }
 
+/// Exported DM channel with participants.
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportDirectMessage {
+    channel_id: Uuid,
+    channel_name: String,
+    joined_at: chrono::DateTime<chrono::Utc>,
+    participants: Option<String>,
+}
+
+/// Exported blocked user.
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportBlockedUser {
+    blocked_user_id: Uuid,
+    blocked_username: String,
+    blocked_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Exported message reaction.
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportReaction {
+    id: Uuid,
+    message_id: Uuid,
+    emoji: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Exported file attachment metadata (no S3 keys).
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportAttachment {
+    id: Uuid,
+    filename: String,
+    mime_type: String,
+    size_bytes: i64,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Exported session record (no `token_hash`).
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportSession {
+    id: Uuid,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Exported E2EE device registration (no raw key material).
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportDevice {
+    id: Uuid,
+    device_name: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    last_seen_at: chrono::DateTime<chrono::Utc>,
+    is_verified: bool,
+}
+
+/// Exported key backup metadata (no encrypted data).
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportKeyBackup {
+    version: i32,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Exported audit log entry.
+#[derive(Serialize, sqlx::FromRow)]
+struct ExportAuditLogEntry {
+    action: String,
+    target_type: Option<String>,
+    target_id: Option<Uuid>,
+    details: Option<serde_json::Value>,
+    ip_address: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// Process a data export job.
 pub async fn process_export_job(
     pool: &PgPool,
@@ -203,12 +277,12 @@ async fn build_export_archive(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Ve
         "SELECT
             CASE WHEN fr.requester_id = $1 THEN fr.addressee_id ELSE fr.requester_id END as friend_id,
             u.username as friend_username,
-            fr.accepted_at as since
-         FROM friend_requests fr
+            fr.updated_at as since
+         FROM friendships fr
          JOIN users u ON u.id = CASE WHEN fr.requester_id = $1 THEN fr.addressee_id ELSE fr.requester_id END
          WHERE (fr.requester_id = $1 OR fr.addressee_id = $1)
            AND fr.status = 'accepted'
-         ORDER BY fr.accepted_at ASC",
+         ORDER BY fr.updated_at ASC",
     )
     .bind(user_id)
     .fetch_all(pool)
@@ -229,12 +303,152 @@ async fn build_export_archive(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Ve
         serde_json::to_writer_pretty(&mut zip, &p.preferences)?;
     }
 
-    // 6. Manifest
+    // 6. Direct messages
+    let direct_messages: Vec<ExportDirectMessage> = sqlx::query_as(
+        "SELECT
+            dp.channel_id,
+            c.name as channel_name,
+            dp.joined_at,
+            string_agg(u.username, ', ' ORDER BY u.username) as participants
+         FROM dm_participants dp
+         JOIN channels c ON c.id = dp.channel_id
+         JOIN dm_participants dp2 ON dp2.channel_id = dp.channel_id AND dp2.user_id != $1
+         JOIN users u ON u.id = dp2.user_id
+         WHERE dp.user_id = $1
+         GROUP BY dp.channel_id, c.name, dp.joined_at
+         ORDER BY dp.joined_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("direct_messages.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &direct_messages)?;
+
+    // 7. Blocked users
+    let blocked_users: Vec<ExportBlockedUser> = sqlx::query_as(
+        "SELECT
+            fr.addressee_id as blocked_user_id,
+            u.username as blocked_username,
+            fr.updated_at as blocked_at
+         FROM friendships fr
+         JOIN users u ON u.id = fr.addressee_id
+         WHERE fr.requester_id = $1 AND fr.status = 'blocked'
+         ORDER BY fr.updated_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("blocked_users.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &blocked_users)?;
+
+    // 8. Reactions
+    let reactions: Vec<ExportReaction> = sqlx::query_as(
+        "SELECT id, message_id, emoji, created_at
+         FROM message_reactions
+         WHERE user_id = $1
+         ORDER BY created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("reactions.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &reactions)?;
+
+    // 9. Attachments (metadata only, no S3 keys)
+    let attachments: Vec<ExportAttachment> = sqlx::query_as(
+        "SELECT fa.id, fa.filename, fa.mime_type, fa.size_bytes, fa.created_at
+         FROM file_attachments fa
+         JOIN messages m ON m.id = fa.message_id
+         WHERE m.user_id = $1
+         ORDER BY fa.created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("attachments.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &attachments)?;
+
+    // 10. Sessions (no token_hash)
+    let sessions: Vec<ExportSession> = sqlx::query_as(
+        "SELECT id, host(ip_address) as ip_address, user_agent, created_at, expires_at
+         FROM sessions
+         WHERE user_id = $1
+         ORDER BY created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("sessions.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &sessions)?;
+
+    // 11. Devices and key backups (no raw key material)
+    let devices: Vec<ExportDevice> = sqlx::query_as(
+        "SELECT id, device_name, created_at, last_seen_at, is_verified
+         FROM user_devices
+         WHERE user_id = $1
+         ORDER BY created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("devices.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &devices)?;
+
+    // 12. Key backup metadata (no encrypted data)
+    let key_backups: Vec<ExportKeyBackup> = sqlx::query_as(
+        "SELECT version, created_at
+         FROM key_backups
+         WHERE user_id = $1
+         ORDER BY created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("key_backups.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &key_backups)?;
+
+    // 13. Audit log
+    let audit_log: Vec<ExportAuditLogEntry> = sqlx::query_as(
+        "SELECT action, target_type, target_id, details,
+                host(ip_address) as ip_address, created_at
+         FROM system_audit_log
+         WHERE actor_id = $1
+         ORDER BY created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    zip.start_file("audit_log.json", options)?;
+    serde_json::to_writer_pretty(&mut zip, &audit_log)?;
+
+    // Manifest
     let manifest = ExportManifest {
-        version: "1.0",
+        version: "1.1",
         exported_at: Utc::now().to_rfc3339(),
         user_id: user_id.to_string(),
-        sections: vec!["profile", "messages", "guilds", "friends", "preferences"],
+        sections: vec![
+            "profile",
+            "messages",
+            "guilds",
+            "friends",
+            "preferences",
+            "direct_messages",
+            "blocked_users",
+            "reactions",
+            "attachments",
+            "sessions",
+            "devices",
+            "key_backups",
+            "audit_log",
+        ],
     };
 
     zip.start_file("manifest.json", options)?;
