@@ -823,11 +823,27 @@ pub async fn get_attachment(
     Ok(Json(attachment.into()))
 }
 
+/// Query parameters for signed URL endpoint.
+#[derive(Debug, Deserialize)]
+pub struct SignedUrlQuery {
+    /// Optional variant: "thumbnail" (256px) or "medium" (1024px).
+    pub variant: Option<String>,
+}
+
+/// Response containing a presigned S3 download URL.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct SignedUrlResponse {
+    /// Presigned S3 URL for direct download.
+    pub url: String,
+    /// Duration in seconds from generation until the URL expires.
+    pub expires_in: i64,
+}
+
 /// Query parameters for download endpoint.
 #[derive(Debug, Deserialize)]
 pub struct DownloadQuery {
-    /// Optional JWT token for authentication (alternative to Authorization header).
-    /// Used for browser requests like <img src="..."> that can't set headers.
+    /// **Deprecated:** Use `GET /api/messages/attachments/<id>/url` with Authorization header instead.
+    /// When present, authenticates via this JWT token instead of the Authorization header.
     pub token: Option<String>,
     /// Optional variant to download: "thumbnail" (256px) or "medium" (1024px).
     pub variant: Option<String>,
@@ -839,7 +855,7 @@ pub struct DownloadQuery {
 ///
 /// Supports two authentication methods:
 /// 1. Authorization header (Bearer token) - standard API auth
-/// 2. `token` query parameter - for browser requests that can't set headers
+/// 2. `token` query parameter - **deprecated**, use presigned URLs via `/url` endpoint instead
 #[utoipa::path(
     get,
     path = "/api/messages/attachments/{id}/download",
@@ -863,6 +879,11 @@ pub async fn download(
     let user_id = if let Some(user) = auth_user {
         user.id
     } else if let Some(token) = query.token {
+        tracing::warn!(
+            attachment_id = %id,
+            "Deprecated: JWT token passed via ?token= query parameter. \
+             Use GET /api/messages/attachments/<id>/url with Authorization header instead."
+        );
         // Validate token from query parameter
         let claims = validate_access_token(&token, &state.config.jwt_public_key)
             .map_err(|_| UploadError::Forbidden)?;
@@ -970,6 +991,87 @@ pub async fn download(
     ];
 
     Ok((headers, body).into_response())
+}
+
+/// Get a presigned S3 download URL for an attachment.
+///
+/// GET /api/messages/attachments/:id/url
+///
+/// Returns a time-limited presigned URL that can be used directly as `<img src>`
+/// or for downloads without exposing the JWT in URLs.
+#[utoipa::path(
+    get,
+    path = "/api/messages/attachments/{id}/url",
+    tag = "messages",
+    params(
+        ("id" = Uuid, Path, description = "Attachment ID"),
+        ("variant" = Option<String>, Query, description = "Variant: 'thumbnail' or 'medium'"),
+    ),
+    responses(
+        (status = 200, body = SignedUrlResponse, description = "Presigned download URL"),
+        (status = 403, description = "Access denied"),
+        (status = 404, description = "Attachment not found"),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state), fields(user_id = %auth_user.id))]
+pub async fn get_signed_url(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Path(id): Path<Uuid>,
+    Query(query): Query<SignedUrlQuery>,
+) -> Result<Json<SignedUrlResponse>, UploadError> {
+    let s3 = state.s3.as_ref().ok_or(UploadError::NotConfigured)?;
+
+    // Check permissions
+    let has_access = db::check_attachment_access(&state.db, id, auth_user.id)
+        .await
+        .map_err(UploadError::Database)?;
+
+    if !has_access {
+        return Err(UploadError::Forbidden);
+    }
+
+    // Get attachment metadata
+    let attachment = db::find_file_attachment_by_id(&state.db, id)
+        .await?
+        .ok_or(UploadError::NotFound)?;
+
+    // Resolve S3 key based on requested variant
+    let s3_key = match query.variant.as_deref() {
+        Some("thumbnail") => attachment
+            .thumbnail_s3_key
+            .as_deref()
+            .unwrap_or(&attachment.s3_key),
+        Some("medium") => attachment
+            .medium_s3_key
+            .as_deref()
+            .unwrap_or(&attachment.s3_key),
+        Some(invalid) => {
+            return Err(UploadError::Validation(format!(
+                "Invalid variant '{invalid}'. Supported values are 'thumbnail' and 'medium'"
+            )));
+        }
+        None => &attachment.s3_key,
+    };
+
+    // Generate presigned URL
+    let presigned_url = s3
+        .presign_get(s3_key)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                attachment_id = %id,
+                s3_key = %s3_key,
+                "Failed to generate presigned URL: {e}"
+            );
+            UploadError::Storage(e.to_string())
+        })?;
+
+    Ok(Json(SignedUrlResponse {
+        url: presigned_url,
+        expires_in: state.config.s3_presign_expiry,
+    }))
 }
 
 // ============================================================================

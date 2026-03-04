@@ -6,6 +6,7 @@ import {
   onMount,
   onCleanup,
   createSignal,
+  createResource,
 } from "solid-js";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -19,7 +20,7 @@ import {
   Flag,
   MessageSquareMore,
 } from "lucide-solid";
-import type { Message, Attachment } from "@/lib/types";
+import type { Message } from "@/lib/types";
 import { formatTimestamp } from "@/lib/utils";
 import Avatar from "@/components/ui/Avatar";
 import CodeBlock from "@/components/ui/CodeBlock";
@@ -28,8 +29,7 @@ import ReactionBar from "./ReactionBar";
 import ThreadIndicator from "./ThreadIndicator";
 import MessageActions, { QUICK_EMOJIS } from "./MessageActions";
 import {
-  getServerUrl,
-  getAccessToken,
+  getSignedUrl,
   addReaction,
   removeReaction,
   deleteMessage,
@@ -177,6 +177,52 @@ interface TextBlock {
 
 type ContentBlock = CodeBlockData | TextBlock;
 
+// ---- Module-level signed URL cache ----
+// Caches presigned S3 URLs to avoid redundant API calls.
+// Key: `${attachmentId}:${variant ?? "original"}`
+const signedUrlCache = new Map<
+  string,
+  { url: string; expiresAt: number }
+>();
+
+async function fetchSignedUrl(
+  attachmentId: string,
+  variant?: string,
+): Promise<string> {
+  const cacheKey = `${attachmentId}:${variant ?? "original"}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+
+  const result = await getSignedUrl(attachmentId, variant);
+
+  // Evict expired entries when cache grows too large
+  if (signedUrlCache.size > 500) {
+    const now = Date.now();
+    for (const [key, entry] of signedUrlCache) {
+      if (entry.expiresAt <= now) signedUrlCache.delete(key);
+    }
+    // Hard cap: if still over limit, evict entries closest to expiry
+    if (signedUrlCache.size > 500) {
+      const sorted = [...signedUrlCache.entries()].sort(
+        (a, b) => a[1].expiresAt - b[1].expiresAt,
+      );
+      for (let i = 0; i < sorted.length - 500; i++) {
+        signedUrlCache.delete(sorted[i][0]);
+      }
+    }
+  }
+
+  // Cache with safety margin (at most 300s, at most half the TTL) to avoid negative expiry
+  const safetyMargin = Math.min(300, Math.floor(result.expires_in / 2));
+  signedUrlCache.set(cacheKey, {
+    url: result.url,
+    expiresAt: Date.now() + (result.expires_in - safetyMargin) * 1000,
+  });
+  return result.url;
+}
+
 // ---- Module-level spoiler reveal state ----
 // Persists revealed spoilers across component remounts (e.g. virtual scroll).
 // Key format: `${messageId}:${spoilerIndex}` (0-based index within a message).
@@ -294,19 +340,6 @@ const MessageItem: Component<MessageItemProps> = (props) => {
         duration: 8000,
       });
     }
-  };
-
-  const getDownloadUrl = (attachment: Attachment, variant?: string) => {
-    // Construct absolute URL for the attachment with token for browser requests
-    const baseUrl = getServerUrl().replace(/\/+$/, "");
-    const token = getAccessToken();
-    const url = `${baseUrl}/api/messages/attachments/${attachment.id}/download`;
-    // Include token and optional variant as query params
-    const params = new URLSearchParams();
-    if (token) params.set("token", token);
-    if (variant) params.set("variant", variant);
-    const qs = params.toString();
-    return qs ? `${url}?${qs}` : url;
   };
 
   const isImage = (mimeType: string) => mimeType.startsWith("image/");
@@ -571,11 +604,23 @@ const MessageItem: Component<MessageItemProps> = (props) => {
                 <Show
                   when={isImage(attachment.mime_type)}
                   fallback={
-                    <a
-                      href={getDownloadUrl(attachment)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="flex items-center gap-3 px-4 py-3 bg-surface-layer2 rounded-xl hover:bg-surface-highlight transition-all duration-200 border border-white/5 max-w-sm"
+                    <button
+                      type="button"
+                      class="flex items-center gap-3 px-4 py-3 bg-surface-layer2 rounded-xl hover:bg-surface-highlight transition-all duration-200 border border-white/5 max-w-sm cursor-pointer text-left"
+                      onClick={async () => {
+                        try {
+                          const url = await fetchSignedUrl(attachment.id);
+                          window.open(url, "_blank");
+                        } catch (err) {
+                          console.error("Failed to get signed URL:", err);
+                          showToast({
+                            type: "error",
+                            title: "Download Failed",
+                            message: "Could not get download link.",
+                            duration: 8000,
+                          });
+                        }
+                      }}
                     >
                       <div class="p-2 bg-surface-base rounded-lg text-accent-primary">
                         <File class="w-6 h-6" />
@@ -589,63 +634,112 @@ const MessageItem: Component<MessageItemProps> = (props) => {
                         </div>
                       </div>
                       <Download class="w-4 h-4 text-text-secondary opacity-0 group-hover/attachment:opacity-100 transition-opacity" />
-                    </a>
+                    </button>
                   }
                 >
-                  <div
-                    class="relative rounded-xl overflow-hidden border border-white/5 bg-surface-layer2 max-w-md"
-                    style={
-                      attachment.width && attachment.height
-                        ? {
-                            "aspect-ratio": `${attachment.width} / ${attachment.height}`,
-                            "max-height": "320px",
-                          }
-                        : { "max-height": "320px" }
-                    }
-                  >
-                    {/* Blurhash placeholder (visible while image loads) */}
-                    <Show when={attachment.blurhash}>
-                      <BlurhashPlaceholder
-                        hash={attachment.blurhash!}
-                        width={attachment.width ?? 32}
-                        height={attachment.height ?? 32}
-                        class="absolute inset-0 w-full h-full"
-                      />
-                    </Show>
+                  {(() => {
+                    const variant = attachment.thumbnail_url
+                      ? "thumbnail"
+                      : undefined;
+                    const [imgSrc] = createResource(
+                      () => attachment.id,
+                      async (id) => {
+                        try {
+                          return await fetchSignedUrl(id, variant);
+                        } catch (err) {
+                          console.error("Failed to load image attachment:", id, err);
+                          throw err;
+                        }
+                      },
+                    );
 
-                    {/* Actual image — loads thumbnail first, fades in over placeholder */}
-                    <img
-                      src={
-                        attachment.thumbnail_url
-                          ? getDownloadUrl(attachment, "thumbnail")
-                          : getDownloadUrl(attachment)
-                      }
-                      alt={attachment.filename}
-                      class="relative w-full h-full object-contain block opacity-0 transition-opacity duration-300"
-                      loading="lazy"
-                      onLoad={(e) => {
-                        (e.target as HTMLImageElement).classList.remove(
-                          "opacity-0",
-                        );
-                        (e.target as HTMLImageElement).classList.add(
-                          "opacity-100",
-                        );
-                      }}
-                      onClick={() => {
-                        window.open(getDownloadUrl(attachment), "_blank");
-                      }}
-                      style={{ cursor: "pointer" }}
-                    />
-                    <a
-                      href={getDownloadUrl(attachment)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 rounded-lg text-white opacity-0 group-hover/attachment:opacity-100 transition-opacity backdrop-blur-sm"
-                      title="Download original"
-                    >
-                      <Download class="w-4 h-4" />
-                    </a>
-                  </div>
+                    return (
+                      <div
+                        class="relative rounded-xl overflow-hidden border border-white/5 bg-surface-layer2 max-w-md"
+                        style={
+                          attachment.width && attachment.height
+                            ? {
+                                "aspect-ratio": `${attachment.width} / ${attachment.height}`,
+                                "max-height": "320px",
+                              }
+                            : { "max-height": "320px" }
+                        }
+                      >
+                        {/* Blurhash placeholder (visible while image loads) */}
+                        <Show when={attachment.blurhash}>
+                          <BlurhashPlaceholder
+                            hash={attachment.blurhash!}
+                            width={attachment.width ?? 32}
+                            height={attachment.height ?? 32}
+                            class="absolute inset-0 w-full h-full"
+                          />
+                        </Show>
+
+                        {/* Error fallback when signed URL fetch fails */}
+                        <Show when={imgSrc.error}>
+                          <div class="absolute inset-0 flex items-center justify-center text-text-secondary text-sm">
+                            Failed to load image
+                          </div>
+                        </Show>
+
+                        {/* Actual image — loads signed URL, fades in over placeholder */}
+                        <Show when={imgSrc()}>
+                          <img
+                            src={imgSrc()}
+                            alt={attachment.filename}
+                            class="relative w-full h-full object-contain block opacity-0 transition-opacity duration-300"
+                            loading="lazy"
+                            onLoad={(e) => {
+                              (
+                                e.target as HTMLImageElement
+                              ).classList.remove("opacity-0");
+                              (e.target as HTMLImageElement).classList.add(
+                                "opacity-100",
+                              );
+                            }}
+                            onClick={async () => {
+                              try {
+                                const url = await fetchSignedUrl(
+                                  attachment.id,
+                                );
+                                window.open(url, "_blank");
+                              } catch (err) {
+                                console.error("Failed to get signed URL:", err);
+                                showToast({
+                                  type: "error",
+                                  title: "Download Failed",
+                                  message: "Could not get download link.",
+                                  duration: 8000,
+                                });
+                              }
+                            }}
+                            style={{ cursor: "pointer" }}
+                          />
+                        </Show>
+                        <button
+                          type="button"
+                          class="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 rounded-lg text-white opacity-0 group-hover/attachment:opacity-100 transition-opacity backdrop-blur-sm cursor-pointer"
+                          title="Download original"
+                          onClick={async () => {
+                            try {
+                              const url = await fetchSignedUrl(attachment.id);
+                              window.open(url, "_blank");
+                            } catch (err) {
+                              console.error("Failed to get signed URL:", err);
+                              showToast({
+                                type: "error",
+                                title: "Download Failed",
+                                message: "Could not get download link.",
+                                duration: 8000,
+                              });
+                            }
+                          }}
+                        >
+                          <Download class="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </Show>
               </div>
             ))}

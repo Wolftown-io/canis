@@ -3778,6 +3778,20 @@ export async function fetchApi<T>(
   return httpRequest<T>(options?.method ?? "GET", path, options?.body);
 }
 
+/**
+ * Get a presigned S3 URL for downloading an attachment.
+ * Uses Authorization header instead of passing JWT in the URL.
+ */
+export async function getSignedUrl(
+  attachmentId: string,
+  variant?: string,
+): Promise<{ url: string; expires_in: number }> {
+  const path = variant
+    ? `/api/messages/attachments/${attachmentId}/url?variant=${encodeURIComponent(variant)}`
+    : `/api/messages/attachments/${attachmentId}/url`;
+  return httpRequest<{ url: string; expires_in: number }>("GET", path);
+}
+
 // ============================================================================
 // E2EE Commands
 // ============================================================================

@@ -1,6 +1,6 @@
 //! Tracing layer that records sqlx query durations to the `OTel` histogram.
 //!
-//! SQLx 0.8 emits `tracing::event!` (not spans) with `target: "sqlx::query"`
+//! `SQLx` 0.8 emits `tracing::event!` (not spans) with `target: "sqlx::query"`
 //! and includes an `elapsed_secs` field containing the query duration as `f64`.
 //! This layer intercepts those events and feeds the duration into the
 //! `kaiku_db_query_duration_seconds` histogram.

@@ -58,6 +58,7 @@ pub fn messages_router() -> Router<AppState> {
         .route("/{parent_id}/thread/read", post(messages::mark_thread_read))
         .route("/upload", post(uploads::upload_file))
         .route("/attachments/{id}", get(uploads::get_attachment))
+        .route("/attachments/{id}/url", get(uploads::get_signed_url))
 }
 
 /// Create public messages router (routes that handle their own auth).

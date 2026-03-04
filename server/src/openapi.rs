@@ -98,6 +98,7 @@ use utoipa::{Modify, OpenApi};
         crate::chat::uploads::upload_message_with_file,
         crate::chat::uploads::upload_file,
         crate::chat::uploads::get_attachment,
+        crate::chat::uploads::get_signed_url,
         crate::chat::uploads::download,
         // DM
         crate::chat::dm::list_dms,
