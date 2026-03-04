@@ -254,7 +254,7 @@ pub async fn join_via_invite(
     .await?;
 
     if guild_banned {
-        return Err(GuildError::Validation(
+        return Err(GuildError::ForbiddenMsg(
             "You are banned from this guild".to_string(),
         ));
     }
