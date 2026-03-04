@@ -26,7 +26,7 @@ function providerIcon(hint: string | null) {
 
 const Login: Component = () => {
   const navigate = useNavigate();
-  const isTauri = "__TAURI__" in window;
+  const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
   const defaultServerUrl = import.meta.env.VITE_SERVER_URL || window.location.origin;
   const [serverUrl, setServerUrl] = createSignal(defaultServerUrl);
   const [username, setUsername] = createSignal("");
@@ -59,6 +59,10 @@ const Login: Component = () => {
     setLocalError("");
     clearError();
 
+    if (isTauri && !serverUrl().trim()) {
+      setLocalError("Server URL is required");
+      return;
+    }
     if (!username().trim()) {
       setLocalError("Username is required");
       return;
