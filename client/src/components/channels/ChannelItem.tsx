@@ -152,8 +152,11 @@ const ChannelItem: Component<ChannelItemProps> = (props) => {
     <div class="relative" onContextMenu={handleContextMenu}>
       <div
         role="button"
-        tabIndex={0}
         data-testid="channel-item"
+        data-channel-id={props.channel.id}
+        data-channel-name={props.channel.name}
+        data-channel-type={props.channel.channel_type}
+        tabIndex={0}
         class="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-sm transition-all duration-200 group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50"
         classList={{
           // Voice connected/connecting state (green glow)

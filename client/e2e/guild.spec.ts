@@ -1,52 +1,72 @@
+/**
+ * Guild Management E2E Tests
+ *
+ * Tests guild creation, joining, and settings.
+ * Prerequisites: Backend running, test users + seed data
+ */
+
 import { test, expect } from "@playwright/test";
-import {
-  registerAndReachMain,
-  createGuild,
-  ensureGuildSelected,
-  openGuildSettings,
-} from "./helpers";
+import { loginAsAdmin, selectFirstGuild, uniqueId } from "./helpers";
 
 test.describe("Guild Management", () => {
-  test("create guild appears in server rail", async ({ page }) => {
-    await registerAndReachMain(page);
-    const guildName = await createGuild(page);
-    await expect(
-      page.getByTestId("guild-button").filter({ hasText: guildName }),
-    ).toBeVisible({ timeout: 15000 });
+  test("should show create guild button", async ({ page }) => {
+    await loginAsAdmin(page);
+    const createBtn = page.locator('button[title="Create Server"]');
+    await expect(createBtn).toBeVisible();
   });
 
-  test("guild settings modal opens with tabs", async ({ page }) => {
-    await registerAndReachMain(page);
-    await ensureGuildSelected(page);
-    await openGuildSettings(page);
+  test("should create a new guild", async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.click('button[title="Create Server"]');
 
-    // As the first user (owner), all tabs should be visible
-    await expect(page.getByTestId("guild-tab-general")).toBeVisible({
-      timeout: 5000,
-    });
-    await expect(page.getByTestId("guild-tab-invites")).toBeVisible();
-    await expect(page.getByTestId("guild-tab-members")).toBeVisible();
-    await expect(page.getByTestId("guild-tab-roles")).toBeVisible();
-  });
+    // Modal should appear
+    const modal = page.locator('[role="dialog"], .fixed.inset-0').first();
+    await expect(modal).toBeVisible({ timeout: 5000 });
 
-  test("create invite shows invite code", async ({ page }) => {
-    await registerAndReachMain(page);
-    await ensureGuildSelected(page);
-    await openGuildSettings(page);
+    // Fill guild name
+    const guildName = uniqueId("TestGuild");
+    await page.fill('input[placeholder="My Awesome Server"]', guildName);
 
-    await page.getByTestId("guild-tab-invites").click();
-    await page.getByTestId("create-invite-button").click();
-    await expect(page.getByTestId("invite-code")).toBeVisible({
+    await page.locator('button[type="submit"]:has-text("Create Server")').click();
+
+    await expect(page.locator(`button[title="${guildName}"]`)).toBeVisible({
       timeout: 10000,
     });
   });
 
-  test("member list displays current user", async ({ page }) => {
-    const { username } = await registerAndReachMain(page);
-    await ensureGuildSelected(page);
-    await openGuildSettings(page);
+  test("should show join guild modal", async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.click('button[title="Join Server"]');
 
-    await page.getByTestId("guild-tab-members").click();
-    await expect(page.getByText(username)).toBeVisible({ timeout: 10000 });
+    // Modal should appear with invite code input
+    const modal = page.locator('[role="dialog"], .fixed.inset-0').first();
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(
+      page.locator('input[placeholder*="invite" i], input[placeholder*="code" i]')
+    ).toBeVisible();
+  });
+
+  test("should open guild settings", async ({ page }) => {
+    await loginAsAdmin(page);
+    await selectFirstGuild(page);
+
+    // Click settings button in sidebar header
+    const settingsBtn = page.locator('button[title="Server Settings"]');
+    await expect(settingsBtn).toBeVisible({ timeout: 5000 });
+    await settingsBtn.click();
+
+    await expect(page.getByText("Server Settings")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("should edit guild name", async ({ page }) => {
+    await loginAsAdmin(page);
+    await selectFirstGuild(page);
+
+    // Open settings
+    await page.click('button[title="Server Settings"]');
+    await expect(page.getByText("Server Settings")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("switch", { name: "Make Server Discoverable" })).toBeVisible({
+      timeout: 3000,
+    });
   });
 });

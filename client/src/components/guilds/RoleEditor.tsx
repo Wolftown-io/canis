@@ -218,7 +218,7 @@ const RoleEditor: Component<RoleEditorProps> = (props) => {
   ];
 
   return (
-    <div class="flex flex-col h-full">
+    <div class="flex flex-col h-full" data-testid="role-editor">
       {/* Header */}
       <div class="flex items-center gap-3 px-6 py-4 border-b border-white/10">
         <button
@@ -240,9 +240,9 @@ const RoleEditor: Component<RoleEditorProps> = (props) => {
             Role Name
           </label>
           <input
-            data-testid="role-name-input"
             type="text"
             value={name()}
+            data-testid="role-editor-name-input"
             onInput={(e) => setName(e.currentTarget.value)}
             disabled={isEveryoneRole()}
             placeholder="Enter role name..."
@@ -315,6 +315,7 @@ const RoleEditor: Component<RoleEditorProps> = (props) => {
                               <input
                                 type="checkbox"
                                 checked={isEnabled}
+                                data-testid={`role-editor-perm-${perm.key.toLowerCase().replace(/_/g, "-")}`}
                                 disabled={!canEdit}
                                 onChange={() =>
                                   canEdit && handlePermissionToggle(perm.bit)
@@ -435,12 +436,12 @@ const RoleEditor: Component<RoleEditorProps> = (props) => {
         >
           Cancel
         </button>
-        <button
-          data-testid="role-save"
-          onClick={handleSave}
-          disabled={isSaving() || !hasChanges() || !name().trim()}
-          class="px-4 py-2 rounded-lg bg-accent-primary text-white font-medium hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+                <button
+                  onClick={handleSave}
+                  data-testid="role-editor-save"
+                  disabled={isSaving() || !hasChanges() || !name().trim()}
+                  class="px-4 py-2 rounded-lg bg-accent-primary text-white font-medium hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
           {isSaving()
             ? "Saving..."
             : isNewRole()

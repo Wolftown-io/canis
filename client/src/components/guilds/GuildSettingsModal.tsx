@@ -149,7 +149,6 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
           <div class="flex border-b border-white/10">
             <Show when={canManageGuild()}>
               <button
-                data-testid="guild-tab-general"
                 onClick={() => setActiveTab("general")}
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
@@ -165,7 +164,6 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
             </Show>
             <Show when={isOwner()}>
               <button
-                data-testid="guild-tab-invites"
                 onClick={() => setActiveTab("invites")}
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
@@ -180,8 +178,8 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
               </button>
             </Show>
             <button
-              data-testid="guild-tab-members"
               onClick={() => setActiveTab("members")}
+              data-testid="guild-settings-tab-members"
               class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
               classList={{
                 "text-accent-primary border-b-2 border-accent-primary":
@@ -194,7 +192,6 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
               Members
             </button>
             <button
-              data-testid="guild-tab-usage"
               onClick={() => setActiveTab("usage")}
               class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
               classList={{
@@ -209,7 +206,6 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
             </button>
             <Show when={canManageEmojis()}>
               <button
-                data-testid="guild-tab-emojis"
                 onClick={() => setActiveTab("emojis")}
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
@@ -225,7 +221,6 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
             </Show>
             <Show when={canManageBots()}>
               <button
-                data-testid="guild-tab-bots"
                 onClick={() => setActiveTab("bots")}
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
@@ -241,7 +236,6 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
             </Show>
             <Show when={canManageGuild()}>
               <button
-                data-testid="guild-tab-safety"
                 onClick={() => setActiveTab("safety")}
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
@@ -257,8 +251,8 @@ const GuildSettingsModal: Component<GuildSettingsModalProps> = (props) => {
             </Show>
             <Show when={canManageRoles()}>
               <button
-                data-testid="guild-tab-roles"
                 onClick={() => setActiveTab("roles")}
+                data-testid="guild-settings-tab-roles"
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
                   "text-accent-primary border-b-2 border-accent-primary":

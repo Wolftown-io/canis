@@ -160,6 +160,7 @@ const RolesTab: Component<RolesTabProps> = (props) => {
         <Show when={canManageRoles()}>
           <button
             onClick={() => props.onCreateRole()}
+            data-testid="roles-tab-create-role"
             class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent-primary text-white text-sm font-medium hover:bg-accent-primary/90 transition-colors"
           >
             <Plus class="w-4 h-4" />
@@ -179,6 +180,9 @@ const RolesTab: Component<RolesTabProps> = (props) => {
           <For each={roles()}>
             {(role) => (
               <div
+                data-testid="roles-tab-role-row"
+                data-role-id={role.id}
+                data-role-name={role.is_default ? "@everyone" : role.name}
                 class="flex items-center gap-3 p-3 rounded-lg border transition-colors group"
                 classList={{
                   "border-white/10 hover:bg-white/5":
@@ -230,6 +234,7 @@ const RolesTab: Component<RolesTabProps> = (props) => {
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => props.onEditRole(role)}
+                      data-testid="roles-tab-role-edit"
                       class="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
                       title="Edit role"
                     >

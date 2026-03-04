@@ -175,13 +175,14 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
         fallback={
           <>
             {/* Header */}
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between mb-4" data-testid="channel-permissions-panel">
               <h3 class="text-sm font-semibold text-text-secondary uppercase">
                 Role Overrides
               </h3>
               <div class="relative">
                 <button
                   onClick={() => setShowRolePicker(!showRolePicker())}
+                  data-testid="channel-permissions-add-role"
                   class="flex items-center gap-2 px-3 py-1.5 text-sm text-accent-primary hover:bg-accent-primary/10 rounded-lg transition-colors"
                 >
                   <Plus class="w-4 h-4" />
@@ -189,6 +190,7 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                 </button>
                 <Show when={showRolePicker()}>
                   <div
+                    data-testid="channel-permissions-role-picker"
                     class="absolute right-0 top-full mt-1 py-1 rounded-lg border border-white/10 shadow-xl z-10 w-48"
                     style="background-color: var(--color-surface-layer2)"
                   >
@@ -204,6 +206,9 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                         {(role) => (
                           <button
                             onClick={() => handleAddRole(role.id)}
+                            data-testid="channel-permissions-role-option"
+                            data-role-id={role.id}
+                            data-role-name={role.is_default ? "@everyone" : role.name}
                             class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-white/10 transition-colors"
                           >
                             <div
@@ -240,6 +245,9 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
 
                     return (
                       <div
+                        data-testid="channel-permissions-override-row"
+                        data-role-id={role.id}
+                        data-role-name={role.is_default ? "@everyone" : role.name}
                         class="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors group"
                         style="background-color: var(--color-surface-layer1)"
                       >
@@ -283,12 +291,14 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => setEditingRoleId(role.id)}
+                            data-testid="channel-permissions-override-edit"
                             class="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
                           >
                             <Settings class="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteOverride(role.id)}
+                            data-testid="channel-permissions-override-delete"
                             class="p-2 rounded-lg text-text-secondary hover:text-accent-danger hover:bg-white/10 transition-colors"
                           >
                             <Trash2 class="w-4 h-4" />
@@ -344,7 +354,10 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                                 localOverrides()[perm.bit] || "inherit";
 
                               return (
-                                <div class="flex items-center gap-4 p-2 rounded-lg hover:bg-white/5">
+                                <div
+                                  data-testid={`channel-permissions-row-${perm.key.toLowerCase().replace(/_/g, "-")}`}
+                                  class="flex items-center gap-4 p-2 rounded-lg hover:bg-white/5"
+                                >
                                   <div class="flex-1">
                                     <div class="text-sm text-text-primary">
                                       {perm.name}
@@ -355,6 +368,7 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                                       <input
                                         type="radio"
                                         name={`perm-${perm.bit}`}
+                                        data-testid="channel-permissions-inherit"
                                         checked={state() === "inherit"}
                                         onChange={() =>
                                           handleStateChange(perm.bit, "inherit")
@@ -369,6 +383,7 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                                       <input
                                         type="radio"
                                         name={`perm-${perm.bit}`}
+                                        data-testid="channel-permissions-allow"
                                         checked={state() === "allow"}
                                         onChange={() =>
                                           handleStateChange(perm.bit, "allow")
@@ -383,6 +398,7 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
                                       <input
                                         type="radio"
                                         name={`perm-${perm.bit}`}
+                                        data-testid="channel-permissions-deny"
                                         checked={state() === "deny"}
                                         onChange={() =>
                                           handleStateChange(perm.bit, "deny")
@@ -408,6 +424,7 @@ const ChannelPermissions: Component<ChannelPermissionsProps> = (props) => {
               <div class="flex justify-end">
                 <button
                   onClick={handleSaveOverride}
+                  data-testid="channel-permissions-save"
                   disabled={isSaving()}
                   class="px-4 py-2 rounded-lg bg-accent-primary text-white font-medium hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
                 >

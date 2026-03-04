@@ -95,6 +95,7 @@ const ChannelSettingsModal: Component<ChannelSettingsModalProps> = (props) => {
             <Show when={canManageChannel()}>
               <button
                 onClick={() => setActiveTab("permissions")}
+                data-testid="channel-settings-permissions-tab"
                 class="flex items-center gap-2 px-6 py-3 font-medium transition-colors"
                 classList={{
                   "text-accent-primary border-b-2 border-accent-primary":
@@ -110,7 +111,7 @@ const ChannelSettingsModal: Component<ChannelSettingsModalProps> = (props) => {
           </div>
 
           {/* Content */}
-          <div class="flex-1 overflow-y-auto">
+          <div class="flex-1 overflow-y-auto" data-testid="channel-settings-content">
             <Show when={activeTab() === "overview"}>
               <div class="p-6 space-y-6">
                 {/* Channel Name */}

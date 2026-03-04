@@ -27,6 +27,12 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
   const [isOpen, setIsOpen] = createSignal(false);
   const [kickConfirm, setKickConfirm] = createSignal(false);
 
+  const closeDropdown = () => {
+    setIsOpen(false);
+    setKickConfirm(false);
+    props.onClose?.();
+  };
+
   const isOwner = () => isGuildOwner(props.guildId, authState.user?.id || "");
   const isMemberOwner = () => isGuildOwner(props.guildId, props.userId);
   const currentUserId = () => authState.user?.id || "";
@@ -69,8 +75,7 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
     if (kickConfirm()) {
       try {
         await kickMember(props.guildId, props.userId);
-        setIsOpen(false);
-        props.onClose?.();
+        closeDropdown();
       } catch (err) {
         console.error("Failed to kick member:", err);
       }
@@ -100,6 +105,7 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
     <div class="relative">
       <button
         onClick={() => setIsOpen(!isOpen())}
+        data-testid="member-role-dropdown-trigger"
         class="flex items-center gap-1 px-2 py-1 text-sm text-text-secondary hover:text-text-primary hover:bg-white/10 rounded-lg transition-colors"
       >
         Manage
@@ -108,6 +114,7 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
 
       <Show when={isOpen()}>
         <div
+          data-testid="member-role-dropdown"
           class="absolute right-0 top-full mt-1 py-1 rounded-lg border border-white/10 shadow-xl z-20 min-w-[200px]"
           style="background-color: var(--color-surface-layer2)"
         >
@@ -132,6 +139,8 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
 
                     return (
                       <label
+                        data-role-id={role.id}
+                        data-role-name={role.name}
                         class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-white/10 transition-colors"
                         classList={{
                           "opacity-50 cursor-not-allowed": !canManage,
@@ -140,6 +149,7 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
                         <input
                           type="checkbox"
                           checked={hasRole}
+                          data-testid="member-role-checkbox"
                           disabled={!canManage}
                           onChange={() =>
                             canManage && handleToggleRole(role.id, hasRole)
@@ -192,7 +202,11 @@ const MemberRoleDropdown: Component<MemberRoleDropdownProps> = (props) => {
 
       {/* Click outside to close */}
       <Show when={isOpen()}>
-        <div class="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+        <div
+          data-testid="member-role-dropdown-backdrop"
+          class="fixed inset-0 z-10"
+          onClick={closeDropdown}
+        />
       </Show>
     </div>
   );

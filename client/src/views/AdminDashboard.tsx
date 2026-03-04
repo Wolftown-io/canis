@@ -42,7 +42,6 @@ import {
   ReportsPanel,
   AdminSettings,
   CommandCenterPanel,
-  PlatformPagesPanel,
   type AdminPanel,
 } from "@/components/admin";
 import AdminQuickModal from "@/components/admin/AdminQuickModal";
@@ -52,10 +51,12 @@ const AdminDashboard: Component = () => {
   const [activePanel, setActivePanel] = createSignal<AdminPanel>("overview");
   const [timeRemaining, setTimeRemaining] = createSignal<string>("");
   const [showElevateModal, setShowElevateModal] = createSignal(false);
+  const [statusChecked, setStatusChecked] = createSignal(false);
 
   // Check admin status and load stats on mount
   onMount(async () => {
     await checkAdminStatus();
+    setStatusChecked(true);
     if (adminState.isAdmin) {
       loadAdminStats();
     }
@@ -94,8 +95,8 @@ const AdminDashboard: Component = () => {
 
   // Redirect to home if not admin (after loading completes)
   createEffect(() => {
-    if (!adminState.isStatusLoading && !adminState.isAdmin) {
-      navigate("/");
+    if (statusChecked() && !adminState.isStatusLoading && !adminState.isAdmin) {
+      navigate("/", { replace: true });
     }
   });
 
@@ -153,14 +154,14 @@ const AdminDashboard: Component = () => {
       {/* Main Content */}
       <main class="flex-1 flex overflow-hidden">
         {/* Loading State */}
-        <Show when={adminState.isStatusLoading}>
+        <Show when={adminState.isStatusLoading || !statusChecked()}>
           <div class="flex-1 flex items-center justify-center">
             <div class="text-text-secondary">Loading admin status...</div>
           </div>
         </Show>
 
         {/* Admin Content */}
-        <Show when={!adminState.isStatusLoading && adminState.isAdmin}>
+        <Show when={statusChecked() && !adminState.isStatusLoading && adminState.isAdmin}>
           {/* Sidebar */}
           <AdminSidebar
             activePanel={activePanel()}
@@ -303,10 +304,6 @@ const AdminDashboard: Component = () => {
             {/* Guilds Panel */}
             <Show when={activePanel() === "guilds"}>
               <GuildsPanel />
-            </Show>
-
-            <Show when={activePanel() === "platform-pages"}>
-              <PlatformPagesPanel />
             </Show>
 
             {/* Reports Panel */}

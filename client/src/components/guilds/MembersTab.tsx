@@ -193,6 +193,7 @@ const MembersTab: Component<MembersTabProps> = (props) => {
 
                         return (
                           <div
+                            data-testid={`members-tab-row-${m().username}`}
                             class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group"
                             onContextMenu={(e) =>
                               showUserContextMenu(e, {
