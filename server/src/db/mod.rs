@@ -17,7 +17,7 @@
 //!   - Called from: `server/src/chat/channels.rs`
 //! - 57 = `role_create` (per-guild role creation limit)
 //!   - Called from: `server/src/guild/roles.rs`
-//! - 59 = `emoji_create` (per-guild emoji creation limit)
+//! - 59 = `emoji_create` (per-guild emoji creation limit, COUNT + INSERT only)
 //!   - Called from: `server/src/guild/emojis.rs`
 //! - 61 = `page_create` (per-guild page creation limit)
 //!   - Called from: `server/src/pages/handlers.rs`

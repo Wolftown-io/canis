@@ -314,9 +314,11 @@ pub async fn create_emoji(
     let emoji_id = Uuid::now_v7();
 
     let s3_key = format!("emojis/{guild_id}/{emoji_id}.{extension}");
+    let image_url = format!("/api/guilds/{guild_id}/emojis/{emoji_id}/image");
 
+    // Phase 1 — Reserve DB slot under advisory lock (short-lived).
     // Advisory lock seed 59 = emoji_create (see db/mod.rs registry).
-    // Lock is held during S3 upload but emoji files are small (<256KB).
+    // Lock is held only for COUNT + INSERT, not during S3 upload.
     let mut tx = state.db.begin().await?;
 
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 59))")
@@ -337,20 +339,10 @@ pub async fn create_emoji(
         )));
     }
 
-    // Upload to S3 (inside lock — acceptable for small emoji files)
-    s3.upload(&s3_key, file_data, content_type)
-        .await
-        .map_err(|e| EmojiError::Storage(e.to_string()))?;
-
-    let image_url = format!("/api/guilds/{guild_id}/emojis/{emoji_id}/image");
-
-    // Insert into DB
     let emoji = sqlx::query_as::<_, GuildEmoji>(
-        r"
-        INSERT INTO guild_emojis (id, guild_id, name, image_url, animated, uploaded_by)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING *
-        ",
+        r"INSERT INTO guild_emojis (id, guild_id, name, image_url, animated, uploaded_by)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING *",
     )
     .bind(emoji_id)
     .bind(guild_id)
@@ -362,6 +354,32 @@ pub async fn create_emoji(
     .await?;
 
     tx.commit().await?;
+
+    // Phase 2 — Upload to S3 outside advisory lock — no longer blocks concurrent emoji creates.
+    if let Err(upload_err) = s3.upload(&s3_key, file_data, content_type).await {
+        // Compensation: delete the reserved DB row
+        tracing::warn!(
+            emoji_id = %emoji_id,
+            guild_id = %guild_id,
+            error = %upload_err,
+            "S3 upload failed after DB insert, compensating by deleting emoji row"
+        );
+
+        if let Err(delete_err) = sqlx::query("DELETE FROM guild_emojis WHERE id = $1")
+            .bind(emoji_id)
+            .execute(&state.db)
+            .await
+        {
+            tracing::error!(
+                emoji_id = %emoji_id,
+                guild_id = %guild_id,
+                error = %delete_err,
+                "Failed to compensate: emoji DB row orphaned without S3 object"
+            );
+        }
+
+        return Err(EmojiError::Storage(upload_err.to_string()));
+    }
 
     // Broadcast update
     // Re-query full list for broadcast
