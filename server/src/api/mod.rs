@@ -26,7 +26,7 @@ use fred::interfaces::ClientLike;
 use serde::Serialize;
 use sqlx::PgPool;
 use tower_http::compression::CompressionLayer;
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
@@ -114,56 +114,62 @@ impl AppState {
 /// Create the main application router.
 pub fn create_router(state: AppState) -> Router {
     // Configure CORS based on allowed origins
-    let cors = if state.config.cors_allowed_origins.iter().any(|o| o == "*") {
-        // Wildcard `*` is incompatible with `allow_credentials(true)` per the
-        // CORS spec, so mirror the request Origin header instead.
-        tracing::warn!(
-            "CORS wildcard mirrors Origin header; set CORS_ALLOWED_ORIGINS explicitly in production"
-        );
-        CorsLayer::new()
-            .allow_origin(AllowOrigin::mirror_request())
-            .allow_methods(Any)
-            .allow_headers(Any)
-            .allow_credentials(true)
-    } else {
-        // Production mode: restrict to configured origins
+    let cors = {
         use axum::http::{header, HeaderName, Method};
-        let origins: Vec<_> = state
-            .config
-            .cors_allowed_origins
-            .iter()
-            .filter_map(|o| {
-                if let Ok(origin) = o.parse() {
-                    Some(origin)
-                } else {
-                    tracing::warn!(origin = %o, "Invalid CORS origin in configuration, skipping");
-                    None
-                }
-            })
-            .collect();
 
-        if origins.is_empty() {
-            tracing::error!(
-                "No valid CORS origins configured! All cross-origin requests will fail."
+        let allowed_methods = [
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ];
+        let allowed_headers = [
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static("x-request-id"),
+        ];
+
+        if state.config.cors_allowed_origins.iter().any(|o| o == "*") {
+            // Wildcard `*` is incompatible with `allow_credentials(true)` per the
+            // CORS spec, so mirror the request Origin header instead.
+            tracing::warn!(
+                "CORS wildcard mirrors Origin header; set CORS_ALLOWED_ORIGINS explicitly in production"
             );
-        }
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::mirror_request())
+                .allow_methods(allowed_methods)
+                .allow_headers(allowed_headers)
+                .allow_credentials(true)
+        } else {
+            // Production mode: restrict to configured origins
+            let origins: Vec<_> = state
+                .config
+                .cors_allowed_origins
+                .iter()
+                .filter_map(|o| {
+                    if let Ok(origin) = o.parse() {
+                        Some(origin)
+                    } else {
+                        tracing::warn!(origin = %o, "Invalid CORS origin in configuration, skipping");
+                        None
+                    }
+                })
+                .collect();
 
-        CorsLayer::new()
-            .allow_origin(origins)
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::PATCH,
-                Method::DELETE,
-                Method::OPTIONS,
-            ])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-request-id"),
-            ])
-            .allow_credentials(true)
+            if origins.is_empty() {
+                tracing::error!(
+                    "No valid CORS origins configured! All cross-origin requests will fail."
+                );
+            }
+
+            CorsLayer::new()
+                .allow_origin(origins)
+                .allow_methods(allowed_methods)
+                .allow_headers(allowed_headers)
+                .allow_credentials(true)
+        }
     };
 
     // Get max upload size from config (default 50MB)

@@ -94,7 +94,8 @@ impl GuildPermissions {
     /// Default permissions for the @everyone role.
     ///
     /// Includes basic content and voice permissions that all members should have.
-    pub const EVERYONE_DEFAULT: Self = Self::SEND_MESSAGES
+    pub const EVERYONE_DEFAULT: Self = Self::VIEW_CHANNEL
+        .union(Self::SEND_MESSAGES)
         .union(Self::EMBED_LINKS)
         .union(Self::ATTACH_FILES)
         .union(Self::USE_EMOJI)

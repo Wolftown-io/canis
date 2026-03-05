@@ -14,6 +14,7 @@
 import { Component, createSignal, createEffect, Show } from "solid-js";
 import { authState, clearSetupRequired } from "@/stores/auth";
 import { AlertCircle, CheckCircle, Server } from "lucide-solid";
+import { getAccessToken } from "@/lib/tauri";
 
 // Setup config interface (matches server API)
 interface SetupConfig {
@@ -83,8 +84,8 @@ async function completeSetup(config: SetupConfig): Promise<void> {
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     accessToken = await invoke<string>("get_access_token");
-  } else if (typeof localStorage !== "undefined") {
-    accessToken = localStorage.getItem("accessToken");
+  } else {
+    accessToken = getAccessToken();
   }
 
   if (!accessToken) {

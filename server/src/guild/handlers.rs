@@ -184,12 +184,13 @@ pub async fn create_guild(
         .execute(&mut *tx)
         .await?;
 
-    // Create default @everyone role
+    // Create default @everyone role with sensible default permissions
     sqlx::query(
         r"INSERT INTO guild_roles (guild_id, name, permissions, position, is_default)
-           VALUES ($1, 'everyone', 0, 0, true)",
+           VALUES ($1, 'everyone', $2, 0, true)",
     )
     .bind(guild_id)
+    .bind(crate::permissions::GuildPermissions::EVERYONE_DEFAULT.bits() as i64)
     .execute(&mut *tx)
     .await?;
 
