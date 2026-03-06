@@ -513,6 +513,33 @@ if (!isTauri && !browserState.accessToken) {
   }
 }
 
+// When the tab becomes visible again, check if the token needs refreshing.
+// Browsers throttle/pause setTimeout in background tabs, so the scheduled
+// refresh may not fire before the access token expires.
+if (!isTauri && typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden) return;
+    if (!browserState.accessToken) return;
+
+    const now = Date.now();
+    const expiresAt = browserState.tokenExpiresAt;
+
+    // Refresh if expired or within 60s of expiry
+    if (expiresAt && expiresAt - now < 60000) {
+      console.warn(
+        "[Kaiku:Auth] Visibility refresh: token expired/near-expiry, refreshing...",
+      );
+      const success = await refreshAccessToken();
+      if (success) {
+        console.log("[Kaiku:Auth] Visibility refresh: success");
+      }
+      // If refresh fails, refreshAccessToken already handles cleanup
+      // and the kaiku:session-expired event will be dispatched by the
+      // scheduled refresh failure handler.
+    }
+  });
+}
+
 /** Error with HTTP status code for structured error detection. */
 class HttpError extends Error {
   constructor(
