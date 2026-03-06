@@ -264,6 +264,7 @@ function ensureReactionShortcutListener() {
     if (!e.altKey || !reactionShortcutHandler) return;
     const tag = document.activeElement?.tagName;
     if (tag === "TEXTAREA" || tag === "INPUT") return;
+    if (editingMessageId()) return;
 
     const index = parseInt(e.key, 10) - 1;
     if (index >= 0 && index < QUICK_EMOJIS.length) {
