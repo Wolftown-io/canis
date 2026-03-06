@@ -6,6 +6,7 @@ vi.mock("@/lib/tauri", () => ({
   register: vi.fn(),
   logout: vi.fn(),
   oidcCompleteLogin: vi.fn(),
+  refreshAccessToken: vi.fn(),
 }));
 
 vi.mock("@/stores/websocket", () => ({
@@ -393,6 +394,50 @@ describe("auth store", () => {
       clearSetupRequired();
 
       expect(authState.setupRequired).toBe(false);
+    });
+  });
+
+  describe("session expired handling", () => {
+    it("retries refresh on kaiku:session-expired and recovers", async () => {
+      setAuthState({ user: createUser(), isInitialized: true });
+      vi.mocked(tauri.refreshAccessToken).mockResolvedValue(true);
+
+      window.dispatchEvent(new CustomEvent("kaiku:session-expired"));
+
+      await vi.waitFor(() => {
+        expect(tauri.refreshAccessToken).toHaveBeenCalledTimes(1);
+      });
+
+      expect(authState.sessionExpired).toBe(false);
+      expect(authState.user).not.toBeNull();
+    });
+
+    it("sets sessionExpired and cleans up when retry fails", async () => {
+      setAuthState({ user: createUser(), isInitialized: true });
+      vi.mocked(tauri.refreshAccessToken).mockResolvedValue(false);
+      vi.mocked(wsDisconnect).mockResolvedValue(undefined);
+      vi.mocked(cleanupWebSocket).mockResolvedValue(undefined);
+
+      window.dispatchEvent(new CustomEvent("kaiku:session-expired"));
+
+      await vi.waitFor(() => {
+        expect(authState.sessionExpired).toBe(true);
+      });
+
+      expect(authState.user).toBeNull();
+      expect(wsDisconnect).toHaveBeenCalled();
+    });
+
+    it("ignores event when not authenticated", async () => {
+      setAuthState({ user: null, isInitialized: true });
+
+      window.dispatchEvent(new CustomEvent("kaiku:session-expired"));
+
+      // Give time for any async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(tauri.refreshAccessToken).not.toHaveBeenCalled();
+      expect(authState.sessionExpired).toBe(false);
     });
   });
 });

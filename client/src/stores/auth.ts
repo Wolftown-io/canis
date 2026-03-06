@@ -73,6 +73,49 @@ function registerWebSocketReconnectListener() {
   }
 }
 
+// Session-expired listener (registered once globally to prevent leaks)
+let sessionExpiredListenerRegistered = false;
+
+function registerSessionExpiredListener() {
+  if (typeof window === "undefined" || sessionExpiredListenerRegistered) return;
+
+  window.addEventListener("kaiku:session-expired", async () => {
+    // Ignore if not authenticated
+    if (!authState.user) return;
+
+    console.warn("[Kaiku:Auth] Session expired: attempting silent retry...");
+
+    const success = await tauri.refreshAccessToken();
+    if (success) {
+      console.log("[Kaiku:Auth] Silent retry: success — session recovered");
+      return;
+    }
+
+    console.warn("[Kaiku:Auth] Silent retry: failed — showing expiry modal");
+
+    // Clean up connections
+    try {
+      await wsDisconnect();
+      await cleanupWebSocket();
+      stopIdleDetectionCleanup();
+      cleanupPresence();
+    } catch (err) {
+      console.error("[Auth] Cleanup during session expiry failed:", err);
+    }
+
+    setAuthState({
+      user: null,
+      sessionExpired: true,
+      error: null,
+    });
+  });
+
+  sessionExpiredListenerRegistered = true;
+}
+
+// Register immediately — the listener checks auth state internally
+registerSessionExpiredListener();
+
 // Actions
 
 /**
