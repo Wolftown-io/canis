@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-02-27
+**Last Updated:** 2026-03-06
 
 ## Quick Status Overview
 
@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 40% (2/5) | Personal workspaces, digital library, mobile, live session toolkits, focus engine (sovereign guild model deferred) |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 14% (2/14) | Personal workspaces, digital library, mobile, live session toolkits, focus engine, QA polish (edit messages, emoji composer, session expiry, custom status, shortcuts, formatting, UX refinements) |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
@@ -591,6 +591,40 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - **Strategy:** Enhance current Info Pages with version recovery, deep-linkable sections, and a "Library" view for long-term guild documentation.
   - **Delivered:** Revision history with content snapshots and pruning, guild-scoped page categories with CRUD/reordering, deep-linkable heading anchors, library catalog view, per-guild configurable limits with admin overrides (13 new API endpoints). Five code review rounds addressed 11 security findings including CSS injection via SVG `<style>` tags, path traversal validation, IDOR scope checks, and best-effort revision snapshots.
 
+### QA Polish & Feature Completion (Identified 2026-03-06)
+*Items identified during comprehensive browser-based QA testing of all features.*
+
+- [ ] **[Chat] Message Editing (Client Wiring)** `Priority: High`
+  - **Context:** Server API (`PATCH /api/messages/:id`) is fully implemented with validation, content filtering, and `MessageEdit` WebSocket broadcast. The client already handles incoming `message_edit` events and renders the "(edited)" indicator. The entire client-side sending path is missing.
+  - **Strategy:**
+    - Add `editMessage(messageId, content)` function to `tauri.ts` calling `PATCH /api/messages/:id`.
+    - Add "Edit Message" item to the message context menu in `MessageItem.tsx` (only for own messages).
+    - Implement inline edit UI: replace message text with a pre-filled textarea, Enter to save, Escape to cancel.
+- [ ] **[UX] Emoji Picker in Message Composer** `Priority: High`
+  - **Context:** The `EmojiPicker` component is fully built (search, recents, guild custom emojis, categories) but only wired into message reactions. The `MessageInput` has no emoji button — users can only insert emojis via `:query` autocomplete.
+  - **Strategy:** Add an emoji button to `MessageInput` that opens the existing `PositionedEmojiPicker` and inserts the selected emoji at the cursor position in the textarea.
+- [ ] **[Auth] Session Expiry Notification** `Priority: High`
+  - **Context:** When the proactive token refresh fails, the client dispatches `kaiku:session-expired` but no component listens for it. Users silently lose their session and only discover it on their next action.
+  - **Strategy:** Add an event listener in `AuthGuard` or `Layout` that catches `kaiku:session-expired` and either shows a toast notification ("Session expired — please log in again") or redirects to `/login` with a message.
+- [ ] **[Social] Custom Status Backend Support** `Priority: Medium`
+  - **Context:** The entire client UI exists — `StatusPicker`, `CustomStatusModal` (with emoji, text, and expiry selector) — but `handleCustomStatusSave` in `UserPanel` is a no-op. The backend presence API only handles online/away/busy/offline.
+  - **Strategy:** Add a `custom_status` field (text + emoji + expiry) to the presence system backend. Wire `handleCustomStatusSave` to call the new endpoint. Broadcast custom status changes via WebSocket.
+- [ ] **[UX] Keyboard Shortcuts Help Dialog** `Priority: Medium`
+  - **Context:** Several undiscoverable shortcuts are scattered across the app (Ctrl+Shift+F for search, Alt+1-4 for reactions, Ctrl+Shift+M/D for voice, push-to-talk key, Ctrl+K command palette). No central help dialog exists.
+  - **Strategy:** Create a `KeyboardShortcutsModal` listing all available shortcuts grouped by category (Navigation, Voice, Messaging, etc.). Open via `?` key or a button in Settings. Add a "Keybindings" tab to the Settings modal.
+- [ ] **[Chat] Message Formatting Toolbar** `Priority: Medium`
+  - **Context:** The message input is a plain textarea with no formatting hints or toolbar. Users must know Markdown syntax. The `MarkdownPreview` component exists (used in Pages) but is not available in chat.
+  - **Strategy:** Add a small formatting toolbar above or below the `MessageInput` with buttons for bold, italic, code, spoiler, and optionally a Markdown preview toggle. Can reuse `MarkdownPreview` for the preview mode.
+- [ ] **[UX] Friends Tab Empty State Improvement** `Priority: Low`
+  - **Context:** When there are pending friend requests but no accepted friends, the "All" friends tab shows "You don't have any friends yet" with no mention of pending requests.
+  - **Strategy:** Add a contextual hint like "You have N pending request(s)" with a link to the Pending tab when the All tab is empty but pending requests exist.
+- [ ] **[UX] Guild Discovery Default Prompt** `Priority: Low`
+  - **Context:** After creating a guild, the Discover Servers page is empty because discoverability is off by default. New guild owners may not know about the feature.
+  - **Strategy:** Add a prompt during guild creation or in the post-creation flow: "Make this server visible in the server browser?" Alternatively, add a dismissible banner in guild settings suggesting to enable discoverability.
+- [ ] **[Chat] Channel Message Search** `Priority: Low`
+  - **Context:** The guild sidebar has a "Search messages..." input. Full-text search exists server-side but the in-channel search UX could be improved with result highlighting and contextual navigation.
+  - **Strategy:** Ensure the search input in the channel sidebar is wired to the existing search API with proper result rendering, message highlighting, and click-to-navigate within the channel context.
+
 ---
 
 ## Phase 7: Long-term / Optional SaaS Polish 📋 **PLANNED**
@@ -660,6 +694,9 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 ---
 
 ## Recent Changes
+
+### 2026-03-06
+- **QA Polish & Feature Completion** — Comprehensive browser-based QA testing identified 9 improvement items added to Phase 6. High priority: message editing client wiring (server API fully implemented, client missing `editMessage()` + context menu + inline edit UI), emoji picker button in message composer (component exists but only wired to reactions), session expiry notification (`kaiku:session-expired` event dispatched but never listened to). Medium priority: custom status backend support (client UI complete, backend no-op), keyboard shortcuts help dialog (shortcuts scattered and undiscoverable), message formatting toolbar (plain textarea with no hints). Low priority: friends tab empty state improvement (no mention of pending requests), guild discovery default prompt (new guilds not discoverable by default), channel message search UX polish.
 
 ### 2026-02-26
 - **Personal Workspaces** (PR #250) — Cross-guild channel aggregation with named workspace folders. 9 REST endpoints (CRUD, entry management, reordering), 7 WebSocket events for real-time sync, `workspaces` and `workspace_entries` tables with `update_updated_at()` triggers. Configurable limits via `MAX_WORKSPACES_PER_USER` (default 20) and `MAX_ENTRIES_PER_WORKSPACE` (default 50). Atomic CTE prevents limit bypass on concurrent requests. Guild membership + VIEW_CHANNEL permission checks enforced. 17 integration tests. Three code review rounds aligned error codes (SCREAMING_SNAKE_CASE), status codes (403 for limits, 204 for reorder), structured tracing, validator crate usage, `Option<Option<String>>` icon clearing, and configurable entry limits.
