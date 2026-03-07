@@ -13,7 +13,7 @@ import {
   onMount,
   onCleanup,
 } from "solid-js";
-import { Inbox, Hash, CheckCheck } from "lucide-solid";
+import { Hash, CheckCheck } from "lucide-solid";
 import flokiParty from "@/assets/emotes/floki_emote_3.png";
 import {
   getUnreadAggregate,

@@ -6,7 +6,6 @@
 
 import { Component, Show, For, createSignal, onMount } from "solid-js";
 import {
-  Pin,
   FileText,
   Link,
   MessageSquare,
