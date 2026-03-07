@@ -33,7 +33,7 @@ pub enum ActivityType {
 /// Returns true if the character is an unsafe Unicode format or override character.
 fn is_unsafe_unicode(c: char) -> bool {
     (c.is_control() && c != ' ' && c != '\n')
-        || matches!(c, '\u{200B}' | '\u{200C}' | '\u{200D}') // zero-width chars
+        || matches!(c, '\u{200B}' | '\u{200C}') // zero-width space / non-joiner
         || matches!(c, '\u{202C}' | '\u{202D}' | '\u{202E}') // bidi overrides
 }
 
@@ -404,8 +404,14 @@ mod tests {
     #[test]
     fn test_validate_unicode_text_format_chars() {
         assert!(validate_unicode_text("hello\u{200B}world", 128).is_err());
-        assert!(validate_unicode_text("hello\u{200D}world", 128).is_err());
         assert!(validate_unicode_text("hello\u{200C}world", 128).is_err());
+    }
+
+    #[test]
+    fn test_validate_unicode_text_allows_zwj_emoji() {
+        // ZWJ (U+200D) is required for composite emoji sequences
+        assert!(validate_unicode_text("👨\u{200D}👩\u{200D}👧\u{200D}👦", 128).is_ok()); // family
+        assert!(validate_unicode_text("👩\u{200D}💻", 128).is_ok()); // woman technologist
     }
 
     #[test]
