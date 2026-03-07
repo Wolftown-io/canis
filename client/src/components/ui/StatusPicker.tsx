@@ -84,7 +84,7 @@ const StatusPicker: Component<StatusPickerProps> = (props) => {
                   <Crosshair class="w-3.5 h-3.5 text-accent-primary" />
                   <span class="text-xs text-accent-primary font-medium">
                     {mode().name}
-                    {focusState().autoActivated ? " (auto)" : ""}
+                    {focusState().auto_activated ? " (auto)" : ""}
                   </span>
                 </div>
                 <button

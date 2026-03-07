@@ -13,51 +13,51 @@ vi.mock("@/stores/preferences", () => {
           name: "Gaming",
           icon: "gamepad-2",
           builtin: true,
-          triggerCategories: ["game"] as string[],
-          autoActivateEnabled: true,
-          suppressionLevel: "all" as const,
-          vipUserIds: ["vip-user-1"],
-          vipChannelIds: ["vip-channel-1"],
-          emergencyKeywords: ["urgent", "emergency"],
+          trigger_categories: ["game"] as string[],
+          auto_activate_enabled: true,
+          suppression_level: "all" as const,
+          vip_user_ids: ["vip-user-1"],
+          vip_channel_ids: ["vip-channel-1"],
+          emergency_keywords: ["urgent", "emergency"],
         },
         {
           id: "deep-work",
           name: "Deep Work",
           icon: "brain",
           builtin: true,
-          triggerCategories: ["coding"] as string[],
-          autoActivateEnabled: true,
-          suppressionLevel: "except_mentions" as const,
-          vipUserIds: [],
-          vipChannelIds: [],
-          emergencyKeywords: [],
+          trigger_categories: ["coding"] as string[],
+          auto_activate_enabled: true,
+          suppression_level: "except_mentions" as const,
+          vip_user_ids: [],
+          vip_channel_ids: [],
+          emergency_keywords: [],
         },
         {
           id: "streaming",
           name: "Streaming",
           icon: "radio",
           builtin: true,
-          triggerCategories: null,
-          autoActivateEnabled: false,
-          suppressionLevel: "all" as const,
-          vipUserIds: [],
-          vipChannelIds: [],
-          emergencyKeywords: [],
+          trigger_categories: null,
+          auto_activate_enabled: false,
+          suppression_level: "all" as const,
+          vip_user_ids: [],
+          vip_channel_ids: [],
+          emergency_keywords: [],
         },
         {
           id: "dm-friendly",
           name: "DM Friendly",
           icon: "message-circle",
           builtin: false,
-          triggerCategories: null,
-          autoActivateEnabled: false,
-          suppressionLevel: "except_dms" as const,
-          vipUserIds: [],
-          vipChannelIds: [],
-          emergencyKeywords: [],
+          trigger_categories: null,
+          auto_activate_enabled: false,
+          suppression_level: "except_dms" as const,
+          vip_user_ids: [],
+          vip_channel_ids: [],
+          emergency_keywords: [],
         },
       ],
-      autoActivateGlobal: false,
+      auto_activate_global: false,
     },
   };
 
@@ -112,9 +112,9 @@ describe("focus store", () => {
     vi.mocked(isDndActive).mockReturnValue(false);
     deactivateFocusMode();
 
-    // Reset to default prefs with autoActivateGlobal off
+    // Reset to default prefs with auto_activate_global off
     const prefs = vi.mocked(preferences)();
-    prefs.focus.autoActivateGlobal = false;
+    prefs.focus.auto_activate_global = false;
   });
 
   describe("evaluateFocusPolicy", () => {
@@ -215,24 +215,24 @@ describe("focus store", () => {
     it("activates a mode and sets state", () => {
       activateFocusMode("gaming");
 
-      expect(focusState().activeModeId).toBe("gaming");
-      expect(focusState().autoActivated).toBe(false);
-      expect(focusState().activatedAt).toBeTruthy();
+      expect(focusState().active_mode_id).toBe("gaming");
+      expect(focusState().auto_activated).toBe(false);
+      expect(focusState().activated_at).toBeTruthy();
     });
 
     it("deactivates a mode and clears state", () => {
       activateFocusMode("gaming");
       deactivateFocusMode();
 
-      expect(focusState().activeModeId).toBeNull();
-      expect(focusState().autoActivated).toBe(false);
-      expect(focusState().activatedAt).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
+      expect(focusState().auto_activated).toBe(false);
+      expect(focusState().activated_at).toBeNull();
     });
 
     it("does nothing for unknown mode ID", () => {
       activateFocusMode("nonexistent");
 
-      expect(focusState().activeModeId).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
     });
 
     it("getActiveFocusMode returns the mode object", () => {
@@ -248,117 +248,117 @@ describe("focus store", () => {
   });
 
   describe("handleActivityChange", () => {
-    it("does nothing when autoActivateGlobal is off", () => {
+    it("does nothing when auto_activate_global is off", () => {
       handleActivityChange("game");
 
-      expect(focusState().activeModeId).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
     });
 
     it("auto-activates matching mode when global toggle is on", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       handleActivityChange("game");
 
-      expect(focusState().activeModeId).toBe("gaming");
-      expect(focusState().autoActivated).toBe(true);
-      expect(focusState().triggeringCategory).toBe("game");
+      expect(focusState().active_mode_id).toBe("gaming");
+      expect(focusState().auto_activated).toBe(true);
+      expect(focusState().triggering_category).toBe("game");
     });
 
     it("auto-deactivates when activity clears", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       handleActivityChange("game");
-      expect(focusState().activeModeId).toBe("gaming");
+      expect(focusState().active_mode_id).toBe("gaming");
 
       handleActivityChange(null);
-      expect(focusState().activeModeId).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
     });
 
     it("does not override a manually activated mode", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       // Manually activate streaming
       activateFocusMode("streaming");
-      expect(focusState().autoActivated).toBe(false);
+      expect(focusState().auto_activated).toBe(false);
 
       // Activity change should not override
       handleActivityChange("game");
-      expect(focusState().activeModeId).toBe("streaming");
+      expect(focusState().active_mode_id).toBe("streaming");
     });
 
     it("does not deactivate a manually activated mode when activity clears", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       activateFocusMode("gaming");
 
       handleActivityChange(null);
-      expect(focusState().activeModeId).toBe("gaming");
+      expect(focusState().active_mode_id).toBe("gaming");
     });
 
     it("switches auto-activated mode when category changes", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       handleActivityChange("game");
-      expect(focusState().activeModeId).toBe("gaming");
+      expect(focusState().active_mode_id).toBe("gaming");
 
       handleActivityChange("coding");
-      expect(focusState().activeModeId).toBe("deep-work");
+      expect(focusState().active_mode_id).toBe("deep-work");
     });
 
     it("deactivates auto-activated mode when no mode matches new category", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       handleActivityChange("game");
-      expect(focusState().activeModeId).toBe("gaming");
+      expect(focusState().active_mode_id).toBe("gaming");
 
       // "listening" has no matching mode in our test data
       handleActivityChange("listening");
-      expect(focusState().activeModeId).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
     });
 
     it("does not activate mode with autoActivateEnabled=false", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
-      // Streaming has triggerCategories=null and autoActivateEnabled=false
+      // Streaming has trigger_categories=null and auto_activate_enabled=false
       // No mode has "watching" trigger
       handleActivityChange("watching");
-      expect(focusState().activeModeId).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
     });
 
     it("skips re-activation if same mode is already active", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       handleActivityChange("game");
-      const firstActivatedAt = focusState().activatedAt;
+      const firstActivatedAt = focusState().activated_at;
 
       // Same category again — should not change activatedAt
       handleActivityChange("game");
-      expect(focusState().activatedAt).toBe(firstActivatedAt);
+      expect(focusState().activated_at).toBe(firstActivatedAt);
     });
 
     it("deactivates auto-activated mode when global toggle is off and activity clears", () => {
       const prefs = vi.mocked(preferences)();
-      prefs.focus.autoActivateGlobal = true;
+      prefs.focus.auto_activate_global = true;
 
       // Auto-activate gaming mode
       handleActivityChange("game");
-      expect(focusState().activeModeId).toBe("gaming");
-      expect(focusState().autoActivated).toBe(true);
+      expect(focusState().active_mode_id).toBe("gaming");
+      expect(focusState().auto_activated).toBe(true);
 
       // User turns off global toggle while mode is active
-      prefs.focus.autoActivateGlobal = false;
+      prefs.focus.auto_activate_global = false;
 
       // App exits — activity clears, should still deactivate
       handleActivityChange(null);
-      expect(focusState().activeModeId).toBeNull();
+      expect(focusState().active_mode_id).toBeNull();
     });
   });
 });

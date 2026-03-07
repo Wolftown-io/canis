@@ -25,9 +25,9 @@ export interface QuietHoursSettings {
   /** Whether quiet hours are enabled */
   enabled: boolean;
   /** Start time in 24h format (e.g., "22:00") */
-  startTime: string;
+  start_time: string;
   /** End time in 24h format (e.g., "08:00") */
-  endTime: string;
+  end_time: string;
 }
 
 export interface SoundSettings {
@@ -38,7 +38,7 @@ export interface SoundSettings {
   /** Selected notification sound */
   selectedSound: SoundOption;
   /** Quiet hours / Do Not Disturb settings */
-  quietHours: QuietHoursSettings;
+  quiet_hours: QuietHoursSettings;
 }
 
 export interface ChannelNotificationSettings {
@@ -58,8 +58,8 @@ export const soundSettings = (): SoundSettings => {
   return {
     enabled: sound.enabled,
     volume: sound.volume,
-    selectedSound: sound.soundType,
-    quietHours: sound.quietHours,
+    selectedSound: sound.sound_type,
+    quiet_hours: sound.quiet_hours,
   };
 };
 
@@ -68,7 +68,7 @@ export const soundSettings = (): SoundSettings => {
  * Maps "muted" to "none" for backwards compatibility.
  */
 export const channelNotificationSettings = (): ChannelNotificationSettings => {
-  const channelNotifs = preferences().channelNotifications;
+  const channelNotifs = preferences().channel_notifications;
   const result: ChannelNotificationSettings = {};
 
   for (const [channelId, level] of Object.entries(channelNotifs)) {
@@ -101,11 +101,11 @@ export function setSoundVolume(volume: number): void {
 }
 
 export function getSelectedSound(): SoundOption {
-  return preferences().sound.soundType;
+  return preferences().sound.sound_type;
 }
 
 export function setSelectedSound(sound: SoundOption): void {
-  updateNestedPreference("sound", "soundType", sound);
+  updateNestedPreference("sound", "sound_type", sound);
 }
 
 // ============================================================================
@@ -118,39 +118,39 @@ export { isInQuietHours };
 export const isWithinQuietHours = isInQuietHours;
 
 export function getQuietHoursEnabled(): boolean {
-  return preferences().sound.quietHours.enabled;
+  return preferences().sound.quiet_hours.enabled;
 }
 
 export function setQuietHoursEnabled(enabled: boolean): void {
-  const currentQuietHours = preferences().sound.quietHours;
-  updateNestedPreference("sound", "quietHours", {
+  const currentQuietHours = preferences().sound.quiet_hours;
+  updateNestedPreference("sound", "quiet_hours", {
     ...currentQuietHours,
     enabled,
   });
 }
 
 export function getQuietHoursSchedule(): {
-  startTime: string;
-  endTime: string;
+  start_time: string;
+  end_time: string;
 } {
-  const { startTime, endTime } = preferences().sound.quietHours;
-  return { startTime, endTime };
+  const { start_time, end_time } = preferences().sound.quiet_hours;
+  return { start_time, end_time };
 }
 
 export function setQuietHoursSchedule(
   startTime: string,
   endTime: string,
 ): void {
-  const currentQuietHours = preferences().sound.quietHours;
-  updateNestedPreference("sound", "quietHours", {
+  const currentQuietHours = preferences().sound.quiet_hours;
+  updateNestedPreference("sound", "quiet_hours", {
     ...currentQuietHours,
-    startTime,
-    endTime,
+    start_time: startTime,
+    end_time: endTime,
   });
 }
 
 export function getQuietHours(): QuietHoursSettings {
-  return soundSettings().quietHours;
+  return soundSettings().quiet_hours;
 }
 
 export function setQuietHoursTime(startTime: string, endTime: string): void {
@@ -189,7 +189,7 @@ export function getChannelNotificationLevel(
   // Handle DM default
   if (level === "mentions" && isDm) {
     // Check if there's actually a stored value or if it's the default
-    const stored = preferences().channelNotifications[channelId];
+    const stored = preferences().channel_notifications[channelId];
     if (!stored) return "all"; // DM default
   }
   return level;

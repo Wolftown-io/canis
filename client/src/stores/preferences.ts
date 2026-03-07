@@ -36,42 +36,42 @@ export const DEFAULT_FOCUS_MODES: FocusMode[] = [
     name: "Gaming",
     icon: "gamepad-2",
     builtin: true,
-    triggerCategories: ["game"],
-    autoActivateEnabled: true,
-    suppressionLevel: "all",
-    vipUserIds: [],
-    vipChannelIds: [],
-    emergencyKeywords: [],
+    trigger_categories: ["game"],
+    auto_activate_enabled: true,
+    suppression_level: "all",
+    vip_user_ids: [],
+    vip_channel_ids: [],
+    emergency_keywords: [],
   },
   {
     id: "builtin-deep-work",
     name: "Deep Work",
     icon: "brain",
     builtin: true,
-    triggerCategories: ["coding"],
-    autoActivateEnabled: true,
-    suppressionLevel: "all",
-    vipUserIds: [],
-    vipChannelIds: [],
-    emergencyKeywords: ["urgent", "emergency"],
+    trigger_categories: ["coding"],
+    auto_activate_enabled: true,
+    suppression_level: "all",
+    vip_user_ids: [],
+    vip_channel_ids: [],
+    emergency_keywords: ["urgent", "emergency"],
   },
   {
     id: "builtin-streaming",
     name: "Streaming",
     icon: "radio",
     builtin: true,
-    triggerCategories: null,
-    autoActivateEnabled: false,
-    suppressionLevel: "all",
-    vipUserIds: [],
-    vipChannelIds: [],
-    emergencyKeywords: [],
+    trigger_categories: null,
+    auto_activate_enabled: false,
+    suppression_level: "all",
+    vip_user_ids: [],
+    vip_channel_ids: [],
+    emergency_keywords: [],
   },
 ];
 
 export const DEFAULT_FOCUS_PREFERENCES: FocusPreferences = {
   modes: DEFAULT_FOCUS_MODES,
-  autoActivateGlobal: false,
+  auto_activate_global: false,
 };
 
 // ============================================================================
@@ -83,22 +83,22 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   sound: {
     enabled: true,
     volume: 80,
-    soundType: "default",
-    quietHours: {
+    sound_type: "default",
+    quiet_hours: {
       enabled: false,
-      startTime: "22:00",
-      endTime: "08:00",
+      start_time: "22:00",
+      end_time: "08:00",
     },
   },
   connection: {
-    displayMode: "circle",
-    showNotifications: true,
+    display_mode: "circle",
+    show_notifications: true,
   },
-  channelNotifications: {},
-  homeSidebar: {
+  channel_notifications: {},
+  home_sidebar: {
     collapsed: {
       unread: false,
-      activeNow: false,
+      active_now: false,
       pending: false,
       pins: false,
     },
@@ -222,9 +222,9 @@ function migrateOldPreferences(): Partial<UserPreferences> | null {
       migrated.sound = {
         enabled: parsed.enabled ?? DEFAULT_PREFERENCES.sound.enabled,
         volume: parsed.volume ?? DEFAULT_PREFERENCES.sound.volume,
-        // Old key was "selectedSound", new key is "soundType"
-        soundType: parsed.selectedSound ?? DEFAULT_PREFERENCES.sound.soundType,
-        quietHours: DEFAULT_PREFERENCES.sound.quietHours,
+        // Old key was "selectedSound", new key is "sound_type"
+        sound_type: parsed.selectedSound ?? DEFAULT_PREFERENCES.sound.sound_type,
+        quiet_hours: DEFAULT_PREFERENCES.sound.quiet_hours,
       };
       hasMigration = true;
       console.log("[Preferences] Migrated old sound settings key");
@@ -248,7 +248,7 @@ function migrateOldPreferences(): Partial<UserPreferences> | null {
           converted[channelId] = level as "all" | "mentions";
         }
       }
-      migrated.channelNotifications = converted;
+      migrated.channel_notifications = converted;
       hasMigration = true;
       console.log("[Preferences] Migrated old channel notifications key");
     } catch {
@@ -263,11 +263,11 @@ function migrateOldPreferences(): Partial<UserPreferences> | null {
     try {
       const parsed = JSON.parse(oldConnection);
       migrated.connection = {
-        displayMode:
-          parsed.displayMode ?? DEFAULT_PREFERENCES.connection.displayMode,
-        showNotifications:
+        display_mode:
+          parsed.displayMode ?? DEFAULT_PREFERENCES.connection.display_mode,
+        show_notifications:
           parsed.showNotifications ??
-          DEFAULT_PREFERENCES.connection.showNotifications,
+          DEFAULT_PREFERENCES.connection.show_notifications,
       };
       hasMigration = true;
       console.log("[Preferences] Migrated old connection settings key");
@@ -496,7 +496,7 @@ export function handlePreferencesUpdated(event: {
 export function getChannelNotificationLevel(
   channelId: string,
 ): "all" | "mentions" | "muted" {
-  return preferences().channelNotifications[channelId] ?? "mentions";
+  return preferences().channel_notifications[channelId] ?? "mentions";
 }
 
 /**
@@ -508,10 +508,10 @@ export function setChannelNotificationLevel(
 ): void {
   const current = preferences();
   const updatedNotifications = {
-    ...current.channelNotifications,
+    ...current.channel_notifications,
     [channelId]: level,
   };
-  updatePreference("channelNotifications", updatedNotifications);
+  updatePreference("channel_notifications", updatedNotifications);
 }
 
 /**
@@ -519,7 +519,7 @@ export function setChannelNotificationLevel(
  */
 export function isInQuietHours(): boolean {
   const sound = preferences().sound;
-  if (!sound.quietHours.enabled) return false;
+  if (!sound.quiet_hours.enabled) return false;
 
   const now = new Date();
   const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now
@@ -527,15 +527,15 @@ export function isInQuietHours(): boolean {
     .toString()
     .padStart(2, "0")}`;
 
-  const { startTime, endTime } = sound.quietHours;
+  const { start_time, end_time } = sound.quiet_hours;
 
   // Handle overnight quiet hours (e.g., 22:00 - 08:00)
-  if (startTime > endTime) {
-    return currentTime >= startTime || currentTime < endTime;
+  if (start_time > end_time) {
+    return currentTime >= start_time || currentTime < end_time;
   }
 
   // Handle same-day quiet hours (e.g., 09:00 - 17:00)
-  return currentTime >= startTime && currentTime < endTime;
+  return currentTime >= start_time && currentTime < end_time;
 }
 
 // ============================================================================

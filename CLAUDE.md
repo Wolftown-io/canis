@@ -56,6 +56,9 @@ import { invoke } from '@tauri-apps/api/core';
 const channel = await invoke<Channel>('get_channel', { id });
 ```
 
+### Naming Convention: snake_case for Serialized Data
+All TypeScript interface fields that represent wire format (WebSocket, API, DB JSONB) **must** use `snake_case` to match Rust serde defaults. Local variables and function parameters stay camelCase per TypeScript convention. See `docs/developer-guide/development/standards.md` §5.
+
 ## Commit Convention
 
 **Format:** `type(scope): subject`

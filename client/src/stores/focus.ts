@@ -17,10 +17,10 @@ import { preferences } from "./preferences";
 // ============================================================================
 
 const [focusState, setFocusState] = createSignal<FocusState>({
-  activeModeId: null,
-  autoActivated: false,
-  activatedAt: null,
-  triggeringCategory: null,
+  active_mode_id: null,
+  auto_activated: false,
+  activated_at: null,
+  triggering_category: null,
 });
 
 // ============================================================================
@@ -59,14 +59,14 @@ function getCachedVipSets(mode: FocusMode): {
     cachedChannelSet = EMPTY_SET;
   }
 
-  if (cachedVipUserIds !== mode.vipUserIds) {
-    cachedVipUserIds = mode.vipUserIds;
-    cachedUserSet = buildVipSet(mode.vipUserIds);
+  if (cachedVipUserIds !== mode.vip_user_ids) {
+    cachedVipUserIds = mode.vip_user_ids;
+    cachedUserSet = buildVipSet(mode.vip_user_ids);
   }
 
-  if (cachedVipChannelIds !== mode.vipChannelIds) {
-    cachedVipChannelIds = mode.vipChannelIds;
-    cachedChannelSet = buildVipSet(mode.vipChannelIds);
+  if (cachedVipChannelIds !== mode.vip_channel_ids) {
+    cachedVipChannelIds = mode.vip_channel_ids;
+    cachedChannelSet = buildVipSet(mode.vip_channel_ids);
   }
 
   return { userSet: cachedUserSet, channelSet: cachedChannelSet };
@@ -81,12 +81,12 @@ function getCachedVipSets(mode: FocusMode): {
  */
 export function getActiveFocusMode(): FocusMode | null {
   const state = focusState();
-  if (!state.activeModeId) return null;
+  if (!state.active_mode_id) return null;
 
   const modes = preferences().focus?.modes;
   if (!modes) return null;
 
-  return modes.find((m) => m.id === state.activeModeId) ?? null;
+  return modes.find((m) => m.id === state.active_mode_id) ?? null;
 }
 
 // ============================================================================
@@ -104,10 +104,10 @@ export function activateFocusMode(modeId: string): void {
   if (!mode) return;
 
   setFocusState({
-    activeModeId: modeId,
-    autoActivated: false,
-    activatedAt: new Date().toISOString(),
-    triggeringCategory: null,
+    active_mode_id: modeId,
+    auto_activated: false,
+    activated_at: new Date().toISOString(),
+    triggering_category: null,
   });
 }
 
@@ -116,10 +116,10 @@ export function activateFocusMode(modeId: string): void {
  */
 export function deactivateFocusMode(): void {
   setFocusState({
-    activeModeId: null,
-    autoActivated: false,
-    activatedAt: null,
-    triggeringCategory: null,
+    active_mode_id: null,
+    auto_activated: false,
+    activated_at: null,
+    triggering_category: null,
   });
 }
 
@@ -136,40 +136,40 @@ export function handleActivityChange(
   if (!focusPrefs) return;
 
   // If activity cleared and current mode was auto-activated, deactivate
-  // (must run even when autoActivateGlobal is off — user may have toggled it
+  // (must run even when auto_activate_global is off — user may have toggled it
   // off while an auto-activated mode was running)
   if (category === null) {
-    if (state.autoActivated) {
+    if (state.auto_activated) {
       deactivateFocusMode();
     }
     return;
   }
 
   // Master switch must be on for new activations
-  if (!focusPrefs.autoActivateGlobal) return;
+  if (!focusPrefs.auto_activate_global) return;
 
   // Don't override a manually activated mode
-  if (state.activeModeId && !state.autoActivated) return;
+  if (state.active_mode_id && !state.auto_activated) return;
 
   // Find a mode that matches this category and has auto-activate enabled
   const matchingMode = focusPrefs.modes.find(
     (m) =>
-      m.autoActivateEnabled &&
-      m.triggerCategories !== null &&
-      m.triggerCategories.includes(category),
+      m.auto_activate_enabled &&
+      m.trigger_categories !== null &&
+      m.trigger_categories.includes(category),
   );
 
   if (matchingMode) {
     // Already active for this mode? Skip
-    if (state.activeModeId === matchingMode.id) return;
+    if (state.active_mode_id === matchingMode.id) return;
 
     setFocusState({
-      activeModeId: matchingMode.id,
-      autoActivated: true,
-      activatedAt: new Date().toISOString(),
-      triggeringCategory: category,
+      active_mode_id: matchingMode.id,
+      auto_activated: true,
+      activated_at: new Date().toISOString(),
+      triggering_category: category,
     });
-  } else if (state.autoActivated) {
+  } else if (state.auto_activated) {
     // Category changed but no mode matches — deactivate if was auto-activated
     deactivateFocusMode();
   }
@@ -216,9 +216,9 @@ export function evaluateFocusPolicy(event: SoundEvent): "suppress" | "allow" {
   }
 
   // 5. Emergency keyword check (linear scan, max 5 keywords)
-  if (event.content && mode.emergencyKeywords.length > 0) {
+  if (event.content && mode.emergency_keywords.length > 0) {
     const lowerContent = event.content.toLowerCase();
-    for (const keyword of mode.emergencyKeywords) {
+    for (const keyword of mode.emergency_keywords) {
       if (lowerContent.includes(keyword.toLowerCase())) {
         return "allow";
       }
@@ -226,7 +226,7 @@ export function evaluateFocusPolicy(event: SoundEvent): "suppress" | "allow" {
   }
 
   // 6. Apply suppression level
-  switch (mode.suppressionLevel) {
+  switch (mode.suppression_level) {
     case "all":
       return "suppress";
 

@@ -12,7 +12,7 @@ vi.mock("@/lib/idleDetector", () => ({
 }));
 
 vi.mock("@/stores/preferences", () => ({
-  preferences: vi.fn(() => ({ display: { idleTimeoutMinutes: 5 } })),
+  preferences: vi.fn(() => ({ display: { idle_timeout_minutes: 5 } })),
 }));
 
 vi.mock("@/stores/auth", () => ({

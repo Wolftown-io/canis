@@ -236,7 +236,45 @@ This document lists all open standards, protocols, and libraries used. The goal 
 
 ---
 
-## 5. Data Formats & Serialization
+## 5. Naming Conventions
+
+### snake_case for Serialized Data
+
+All field names in serialized data **must** use `snake_case`. This applies to:
+
+- **TypeScript interfaces** that represent wire format (WebSocket messages, API responses)
+- **TypeScript interfaces** for data stored in PostgreSQL JSONB columns (e.g., user preferences)
+- **Rust structs** with `#[serde(rename_all = "snake_case")]` (default serde behavior)
+- **Database JSONB keys** in PostgreSQL
+
+**Rationale:** Rust's serde serializes to snake_case by default. Using snake_case in TypeScript interfaces that mirror wire/DB format eliminates mapping layers and prevents bugs from key mismatches.
+
+**Examples:**
+
+```typescript
+// Correct: matches wire format
+interface FocusMode {
+  trigger_categories: string[] | null;
+  auto_activate_enabled: boolean;
+  suppression_level: "all" | "except_mentions" | "except_dms";
+  vip_user_ids: string[];
+}
+
+// Wrong: camelCase creates mismatch with server
+interface FocusMode {
+  triggerCategories: string[] | null;   // breaks serde
+  autoActivateEnabled: boolean;         // breaks serde
+}
+```
+
+**Exceptions:**
+- Local TypeScript variables and function parameters follow standard camelCase (TypeScript convention)
+- React/Solid component props use camelCase per framework convention
+- Third-party library types keep their original casing
+
+---
+
+## 6. Data Formats & Serialization
 
 ### JSON
 
@@ -282,7 +320,7 @@ This document lists all open standards, protocols, and libraries used. The goal 
 
 ---
 
-## 6. Data Storage
+## 7. Data Storage
 
 ### PostgreSQL
 
@@ -328,7 +366,7 @@ This document lists all open standards, protocols, and libraries used. The goal 
 
 ---
 
-## 7. Container & Deployment
+## 8. Container & Deployment
 
 ### OCI Container Standards
 
@@ -353,7 +391,7 @@ This document lists all open standards, protocols, and libraries used. The goal 
 
 ---
 
-## 8. Client & UI
+## 9. Client & UI
 
 ### Tauri 2.0
 
@@ -398,7 +436,7 @@ This document lists all open standards, protocols, and libraries used. The goal 
 
 ---
 
-## 9. Text Chat Features
+## 10. Text Chat Features
 
 ### Emoji
 
@@ -426,7 +464,7 @@ This document lists all open standards, protocols, and libraries used. The goal 
 
 ---
 
-## 10. Complete Dependency List
+## 11. Complete Dependency List
 
 ### Server (Cargo.toml)
 
@@ -556,7 +594,7 @@ reqwest = { version = "0.13", features = ["json"] }
 
 ---
 
-## 11. Compliance Tooling
+## 12. Compliance Tooling
 
 ### cargo-deny
 

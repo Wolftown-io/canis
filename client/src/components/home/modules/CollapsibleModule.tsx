@@ -9,7 +9,7 @@ import { ChevronDown, ChevronRight } from "lucide-solid";
 import { preferences, updateNestedPreference } from "@/stores/preferences";
 
 interface CollapsibleModuleProps {
-  id: "activeNow" | "pending" | "pins" | "unread";
+  id: "active_now" | "pending" | "pins" | "unread";
   title: string;
   badge?: number;
   children: JSX.Element;
@@ -18,11 +18,11 @@ interface CollapsibleModuleProps {
 const CollapsibleModule: Component<CollapsibleModuleProps> = (props) => {
   // Get collapsed state from preferences
   const isCollapsed = () =>
-    preferences().homeSidebar?.collapsed?.[props.id] ?? false;
+    preferences().home_sidebar?.collapsed?.[props.id] ?? false;
 
   const toggleCollapse = () => {
-    const currentCollapsed = preferences().homeSidebar?.collapsed ?? {};
-    updateNestedPreference("homeSidebar", "collapsed", {
+    const currentCollapsed = preferences().home_sidebar?.collapsed ?? {};
+    updateNestedPreference("home_sidebar", "collapsed", {
       ...currentCollapsed,
       [props.id]: !isCollapsed(),
     });

@@ -20,7 +20,7 @@ const ActiveNowModule: Component = () => {
 
   return (
     <CollapsibleModule
-      id="activeNow"
+      id="active_now"
       title="Active Now"
       badge={activeFriends().length}
     >

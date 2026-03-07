@@ -106,12 +106,12 @@ const FocusSettings: Component = () => {
       name: "New Mode",
       icon: "crosshair",
       builtin: false,
-      triggerCategories: null,
-      autoActivateEnabled: false,
-      suppressionLevel: "all",
-      vipUserIds: [],
-      vipChannelIds: [],
-      emergencyKeywords: [],
+      trigger_categories: null,
+      auto_activate_enabled: false,
+      suppression_level: "all",
+      vip_user_ids: [],
+      vip_channel_ids: [],
+      emergency_keywords: [],
     };
     updateModes([...modes(), newMode]);
     setExpandedModeId(newMode.id);
@@ -122,7 +122,7 @@ const FocusSettings: Component = () => {
     if (!mode || mode.builtin) return;
 
     // Deactivate if this mode is active
-    if (focusState().activeModeId === modeId) {
+    if (focusState().active_mode_id === modeId) {
       deactivateFocusMode();
     }
 
@@ -133,7 +133,7 @@ const FocusSettings: Component = () => {
   };
 
   const handleToggleAutoActivateGlobal = (enabled: boolean) => {
-    updatePreference("focus", { ...focusPrefs(), autoActivateGlobal: enabled });
+    updatePreference("focus", { ...focusPrefs(), auto_activate_global: enabled });
   };
 
   const handleToggleTriggerCategory = (
@@ -143,13 +143,13 @@ const FocusSettings: Component = () => {
     const mode = modes().find((m) => m.id === modeId);
     if (!mode) return;
 
-    const current = mode.triggerCategories ?? [];
+    const current = mode.trigger_categories ?? [];
     const updated = current.includes(category)
       ? current.filter((c) => c !== category)
       : [...current, category];
 
     updateMode(modeId, {
-      triggerCategories: updated.length > 0 ? updated : null,
+      trigger_categories: updated.length > 0 ? updated : null,
     });
   };
 
@@ -164,11 +164,11 @@ const FocusSettings: Component = () => {
       return;
 
     const mode = modes().find((m) => m.id === modeId);
-    if (!mode || mode.emergencyKeywords.length >= MAX_KEYWORDS) return;
-    if (mode.emergencyKeywords.includes(keyword)) return;
+    if (!mode || mode.emergency_keywords.length >= MAX_KEYWORDS) return;
+    if (mode.emergency_keywords.includes(keyword)) return;
 
     updateMode(modeId, {
-      emergencyKeywords: [...mode.emergencyKeywords, keyword],
+      emergency_keywords: [...mode.emergency_keywords, keyword],
     });
     setKeywordInput("");
   };
@@ -177,7 +177,7 @@ const FocusSettings: Component = () => {
     const mode = modes().find((m) => m.id === modeId);
     if (!mode) return;
     updateMode(modeId, {
-      emergencyKeywords: mode.emergencyKeywords.filter((k) => k !== keyword),
+      emergency_keywords: mode.emergency_keywords.filter((k) => k !== keyword),
     });
   };
 
@@ -186,10 +186,10 @@ const FocusSettings: Component = () => {
     if (!userId || !UUID_RE.test(userId)) return;
 
     const mode = modes().find((m) => m.id === modeId);
-    if (!mode || mode.vipUserIds.length >= MAX_VIP_USERS) return;
-    if (mode.vipUserIds.some(id => id.toLowerCase().trim() === userId)) return;
+    if (!mode || mode.vip_user_ids.length >= MAX_VIP_USERS) return;
+    if (mode.vip_user_ids.some(id => id.toLowerCase().trim() === userId)) return;
 
-    updateMode(modeId, { vipUserIds: [...mode.vipUserIds, userId] });
+    updateMode(modeId, { vip_user_ids: [...mode.vip_user_ids, userId] });
     setVipUserInput("");
   };
 
@@ -197,7 +197,7 @@ const FocusSettings: Component = () => {
     const mode = modes().find((m) => m.id === modeId);
     if (!mode) return;
     updateMode(modeId, {
-      vipUserIds: mode.vipUserIds.filter((id) => id !== userId),
+      vip_user_ids: mode.vip_user_ids.filter((id) => id !== userId),
     });
   };
 
@@ -206,10 +206,10 @@ const FocusSettings: Component = () => {
     if (!channelId || !UUID_RE.test(channelId)) return;
 
     const mode = modes().find((m) => m.id === modeId);
-    if (!mode || mode.vipChannelIds.length >= MAX_VIP_CHANNELS) return;
-    if (mode.vipChannelIds.some(id => id.toLowerCase().trim() === channelId)) return;
+    if (!mode || mode.vip_channel_ids.length >= MAX_VIP_CHANNELS) return;
+    if (mode.vip_channel_ids.some(id => id.toLowerCase().trim() === channelId)) return;
 
-    updateMode(modeId, { vipChannelIds: [...mode.vipChannelIds, channelId] });
+    updateMode(modeId, { vip_channel_ids: [...mode.vip_channel_ids, channelId] });
     setVipChannelInput("");
   };
 
@@ -217,7 +217,7 @@ const FocusSettings: Component = () => {
     const mode = modes().find((m) => m.id === modeId);
     if (!mode) return;
     updateMode(modeId, {
-      vipChannelIds: mode.vipChannelIds.filter((id) => id !== channelId),
+      vip_channel_ids: mode.vip_channel_ids.filter((id) => id !== channelId),
     });
   };
 
@@ -240,7 +240,7 @@ const FocusSettings: Component = () => {
         <label class="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={focusPrefs().autoActivateGlobal}
+            checked={focusPrefs().auto_activate_global}
             onChange={(e) =>
               handleToggleAutoActivateGlobal(e.currentTarget.checked)
             }
@@ -258,7 +258,7 @@ const FocusSettings: Component = () => {
       </div>
 
       {/* Active mode indicator */}
-      <Show when={focusState().activeModeId}>
+      <Show when={focusState().active_mode_id}>
         {(modeId) => {
           const activeMode = createMemo(() =>
             modes().find((m) => m.id === modeId()),
@@ -271,7 +271,7 @@ const FocusSettings: Component = () => {
                     <div class="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
                     <span class="text-sm text-accent-primary font-medium">
                       {mode().name} active
-                      {focusState().autoActivated ? " (auto)" : ""}
+                      {focusState().auto_activated ? " (auto)" : ""}
                     </span>
                   </div>
                   <button
@@ -293,7 +293,7 @@ const FocusSettings: Component = () => {
           {(mode) => {
             const isExpanded = createMemo(() => expandedModeId() === mode.id);
             const isActive = createMemo(
-              () => focusState().activeModeId === mode.id,
+              () => focusState().active_mode_id === mode.id,
             );
 
             return (
@@ -378,10 +378,10 @@ const FocusSettings: Component = () => {
                               <input
                                 type="radio"
                                 name={`suppression-${mode.id}`}
-                                checked={mode.suppressionLevel === option.value}
+                                checked={mode.suppression_level === option.value}
                                 onChange={() =>
                                   updateMode(mode.id, {
-                                    suppressionLevel: option.value,
+                                    suppression_level: option.value,
                                   })
                                 }
                                 class="accent-accent-primary"
@@ -410,7 +410,7 @@ const FocusSettings: Component = () => {
                           {(option) => {
                             const isSelected = createMemo(
                               () =>
-                                mode.triggerCategories?.includes(
+                                mode.trigger_categories?.includes(
                                   option.value,
                                 ) ?? false,
                             );
@@ -439,10 +439,10 @@ const FocusSettings: Component = () => {
                       <label class="flex items-center gap-2 mt-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={mode.autoActivateEnabled}
+                          checked={mode.auto_activate_enabled}
                           onChange={(e) =>
                             updateMode(mode.id, {
-                              autoActivateEnabled: e.currentTarget.checked,
+                              auto_activate_enabled: e.currentTarget.checked,
                             })
                           }
                           class="w-4 h-4 rounded border border-white/30 bg-transparent checked:bg-accent-primary checked:border-accent-primary accent-accent-primary"
@@ -456,14 +456,14 @@ const FocusSettings: Component = () => {
                     {/* Emergency keywords */}
                     <div>
                       <label class="text-sm text-text-secondary mb-2 block">
-                        Emergency keywords ({mode.emergencyKeywords.length}/
+                        Emergency keywords ({mode.emergency_keywords.length}/
                         {MAX_KEYWORDS})
                       </label>
                       <p class="text-xs text-text-muted mb-2">
                         Messages containing these words bypass suppression
                       </p>
                       <div class="flex flex-wrap gap-1 mb-2">
-                        <For each={mode.emergencyKeywords}>
+                        <For each={mode.emergency_keywords}>
                           {(keyword) => (
                             <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-white/10 text-text-primary">
                               {keyword}
@@ -479,7 +479,7 @@ const FocusSettings: Component = () => {
                           )}
                         </For>
                       </div>
-                      <Show when={mode.emergencyKeywords.length < MAX_KEYWORDS}>
+                      <Show when={mode.emergency_keywords.length < MAX_KEYWORDS}>
                         <div class="flex gap-2">
                           <input
                             type="text"
@@ -506,14 +506,14 @@ const FocusSettings: Component = () => {
                     {/* VIP Users */}
                     <div>
                       <label class="text-sm text-text-secondary mb-2 block">
-                        VIP Users ({mode.vipUserIds.length}/{MAX_VIP_USERS})
+                        VIP Users ({mode.vip_user_ids.length}/{MAX_VIP_USERS})
                       </label>
                       <p class="text-xs text-text-muted mb-2">
                         Messages from these users bypass focus suppression
                       </p>
-                      <Show when={mode.vipUserIds.length > 0}>
+                      <Show when={mode.vip_user_ids.length > 0}>
                         <div class="flex flex-wrap gap-1 mb-2">
-                          <For each={mode.vipUserIds}>
+                          <For each={mode.vip_user_ids}>
                             {(userId) => (
                               <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-white/10 text-text-primary">
                                 {userId.substring(0, 8)}...
@@ -530,7 +530,7 @@ const FocusSettings: Component = () => {
                           </For>
                         </div>
                       </Show>
-                      <Show when={mode.vipUserIds.length < MAX_VIP_USERS}>
+                      <Show when={mode.vip_user_ids.length < MAX_VIP_USERS}>
                         <div class="flex gap-2">
                           <input
                             type="text"
@@ -557,15 +557,15 @@ const FocusSettings: Component = () => {
                     {/* VIP Channels */}
                     <div>
                       <label class="text-sm text-text-secondary mb-2 block">
-                        VIP Channels ({mode.vipChannelIds.length}/
+                        VIP Channels ({mode.vip_channel_ids.length}/
                         {MAX_VIP_CHANNELS})
                       </label>
                       <p class="text-xs text-text-muted mb-2">
                         Messages from these channels bypass focus suppression
                       </p>
-                      <Show when={mode.vipChannelIds.length > 0}>
+                      <Show when={mode.vip_channel_ids.length > 0}>
                         <div class="flex flex-wrap gap-1 mb-2">
-                          <For each={mode.vipChannelIds}>
+                          <For each={mode.vip_channel_ids}>
                             {(channelId) => (
                               <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-white/10 text-text-primary">
                                 {channelId.substring(0, 8)}...
@@ -582,7 +582,7 @@ const FocusSettings: Component = () => {
                           </For>
                         </div>
                       </Show>
-                      <Show when={mode.vipChannelIds.length < MAX_VIP_CHANNELS}>
+                      <Show when={mode.vip_channel_ids.length < MAX_VIP_CHANNELS}>
                         <div class="flex gap-2">
                           <input
                             type="text"

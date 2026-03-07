@@ -177,35 +177,35 @@ fn validate_focus_mode(mode: &serde_json::Value, index: usize) -> Result<(), Pre
     }
 
     // Suppression level must be a known value
-    if let Some(level) = mode.get("suppressionLevel").and_then(|v| v.as_str()) {
+    if let Some(level) = mode.get("suppression_level").and_then(|v| v.as_str()) {
         if !VALID_SUPPRESSION_LEVELS.contains(&level) {
             return Err(PreferencesError::Validation(format!(
                 "{} invalid value: {level}",
-                ctx("suppressionLevel")
+                ctx("suppression_level")
             )));
         }
     }
 
     // Trigger categories
-    if let Some(cats) = mode.get("triggerCategories") {
+    if let Some(cats) = mode.get("trigger_categories") {
         if !cats.is_null() {
             let cats = cats.as_array().ok_or_else(|| {
                 PreferencesError::Validation(format!(
                     "{} must be an array or null",
-                    ctx("triggerCategories")
+                    ctx("trigger_categories")
                 ))
             })?;
             for cat in cats {
                 let s = cat.as_str().ok_or_else(|| {
                     PreferencesError::Validation(format!(
                         "{} entries must be strings",
-                        ctx("triggerCategories")
+                        ctx("trigger_categories")
                     ))
                 })?;
                 if !VALID_TRIGGER_CATEGORIES.contains(&s) {
                     return Err(PreferencesError::Validation(format!(
                         "{} invalid category: {s}",
-                        ctx("triggerCategories")
+                        ctx("trigger_categories")
                     )));
                 }
             }
@@ -213,22 +213,22 @@ fn validate_focus_mode(mode: &serde_json::Value, index: usize) -> Result<(), Pre
     }
 
     // VIP user IDs (must be valid UUIDs)
-    validate_uuid_array(mode, "vipUserIds", MAX_VIP_ENTRIES, &ctx("vipUserIds"))?;
+    validate_uuid_array(mode, "vip_user_ids", MAX_VIP_ENTRIES, &ctx("vip_user_ids"))?;
 
     // VIP channel IDs (must be valid UUIDs)
     validate_uuid_array(
         mode,
-        "vipChannelIds",
+        "vip_channel_ids",
         MAX_VIP_ENTRIES,
-        &ctx("vipChannelIds"),
+        &ctx("vip_channel_ids"),
     )?;
 
     // Emergency keywords (min 3 chars, max 30 chars)
     validate_keyword_array(
         mode,
-        "emergencyKeywords",
+        "emergency_keywords",
         MAX_KEYWORDS,
-        &ctx("emergencyKeywords"),
+        &ctx("emergency_keywords"),
     )?;
 
     Ok(())

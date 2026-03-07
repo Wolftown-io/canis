@@ -681,20 +681,20 @@ export type ReactionStyle = "bar" | "compact";
 
 export interface DisplayPreferences {
   /** How status indicators are displayed (dense=full info, minimal=compact, discord=Discord-style) */
-  indicatorMode: DisplayMode;
+  indicator_mode: DisplayMode;
   /** Whether to show latency numbers on voice indicators */
-  showLatencyNumbers: boolean;
+  show_latency_numbers: boolean;
   /** How reactions are displayed on messages */
-  reactionStyle: ReactionStyle;
+  reaction_style: ReactionStyle;
   /** Minutes of inactivity before user is marked as idle */
-  idleTimeoutMinutes: number;
+  idle_timeout_minutes: number;
 }
 
 export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
-  indicatorMode: "dense",
-  showLatencyNumbers: true,
-  reactionStyle: "bar",
-  idleTimeoutMinutes: 5,
+  indicator_mode: "dense",
+  show_latency_numbers: true,
+  reaction_style: "bar",
+  idle_timeout_minutes: 5,
 };
 
 // Focus Mode Types
@@ -708,24 +708,24 @@ export interface FocusMode {
   name: string;
   icon: string;
   builtin: boolean;
-  triggerCategories: FocusTriggerCategory[] | null;
-  autoActivateEnabled: boolean;
-  suppressionLevel: FocusSuppressionLevel;
-  vipUserIds: string[];
-  vipChannelIds: string[];
-  emergencyKeywords: string[];
+  trigger_categories: FocusTriggerCategory[] | null;
+  auto_activate_enabled: boolean;
+  suppression_level: FocusSuppressionLevel;
+  vip_user_ids: string[];
+  vip_channel_ids: string[];
+  emergency_keywords: string[];
 }
 
 export interface FocusPreferences {
   modes: FocusMode[];
-  autoActivateGlobal: boolean;
+  auto_activate_global: boolean;
 }
 
 export interface FocusState {
-  activeModeId: string | null;
-  autoActivated: boolean;
-  activatedAt: string | null;
-  triggeringCategory: FocusTriggerCategory | null;
+  active_mode_id: string | null;
+  auto_activated: boolean;
+  activated_at: string | null;
+  triggering_category: FocusTriggerCategory | null;
 }
 
 // User Preferences (synced across devices)
@@ -737,28 +737,28 @@ export interface UserPreferences {
   sound: {
     enabled: boolean;
     volume: number; // 0-100
-    soundType: "default" | "subtle" | "ping" | "chime" | "bell";
-    quietHours: {
+    sound_type: "default" | "subtle" | "ping" | "chime" | "bell";
+    quiet_hours: {
       enabled: boolean;
-      startTime: string; // "HH:MM" format
-      endTime: string;
+      start_time: string; // "HH:MM" format
+      end_time: string;
     };
   };
 
   // Connection display
   connection: {
-    displayMode: "circle" | "number";
-    showNotifications: boolean;
+    display_mode: "circle" | "number";
+    show_notifications: boolean;
   };
 
   // Per-channel notification levels
-  channelNotifications: Record<string, "all" | "mentions" | "muted">;
+  channel_notifications: Record<string, "all" | "mentions" | "muted">;
 
   // Home sidebar section collapse states
-  homeSidebar: {
+  home_sidebar: {
     collapsed: {
       unread: boolean;
-      activeNow: boolean;
+      active_now: boolean;
       pending: boolean;
       pins: boolean;
     };

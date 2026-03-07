@@ -253,7 +253,7 @@ export function getMyStatus(): UserStatus {
  * Restores previous status when user becomes active again.
  */
 export function initIdleDetection(): void {
-  const timeout = preferences().display?.idleTimeoutMinutes ?? 5;
+  const timeout = preferences().display?.idle_timeout_minutes ?? 5;
 
   startIdleDetection((isIdle) => {
     const currentStatus = getMyStatus();

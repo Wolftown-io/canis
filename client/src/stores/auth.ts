@@ -162,7 +162,7 @@ export async function initAuth(): Promise<void> {
           }),
       ]);
 
-      // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+      // Initialize idle detection after preferences (uses idle_timeout_minutes setting)
       initIdleDetection();
     }
   } catch (err) {
@@ -223,7 +223,7 @@ export async function login(
         }),
     ]);
 
-    // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+    // Initialize idle detection after preferences (uses idle_timeout_minutes setting)
     initIdleDetection();
 
     return result.user;
@@ -291,7 +291,7 @@ export async function register(
         }),
     ]);
 
-    // Initialize idle detection after preferences (uses idleTimeoutMinutes setting)
+    // Initialize idle detection after preferences (uses idle_timeout_minutes setting)
     initIdleDetection();
 
     return result.user;

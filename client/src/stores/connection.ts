@@ -12,8 +12,8 @@ import { preferences, updateNestedPreference } from "./preferences";
 // ============================================================================
 
 export interface ConnectionSettings {
-  displayMode: "circle" | "number";
-  showNotifications: boolean;
+  display_mode: "circle" | "number";
+  show_notifications: boolean;
 }
 
 // ============================================================================
@@ -26,8 +26,8 @@ export interface ConnectionSettings {
 export const connectionSettings = (): ConnectionSettings => {
   const connection = preferences().connection;
   return {
-    displayMode: connection.displayMode,
-    showNotifications: connection.showNotifications,
+    display_mode: connection.display_mode,
+    show_notifications: connection.show_notifications,
   };
 };
 
@@ -36,17 +36,17 @@ export const connectionSettings = (): ConnectionSettings => {
 // ============================================================================
 
 export function getConnectionDisplayMode(): "circle" | "number" {
-  return preferences().connection.displayMode;
+  return preferences().connection.display_mode;
 }
 
 export function setConnectionDisplayMode(mode: "circle" | "number"): void {
-  updateNestedPreference("connection", "displayMode", mode);
+  updateNestedPreference("connection", "display_mode", mode);
 }
 
 export function getShowNotifications(): boolean {
-  return preferences().connection.showNotifications;
+  return preferences().connection.show_notifications;
 }
 
 export function setShowNotifications(show: boolean): void {
-  updateNestedPreference("connection", "showNotifications", show);
+  updateNestedPreference("connection", "show_notifications", show);
 }

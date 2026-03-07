@@ -34,7 +34,7 @@ const NotificationSettings: Component = () => {
     }
     return {
       active: false,
-      text: `Next quiet period: ${quietHours.startTime}`,
+      text: `Next quiet period: ${quietHours.start_time}`,
     };
   });
 
@@ -212,11 +212,11 @@ const NotificationSettings: Component = () => {
               <span class="text-sm text-text-secondary">From</span>
               <input
                 type="time"
-                value={getQuietHours().startTime}
+                value={getQuietHours().start_time}
                 onChange={(e) =>
                   setQuietHoursTime(
                     e.currentTarget.value,
-                    getQuietHours().endTime,
+                    getQuietHours().end_time,
                   )
                 }
                 class="px-3 py-1.5 rounded-lg bg-surface-highlight border border-white/10 text-text-primary text-sm focus:outline-none focus:border-accent-primary transition-colors"
@@ -227,10 +227,10 @@ const NotificationSettings: Component = () => {
               <span class="text-sm text-text-secondary">To</span>
               <input
                 type="time"
-                value={getQuietHours().endTime}
+                value={getQuietHours().end_time}
                 onChange={(e) =>
                   setQuietHoursTime(
-                    getQuietHours().startTime,
+                    getQuietHours().start_time,
                     e.currentTarget.value,
                   )
                 }
