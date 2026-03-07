@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 14% (2/14) | Personal workspaces, digital library, mobile, live session toolkits, focus engine, QA polish (edit messages, emoji composer, session expiry, custom status, shortcuts, formatting, UX refinements) |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 36% (5/14) | Personal workspaces, digital library, mobile, live session toolkits, focus engine, QA polish (edit messages, emoji composer, session expiry, custom status, shortcuts, formatting, UX refinements) |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
@@ -609,13 +609,13 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [ ] **[Social] Custom Status Backend Support** `Priority: Medium`
   - **Context:** The entire client UI exists — `StatusPicker`, `CustomStatusModal` (with emoji, text, and expiry selector) — but `handleCustomStatusSave` in `UserPanel` is a no-op. The backend presence API only handles online/away/busy/offline.
   - **Strategy:** Add a `custom_status` field (text + emoji + expiry) to the presence system backend. Wire `handleCustomStatusSave` to call the new endpoint. Broadcast custom status changes via WebSocket.
-- [ ] **[UX] Keyboard Shortcuts Help Dialog** `Priority: Medium`
+- [x] **[UX] Keyboard Shortcuts Help Dialog** `Priority: Medium` ✅
   - **Context:** Several undiscoverable shortcuts are scattered across the app (Ctrl+Shift+F for search, Alt+1-4 for reactions, Ctrl+Shift+M/D for voice, push-to-talk key, Ctrl+K command palette). No central help dialog exists.
   - **Strategy:** Create a `KeyboardShortcutsModal` listing all available shortcuts grouped by category (Navigation, Voice, Messaging, etc.). Open via `?` key or a button in Settings. Add a "Keybindings" tab to the Settings modal.
-- [ ] **[Chat] Message Formatting Toolbar** `Priority: Medium`
+- [x] **[Chat] Message Formatting Toolbar** `Priority: Medium` ✅
   - **Context:** The message input is a plain textarea with no formatting hints or toolbar. Users must know Markdown syntax. The `MarkdownPreview` component exists (used in Pages) but is not available in chat.
   - **Strategy:** Add a small formatting toolbar above or below the `MessageInput` with buttons for bold, italic, code, spoiler, and optionally a Markdown preview toggle. Can reuse `MarkdownPreview` for the preview mode.
-- [ ] **[UX] Friends Tab Empty State Improvement** `Priority: Low`
+- [x] **[UX] Friends Tab Empty State Improvement** `Priority: Low` ✅
   - **Context:** When there are pending friend requests but no accepted friends, the "All" friends tab shows "You don't have any friends yet" with no mention of pending requests.
   - **Strategy:** Add a contextual hint like "You have N pending request(s)" with a link to the Pending tab when the All tab is empty but pending requests exist.
 - [ ] **[UX] Guild Discovery Default Prompt** `Priority: Low`

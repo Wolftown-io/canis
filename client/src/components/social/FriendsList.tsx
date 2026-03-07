@@ -5,7 +5,7 @@
  */
 
 import { Component, createSignal, For, onMount, Show } from "solid-js";
-import { Users, Search, UserPlus, Ghost } from "lucide-solid";
+import { Users, Search, UserPlus } from "lucide-solid";
 import {
   friendsState,
   loadFriends,
@@ -23,6 +23,9 @@ import { formatRelativeTime, truncate } from "@/lib/utils";
 import { ActivityIndicator } from "@/components/ui";
 import { showToast } from "@/components/ui/Toast";
 import AddFriend from "./AddFriend";
+import flokiHappy from "@/assets/emotes/floki_emote_1.png";
+import flokiThinking from "@/assets/emotes/floki_emote_2.png";
+import flokiCool from "@/assets/emotes/floki_emote_4.png";
 
 type FriendsTab = "online" | "all" | "pending" | "blocked";
 
@@ -211,29 +214,48 @@ const FriendsList: Component = () => {
         <Show
           when={!friendsState.isLoading && filteredFriends().length > 0}
           fallback={
-            <div class="flex flex-col items-center justify-center h-full text-text-secondary opacity-60">
+            <div class="flex flex-col items-center justify-center h-full py-12">
               <Show
                 when={!friendsState.isLoading}
-                fallback={<div>Loading...</div>}
+                fallback={<div class="text-text-secondary">Loading...</div>}
               >
-                <div class="bg-surface-layer2 p-6 rounded-full mb-4">
-                  <Ghost class="w-12 h-12" />
-                </div>
-                <div class="text-lg font-medium mb-1">
+                <img
+                  src={
+                    tab() === "blocked"
+                      ? flokiCool
+                      : tab() === "all"
+                        ? flokiHappy
+                        : flokiThinking
+                  }
+                  alt=""
+                  class="w-12 h-12 object-contain mb-3"
+                  loading="lazy"
+                />
+                <div class="text-sm font-medium text-text-primary mb-1">
                   {tab() === "online"
-                    ? "No one's online right now."
+                    ? "No one's online right now"
                     : tab() === "pending"
-                      ? "There are no pending friend requests."
+                      ? "No pending requests"
                       : tab() === "blocked"
-                        ? "You haven't blocked anyone."
-                        : "You don't have any friends yet."}
+                        ? "No blocked users"
+                        : "No friends yet"}
                 </div>
-                <Show when={tab() === "all" || tab() === "online"}>
+                <p class="text-xs text-text-muted">
+                  {tab() === "online"
+                    ? "When friends come online, they'll appear here"
+                    : tab() === "pending"
+                      ? "Friend requests you send or receive will show up here"
+                      : tab() === "blocked"
+                        ? "Users you block won't be able to message or call you"
+                        : "Add friends to start chatting, calling, and gaming together"}
+                </p>
+                <Show when={tab() === "all"}>
                   <button
                     onClick={() => setShowAddFriend(true)}
-                    class="text-accent-primary hover:underline text-sm mt-2"
+                    class="mt-3 btn-primary py-1.5 px-4 text-sm flex items-center gap-2"
                   >
-                    Add someone to get started!
+                    <UserPlus class="w-4 h-4" />
+                    Add Friend
                   </button>
                 </Show>
               </Show>
