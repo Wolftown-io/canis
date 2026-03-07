@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Milestone: Phase 6 - Competitive Differentiators & Mastery
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
+### Changed
+- Default theme updated to CachyOS Nordic color palette with true Nord Polar Night surfaces and Snow Storm text, aligning the client with the landing page
+- Layout areas (ServerRail, Sidebar, Main Stage) now separated by solid border lines for clearer visual structure
+
 ### Added
 - Session expiry notification — automatic token refresh when returning to background tabs, silent retry on session loss, and non-dismissable modal prompting re-login when session is truly expired (#341)
 - Inline message editing — edit own messages via context menu or hover pencil button with Enter to save, Escape to cancel

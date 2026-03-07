@@ -39,24 +39,25 @@
  * Use https://webaim.org/resources/contrastchecker/ to verify.
  */
 
-/* Focused Hybrid - Modern dark theme with high contrast */
+/* Focused Hybrid - Nordic dark theme aligned with CachyOS */
 :root[data-theme="focused-hybrid"] {
-  --color-surface-base: #1e1e2e;
-  --color-surface-layer1: #252535;
-  --color-surface-layer2: #2a2a3c;
-  --color-surface-highlight: #36364d;
+  --color-surface-base: #242933;
+  --color-surface-layer1: #2E3440;
+  --color-surface-layer2: #3B4252;
+  --color-surface-highlight: #434C5E;
   --color-text-primary: #eceff4;
-  --color-text-secondary: #9ca3af;
-  --color-text-input: #ffffff;
+  --color-text-secondary: #D8DEE9;
+  --color-text-input: #eceff4;
   --color-accent-primary: #88c0d0;
   --color-accent-primary-hover: #7ab0c0;
   --color-accent-danger: #bf616a;
   --color-accent-success: #a3be8c;
   --color-accent-warning: #ebcb8b;
-  --color-border-subtle: rgba(255, 255, 255, 0.05);
-  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-subtle: rgba(216, 222, 233, 0.06);
+  --color-border-default: rgba(216, 222, 233, 0.12);
+  --color-border-solid: #4C566A;
   --color-selection-bg: #88c0d0;
-  --color-selection-text: #1e1e2e;
+  --color-selection-text: #242933;
   --color-error-bg: rgba(191, 97, 106, 0.15);
   --color-error-border: rgba(191, 97, 106, 0.4);
   --color-error-text: #f0a0a8;
@@ -78,6 +79,7 @@
   --color-accent-warning: #b58900;
   --color-border-subtle: rgba(147, 161, 161, 0.1);
   --color-border-default: rgba(147, 161, 161, 0.15);
+  --color-border-solid: #0e4c5a;
   --color-selection-bg: #268bd2;
   --color-selection-text: #fdf6e3;
   --color-error-bg: rgba(220, 50, 47, 0.15);
@@ -101,6 +103,7 @@
   --color-accent-warning: #b58900;
   --color-border-subtle: rgba(0, 43, 54, 0.1);
   --color-border-default: rgba(0, 43, 54, 0.15);
+  --color-border-solid: #c9c2b1;
   --color-selection-bg: #268bd2;
   --color-selection-text: #fdf6e3;
   --color-error-bg: rgba(220, 50, 47, 0.12);
@@ -140,6 +143,7 @@
   /* Borders — subtle wood grain feel */
   --color-border-subtle: rgba(232, 216, 196, 0.08);
   --color-border-default: rgba(232, 216, 196, 0.15);
+  --color-border-solid: #5c4e3e;
 
   /* Selection & Errors */
   --color-selection-bg: #7bae7f;
@@ -151,22 +155,23 @@
 
 /* Default theme fallback (same as focused-hybrid) */
 :root {
-  --color-surface-base: #1e1e2e;
-  --color-surface-layer1: #252535;
-  --color-surface-layer2: #2a2a3c;
-  --color-surface-highlight: #36364d;
+  --color-surface-base: #242933;
+  --color-surface-layer1: #2E3440;
+  --color-surface-layer2: #3B4252;
+  --color-surface-highlight: #434C5E;
   --color-text-primary: #eceff4;
-  --color-text-secondary: #9ca3af;
-  --color-text-input: #ffffff;
+  --color-text-secondary: #D8DEE9;
+  --color-text-input: #eceff4;
   --color-accent-primary: #88c0d0;
   --color-accent-primary-hover: #7ab0c0;
   --color-accent-danger: #bf616a;
   --color-accent-success: #a3be8c;
   --color-accent-warning: #ebcb8b;
-  --color-border-subtle: rgba(255, 255, 255, 0.05);
-  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-subtle: rgba(216, 222, 233, 0.06);
+  --color-border-default: rgba(216, 222, 233, 0.12);
+  --color-border-solid: #4C566A;
   --color-selection-bg: #88c0d0;
-  --color-selection-text: #1e1e2e;
+  --color-selection-text: #242933;
   --color-error-bg: rgba(191, 97, 106, 0.15);
   --color-error-border: rgba(191, 97, 106, 0.4);
   --color-error-text: #f0a0a8;

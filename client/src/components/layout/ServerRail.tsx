@@ -63,7 +63,7 @@ const ServerRail: Component = () => {
 
   return (
     <aside
-      class="w-[72px] flex flex-col items-center py-3 gap-2 bg-surface-base border-r border-white/10 z-20"
+      class="w-[72px] flex flex-col items-center py-3 gap-2 bg-surface-base border-r border-border-solid z-20"
       data-testid="server-rail"
     >
       {/* Home Icon - Kaiku Logo */}
