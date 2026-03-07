@@ -54,7 +54,7 @@ export const availableThemes: ThemeDefinition[] = [
     description: "Modern dark theme with high contrast",
     isDark: true,
     family: "standard",
-    preview: { surface: "#1E1E2E", accent: "#88C0D0", text: "#ECEFF4" },
+    preview: { surface: "#242933", accent: "#88C0D0", text: "#ECEFF4" },
   },
   {
     id: "solarized-dark",
