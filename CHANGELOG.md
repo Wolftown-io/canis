@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Layout areas (ServerRail, Sidebar, Main Stage) now separated by solid border lines for clearer visual structure
 
 ### Added
+- Discovery setup step in guild creation flow — new servers can be made discoverable with tags and banner during creation, with a mini preview card showing how the guild will appear in the server browser
 - Custom status backend support: users can set a text + emoji status with optional expiry via WebSocket. Server enforces validation (128-char text, 10-emoji limit, Unicode safety including Zalgo prevention), broadcasts updates to friends in real time, and runs a 60-second expiry sweep. Custom status is hidden when offline/invisible. Connect flow now sends full presence snapshot (status + activity + custom status) to fix pre-existing gap. (#346)
 - Message formatting toolbar — Bold, Italic, Code, and Spoiler buttons above the message input with keyboard shortcuts (Ctrl+B, Ctrl+I, Ctrl+E) and selection wrapping support
 - Keyboard shortcuts help dialog — press `Ctrl+/`, `?`, or type `/?` in chat to view all shortcuts

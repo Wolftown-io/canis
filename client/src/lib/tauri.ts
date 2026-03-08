@@ -1418,13 +1418,29 @@ export async function getGuild(guildId: string): Promise<Guild> {
 export async function createGuild(
   name: string,
   description?: string,
+  discovery?: {
+    discoverable: boolean;
+    tags?: string[];
+    banner_url?: string;
+  },
 ): Promise<Guild> {
-  if (isTauri) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("create_guild", { name, description });
+  const body: Record<string, unknown> = { name, description };
+  if (discovery) {
+    body.discoverable = discovery.discoverable;
+    if (discovery.tags && discovery.tags.length > 0) {
+      body.tags = discovery.tags;
+    }
+    if (discovery.banner_url) {
+      body.banner_url = discovery.banner_url;
+    }
   }
 
-  return httpRequest<Guild>("POST", "/api/guilds", { name, description });
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("create_guild", body);
+  }
+
+  return httpRequest<Guild>("POST", "/api/guilds", body);
 }
 
 export async function updateGuild(

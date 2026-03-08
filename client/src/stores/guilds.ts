@@ -215,8 +215,13 @@ export function getGuildChannels(guildId: string): Channel[] {
 export async function createGuild(
   name: string,
   description?: string,
+  discovery?: {
+    discoverable: boolean;
+    tags?: string[];
+    banner_url?: string;
+  },
 ): Promise<Guild> {
-  const guild = await tauri.createGuild(name, description);
+  const guild = await tauri.createGuild(name, description, discovery);
   setGuildsState("guilds", (prev) => [...prev, guild]);
   return guild;
 }
