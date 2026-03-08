@@ -143,6 +143,41 @@ pub async fn create_guild(
     body.validate()
         .map_err(|e| GuildError::Validation(e.to_string()))?;
 
+    // Validate tags if provided
+    if let Some(ref tags) = body.tags {
+        if tags.len() > 5 {
+            return Err(GuildError::Validation("Maximum 5 tags allowed".to_string()));
+        }
+        for tag in tags {
+            if tag.len() < 2 || tag.len() > 32 {
+                return Err(GuildError::Validation(
+                    "Each tag must be 2-32 characters".to_string(),
+                ));
+            }
+            if !TAG_REGEX.is_match(tag) {
+                return Err(GuildError::Validation(
+                    "Tags may only contain letters, numbers, and hyphens".to_string(),
+                ));
+            }
+        }
+    }
+
+    // Validate banner_url if provided
+    if let Some(ref url) = body.banner_url {
+        if !url.is_empty() {
+            if url.len() > 2048 {
+                return Err(GuildError::Validation(
+                    "Banner URL too long (max 2048 characters)".to_string(),
+                ));
+            }
+            if !url.starts_with("https://") {
+                return Err(GuildError::Validation(
+                    "Banner URL must use HTTPS".to_string(),
+                ));
+            }
+        }
+    }
+
     let mut tx = state.db.begin().await?;
 
     // Serialize guild creation per owner to enforce strict user guild limits.
@@ -163,17 +198,30 @@ pub async fn create_guild(
         )));
     }
 
-    // Insert guild
+    // Prepare discovery fields
+    let discoverable = body.discoverable.unwrap_or(false);
+    let tags: Vec<String> = body
+        .tags
+        .map(|t| t.into_iter().map(|s| s.to_lowercase()).collect())
+        .unwrap_or_default();
+    let banner_url: Option<String> = body
+        .banner_url
+        .and_then(|u| if u.is_empty() { None } else { Some(u) });
+
+    // Insert guild with discovery fields
     let guild_id = Uuid::now_v7();
     let guild = sqlx::query_as::<_, Guild>(
-        r"INSERT INTO guilds (id, name, owner_id, description)
-           VALUES ($1, $2, $3, $4)
+        r"INSERT INTO guilds (id, name, owner_id, description, discoverable, tags, banner_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING id, name, owner_id, icon_url, description, threads_enabled, discoverable, tags, banner_url, plan, created_at",
     )
     .bind(guild_id)
     .bind(&body.name)
     .bind(auth.id)
     .bind(&body.description)
+    .bind(discoverable)
+    .bind(&tags)
+    .bind(&banner_url)
     .fetch_one(&mut *tx)
     .await?;
 
