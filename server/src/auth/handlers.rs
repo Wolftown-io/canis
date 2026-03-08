@@ -18,6 +18,7 @@ use validator::Validate;
 
 use super::backup_codes::{find_matching_backup_code, generate_backup_codes, BACKUP_CODE_COUNT};
 use super::cookies;
+use super::geoip;
 use super::error::{AuthError, AuthResult};
 use super::jwt::{generate_token_pair, validate_refresh_token};
 use super::mfa_crypto::{decrypt_mfa_secret, encrypt_mfa_secret};
@@ -496,16 +497,24 @@ pub async fn register(
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
+    let geo =
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
+            .await;
+    let city = geo.as_ref().and_then(|g| g.city.as_deref());
+    let country = geo.as_ref().and_then(|g| g.country.as_deref());
+
     let ip_str = Some(addr.ip().to_string());
     sqlx::query(
-        r"INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
-          VALUES ($1, $2, $3, $4::inet, $5)",
+        r"INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent, city, country)
+          VALUES ($1, $2, $3, $4::inet, $5, $6, $7)",
     )
     .bind(user.id)
     .bind(&token_hash)
     .bind(expires_at)
     .bind(ip_str.as_deref())
     .bind(user_agent.as_deref())
+    .bind(city)
+    .bind(country)
     .execute(&mut *tx)
     .await
     .map_err(|e| {
@@ -708,6 +717,12 @@ pub async fn login(
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
+    let geo =
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
+            .await;
+    let city = geo.as_ref().and_then(|g| g.city.as_deref());
+    let country = geo.as_ref().and_then(|g| g.country.as_deref());
+
     create_session(
         &state.db,
         user.id,
@@ -715,6 +730,8 @@ pub async fn login(
         expires_at,
         Some(&addr.ip().to_string()),
         user_agent.as_deref(),
+        city,
+        country,
     )
     .await?;
 
@@ -793,7 +810,7 @@ pub async fn refresh_token(
     // Lock the session row to prevent concurrent refresh
     let session: Option<Session> = sqlx::query_as(
         r"
-        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
+        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, city, country, created_at
         FROM sessions
         WHERE token_hash = $1 AND expires_at > NOW()
         FOR UPDATE
@@ -838,10 +855,16 @@ pub async fn refresh_token(
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
+    let geo =
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
+            .await;
+    let city = geo.as_ref().and_then(|g| g.city.as_deref());
+    let country = geo.as_ref().and_then(|g| g.country.as_deref());
+
     sqlx::query(
         r"
-        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
-        VALUES ($1, $2, $3, $4::inet, $5)
+        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent, city, country)
+        VALUES ($1, $2, $3, $4::inet, $5, $6, $7)
         ",
     )
     .bind(user_id)
@@ -849,6 +872,8 @@ pub async fn refresh_token(
     .bind(expires_at)
     .bind(addr.ip().to_string())
     .bind(user_agent.as_deref())
+    .bind(city)
+    .bind(country)
     .execute(&mut *tx)
     .await?;
 
@@ -2032,7 +2057,7 @@ pub async fn oidc_callback(
     // Store session
     let token_hash = hash_token(&tokens.refresh_token);
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
-    create_session(&state.db, user.id, &token_hash, expires_at, None, None).await?;
+    create_session(&state.db, user.id, &token_hash, expires_at, None, None, None, None).await?;
 
     let setup_complete = is_setup_complete(&state.db).await?;
 

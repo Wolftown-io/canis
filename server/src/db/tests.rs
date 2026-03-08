@@ -171,6 +171,8 @@ mod postgres_tests {
             expires_at,
             Some("192.168.1.1"),
             Some("Mozilla/5.0"),
+            None,
+            None,
         )
         .await
         .expect("Failed to create session");
@@ -211,13 +213,13 @@ mod postgres_tests {
         let expires_at = Utc::now() + Duration::hours(1);
 
         // Create multiple sessions
-        create_session(&pool, user.id, "token1", expires_at, None, None)
+        create_session(&pool, user.id, "token1", expires_at, None, None, None, None)
             .await
             .expect("Failed to create session 1");
-        create_session(&pool, user.id, "token2", expires_at, None, None)
+        create_session(&pool, user.id, "token2", expires_at, None, None, None, None)
             .await
             .expect("Failed to create session 2");
-        create_session(&pool, user.id, "token3", expires_at, None, None)
+        create_session(&pool, user.id, "token3", expires_at, None, None, None, None)
             .await
             .expect("Failed to create session 3");
 
@@ -269,7 +271,7 @@ mod postgres_tests {
 
         // Create valid session (1 hour future)
         let valid_time = Utc::now() + Duration::hours(1);
-        create_session(&pool, user.id, "valid_token", valid_time, None, None)
+        create_session(&pool, user.id, "valid_token", valid_time, None, None, None, None)
             .await
             .expect("Failed to create valid session");
 
