@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Multipart, Path, State};
 use axum::http::header::{ORIGIN, USER_AGENT};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Json};
 use axum_extra::extract::CookieJar;
@@ -278,6 +278,13 @@ pub struct SessionInfo {
 pub struct SessionListResponse {
     /// Active sessions for the authenticated user.
     pub sessions: Vec<SessionInfo>,
+}
+
+/// Response for revoking all other sessions.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct RevokeAllResponse {
+    /// Number of sessions that were revoked.
+    pub revoked_count: i64,
 }
 
 // ============================================================================
@@ -1038,6 +1045,96 @@ pub async fn list_sessions(
     Ok(Json(SessionListResponse {
         sessions: session_infos,
     }))
+}
+
+/// Revoke a specific session by ID.
+///
+/// `DELETE /auth/sessions/{session_id}`
+#[utoipa::path(
+    delete,
+    path = "/auth/sessions/{session_id}",
+    tag = "auth",
+    params(("session_id" = Uuid, Path, description = "Session ID to revoke")),
+    responses(
+        (status = 204, description = "Session revoked"),
+        (status = 403, description = "Cannot revoke current session or another user's session"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state, jar))]
+pub async fn revoke_session(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Path(session_id): Path<Uuid>,
+    jar: CookieJar,
+) -> AuthResult<StatusCode> {
+    // Find the session
+    let session: Option<Session> = sqlx::query_as(
+        "SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, city, country, created_at
+         FROM sessions WHERE id = $1",
+    )
+    .bind(session_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let session = session.ok_or_else(|| AuthError::NotFound("Session not found".to_string()))?;
+
+    // Must belong to the authenticated user
+    if session.user_id != auth_user.id {
+        return Err(AuthError::Forbidden);
+    }
+
+    // Cannot revoke current session (use logout instead)
+    let current_hash = jar
+        .get(cookies::REFRESH_COOKIE_NAME)
+        .map(|c| hash_token(c.value()));
+    if current_hash.as_deref() == Some(&session.token_hash) {
+        return Err(AuthError::Forbidden);
+    }
+
+    sqlx::query("DELETE FROM sessions WHERE id = $1")
+        .bind(session_id)
+        .execute(&state.db)
+        .await?;
+
+    tracing::info!(user_id = %auth_user.id, session_id = %session_id, "Session revoked");
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Revoke all sessions except the current one.
+///
+/// DELETE /auth/sessions
+#[utoipa::path(
+    delete,
+    path = "/auth/sessions",
+    tag = "auth",
+    responses(
+        (status = 200, description = "All other sessions revoked", body = RevokeAllResponse),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state, jar))]
+pub async fn revoke_all_other_sessions(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    jar: CookieJar,
+) -> AuthResult<Json<RevokeAllResponse>> {
+    let current_hash = jar
+        .get(cookies::REFRESH_COOKIE_NAME)
+        .map(|c| hash_token(c.value()));
+
+    let result = sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
+        .bind(auth_user.id)
+        .bind(current_hash.as_deref().unwrap_or(""))
+        .execute(&state.db)
+        .await?;
+
+    let revoked_count = result.rows_affected() as i64;
+    tracing::info!(user_id = %auth_user.id, revoked_count, "All other sessions revoked");
+
+    Ok(Json(RevokeAllResponse { revoked_count }))
 }
 
 /// Get current user profile.
