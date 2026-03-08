@@ -3,7 +3,8 @@
 //! Wraps `scap::Capturer` to produce I420 frames at the target FPS.
 //! Runs on a background thread and sends frames via `mpsc::Sender`.
 
-use tokio::sync::{mpsc, watch};
+use std::sync::mpsc;
+use tokio::sync::watch;
 use tracing::{debug, error, info, warn};
 
 use super::convert::BgraToI420Converter;
@@ -35,7 +36,7 @@ impl FrameCapturer {
     /// This spawns a blocking thread since `scap::Capturer` is not async.
     pub fn start(
         self,
-        frame_tx: mpsc::Sender<I420Frame>,
+        frame_tx: mpsc::SyncSender<I420Frame>,
         shutdown_rx: watch::Receiver<bool>,
     ) -> Result<tokio::task::JoinHandle<()>, CaptureError> {
         let fps = self.fps;

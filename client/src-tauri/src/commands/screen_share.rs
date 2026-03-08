@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::{command, State};
 use tokio::sync::{mpsc, watch};
+use std::sync::mpsc as std_mpsc;
 use tracing::{error, info, warn};
 
 use crate::capture::capturer::FrameCapturer;
@@ -113,7 +114,7 @@ pub async fn start_screen_share(
     let shutdown_rx2 = shutdown_tx.subscribe();
 
     // Create frame channel (bounded to avoid memory buildup)
-    let (frame_tx, mut frame_rx) = mpsc::channel(2);
+    let (frame_tx, frame_rx) = std_mpsc::sync_channel(2);
 
     // Start capturer on blocking thread
     let capturer = FrameCapturer::new(source_id.clone(), params.fps, params.width, params.height);
@@ -147,7 +148,7 @@ pub async fn start_screen_share(
                     break;
                 }
 
-                match frame_rx.try_recv() {
+                match frame_rx.recv_timeout(std::time::Duration::from_millis(16)) {
                     Ok(i420) => match encoder.encode(&i420) {
                         Ok(packets) => {
                             if !packets.is_empty() && pkt_tx.blocking_send(packets).is_err() {
@@ -159,11 +160,10 @@ pub async fn start_screen_share(
                             warn!("Encode error: {e}");
                         }
                     },
-                    Err(mpsc::error::TryRecvError::Empty) => {
-                        // No frame available — sleep briefly then re-check shutdown
-                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    Err(std_mpsc::RecvTimeoutError::Timeout) => {
+                        // No frame this interval — loop back to check shutdown
                     }
-                    Err(mpsc::error::TryRecvError::Disconnected) => {
+                    Err(std_mpsc::RecvTimeoutError::Disconnected) => {
                         info!("Frame channel closed, stopping encoder");
                         break;
                     }
