@@ -8,6 +8,8 @@ import {
   startViewing,
   stopViewing,
   getAvailableSharers,
+  setScreenVolume,
+  toggleMute,
 } from "../screenShareViewer";
 
 // Mock MediaStreamTrack
@@ -162,6 +164,16 @@ describe("screenShareViewer", () => {
 
       expect(viewerState.viewingUserId).toBeNull();
       expect(viewerState.videoTrack).toBeNull();
+    });
+  });
+
+  describe("toggleMute", () => {
+    it("should remember volume when muting and restore on unmute", () => {
+      setScreenVolume(75);
+      toggleMute(); // mute
+      expect(viewerState.screenVolume).toBe(0);
+      toggleMute(); // unmute — should restore to 75
+      expect(viewerState.screenVolume).toBe(75);
     });
   });
 

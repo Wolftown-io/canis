@@ -13,6 +13,7 @@ import {
   stopViewing,
   setViewMode,
   setScreenVolume,
+  toggleMute,
   type ViewMode,
 } from "@/stores/screenShareViewer";
 import { voiceState } from "@/stores/voice";
@@ -109,7 +110,7 @@ const ScreenShareViewer: Component = () => {
       case "M":
         if (!e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
-          setScreenVolume(viewerState.screenVolume === 0 ? 100 : 0);
+          toggleMute();
         }
         break;
       case "f":
@@ -302,7 +303,7 @@ const TheaterView: Component<{
   onClickToPlay: () => void;
 }> = (props) => {
   return (
-    <div class="fixed top-0 left-[312px] right-0 bottom-0 z-40 bg-black/95 flex flex-col">
+    <div class="fixed top-0 left-[calc(72px+240px)] right-0 bottom-0 z-40 bg-black/95 flex flex-col">
       {/* Header bar */}
       <div class="flex items-center justify-between p-3 bg-black/50">
         <span class="text-white font-medium text-sm">
@@ -346,10 +347,6 @@ const TheaterView: Component<{
 /** Volume control component */
 const VolumeControl: Component = () => {
   const isMuted = () => viewerState.screenVolume === 0;
-
-  const toggleMute = () => {
-    setScreenVolume(isMuted() ? 100 : 0);
-  };
 
   return (
     <div class="flex items-center gap-2">

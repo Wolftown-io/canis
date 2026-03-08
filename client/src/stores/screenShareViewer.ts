@@ -30,6 +30,8 @@ interface ScreenShareViewerState {
   pipPosition: PipPosition;
   /** PiP size */
   pipSize: { width: number; height: number };
+  /** Previous volume before muting (for toggle restore) */
+  previousVolume: number;
   /** Available screen share tracks by user ID */
   availableTracks: Map<string, MediaStreamTrack>;
 }
@@ -41,6 +43,7 @@ const [viewerState, setViewerState] = createStore<ScreenShareViewerState>({
   videoTrack: null,
   viewMode: "spotlight",
   screenVolume: 100,
+  previousVolume: 100,
   pipPosition: { x: 20, y: 20 },
   pipSize: DEFAULT_PIP_SIZE,
   availableTracks: new Map(),
@@ -54,11 +57,8 @@ export function addAvailableTrack(
   userId: string,
   track: MediaStreamTrack,
 ): void {
-  console.log("[ScreenShareViewer] Track available:", userId);
-
   // Auto-cleanup when track ends
   track.onended = () => {
-    console.log("[ScreenShareViewer] Track ended for user:", userId);
     removeAvailableTrack(userId);
   };
 
@@ -71,7 +71,6 @@ export function addAvailableTrack(
  * Remove a screen share track (user stopped sharing).
  */
 export function removeAvailableTrack(userId: string): void {
-  console.log("[ScreenShareViewer] Track removed:", userId);
   const newTracks = new Map(viewerState.availableTracks);
   newTracks.delete(userId);
   setViewerState({ availableTracks: newTracks });
@@ -87,11 +86,8 @@ export function removeAvailableTrack(userId: string): void {
  * Also registers the track as available.
  */
 export function startViewing(userId: string, track: MediaStreamTrack): void {
-  console.log("[ScreenShareViewer] Start viewing:", userId);
-
   // Auto-cleanup when track ends
   track.onended = () => {
-    console.log("[ScreenShareViewer] Track ended for user:", userId);
     removeAvailableTrack(userId);
   };
 
@@ -124,7 +120,6 @@ export function viewUserShare(userId: string): boolean {
     return false;
   }
 
-  console.log("[ScreenShareViewer] Switching to view:", userId);
   setViewerState({
     viewingUserId: userId,
     videoTrack: track,
@@ -136,7 +131,6 @@ export function viewUserShare(userId: string): boolean {
  * Stop viewing the current screen share.
  */
 export function stopViewing(): void {
-  console.log("[ScreenShareViewer] Stop viewing");
   setViewerState({
     viewingUserId: null,
     videoTrack: null,
@@ -154,7 +148,6 @@ export function getAvailableSharers(): string[] {
  * Set the view mode.
  */
 export function setViewMode(mode: ViewMode): void {
-  console.log("[ScreenShareViewer] Set view mode:", mode);
   setViewerState({ viewMode: mode });
 }
 
@@ -163,6 +156,18 @@ export function setViewMode(mode: ViewMode): void {
  */
 export function setScreenVolume(volume: number): void {
   setViewerState({ screenVolume: Math.max(0, Math.min(100, volume)) });
+}
+
+/**
+ * Toggle mute with volume memory.
+ */
+export function toggleMute(): void {
+  if (viewerState.screenVolume === 0) {
+    setScreenVolume(viewerState.previousVolume || 100);
+  } else {
+    setViewerState({ previousVolume: viewerState.screenVolume });
+    setScreenVolume(0);
+  }
 }
 
 /**
