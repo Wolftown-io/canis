@@ -752,3 +752,77 @@ async fn test_global_search_limit_clamping() {
     delete_guild(&app.pool, guild_id).await;
     delete_user(&app.pool, user_id).await;
 }
+
+// ============================================================================
+// Global Search — Channel ID Filter (Happy Path)
+// ============================================================================
+
+#[tokio::test]
+async fn test_global_search_channel_id_filter() {
+    let app = TestApp::new().await;
+    let (user_id, _) = create_test_user(&app.pool).await;
+    let guild_id = create_guild(&app.pool, user_id).await;
+    let ch_a = create_channel(&app.pool, guild_id, "channel-a").await;
+    let ch_b = create_channel(&app.pool, guild_id, "channel-b").await;
+    let token = generate_access_token(&app.config, user_id);
+
+    insert_message(&app.pool, ch_a, user_id, "Guava message in channel A").await;
+    insert_message(&app.pool, ch_b, user_id, "Guava message in channel B").await;
+
+    // Without channel_id filter — should find both
+    let req = global_search_request("q=guava", &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(json["total"], 2, "Without filter, should find both messages");
+
+    // With channel_id filter — should only find the one in ch_a
+    let req = global_search_request(&format!("q=guava&channel_id={ch_a}"), &token);
+    let resp = app.oneshot(req).await;
+    assert_eq!(resp.status(), 200);
+
+    let json = body_to_json(resp).await;
+    assert_eq!(
+        json["total"], 1,
+        "With channel_id filter, should find only one message"
+    );
+    assert_eq!(
+        json["results"][0]["channel_id"],
+        ch_a.to_string(),
+        "Result should be from the filtered channel"
+    );
+
+    delete_guild(&app.pool, guild_id).await;
+    delete_user(&app.pool, user_id).await;
+}
+
+// ============================================================================
+// Global Search — Channel ID Filter (Forbidden)
+// ============================================================================
+
+#[tokio::test]
+async fn test_global_search_channel_id_forbidden() {
+    let app = TestApp::new().await;
+    let (user_a, _) = create_test_user(&app.pool).await;
+    let (user_b, _) = create_test_user(&app.pool).await;
+
+    // user_a owns a guild with a channel
+    let guild_a = create_guild(&app.pool, user_a).await;
+    let ch_a = create_channel(&app.pool, guild_a, "secret").await;
+    insert_message(&app.pool, ch_a, user_a, "Papaya secret message").await;
+
+    // user_b is NOT a member of guild_a — should get 403 when filtering by ch_a
+    let token_b = generate_access_token(&app.config, user_b);
+    let req = global_search_request(&format!("q=papaya&channel_id={ch_a}"), &token_b);
+    let resp = app.oneshot(req).await;
+    assert_eq!(
+        resp.status(),
+        403,
+        "Should return 403 when filtering by a channel the user cannot access"
+    );
+
+    delete_guild(&app.pool, guild_a).await;
+    delete_user(&app.pool, user_a).await;
+    delete_user(&app.pool, user_b).await;
+}

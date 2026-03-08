@@ -259,6 +259,7 @@ pub async fn search_all(
     // 3b. Apply channel_id filter if provided
     if let Some(channel_id) = query.channel_id {
         if !all_channel_ids.contains(&channel_id) {
+            tracing::warn!(user_id = %auth.id, %channel_id, "search_forbidden_channel");
             return Err(GlobalSearchError::Forbidden);
         }
         all_channel_ids = vec![channel_id];
