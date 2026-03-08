@@ -598,6 +598,9 @@ async function httpRequest<T>(
   if (logHeaders.Authorization) {
     logHeaders.Authorization = "Bearer [REDACTED]";
   }
+  if (logHeaders["X-Refresh-Token"]) {
+    logHeaders["X-Refresh-Token"] = "[REDACTED]";
+  }
 
   console.log(`[httpRequest] ${method} ${path}`, {
     hasToken: !!token,
@@ -925,7 +928,7 @@ export async function updatePassword(
   new_password: string,
   revoke_others: boolean = false,
 ): Promise<{ success: boolean; message: string; revoked_count: number }> {
-  return fetchApi("/api/auth/me/password", {
+  return fetchApi("/auth/me/password", {
     method: "POST",
     body: { current_password, new_password, revoke_others },
   });
@@ -939,21 +942,21 @@ export async function updatePassword(
  * List all active sessions for the current user.
  */
 export async function listSessions(): Promise<SessionListResponse> {
-  return fetchApi<SessionListResponse>("/api/auth/sessions");
+  return fetchApi<SessionListResponse>("/auth/sessions");
 }
 
 /**
  * Revoke a specific session by ID.
  */
 export async function revokeSession(sessionId: string): Promise<void> {
-  await fetchApi<void>(`/api/auth/sessions/${sessionId}`, { method: "DELETE" });
+  await fetchApi<void>(`/auth/sessions/${sessionId}`, { method: "DELETE" });
 }
 
 /**
  * Revoke all sessions except the current one.
  */
 export async function revokeAllOtherSessions(): Promise<RevokeAllResponse> {
-  return fetchApi<RevokeAllResponse>("/api/auth/sessions", { method: "DELETE" });
+  return fetchApi<RevokeAllResponse>("/auth/sessions", { method: "DELETE" });
 }
 
 // ============================================================================
