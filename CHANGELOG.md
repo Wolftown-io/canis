@@ -16,8 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release note structure source: `docs/project/RELEASE_NOTES_TEMPLATE.md`
 
 ### Changed
+- Screen share limits now use atomic Redis Lua script for reliable concurrent slot management
 - Default theme updated to CachyOS Nordic color palette with true Nord Polar Night surfaces and Snow Storm text, aligning the client with the landing page
 - Layout areas (ServerRail, Sidebar, Main Stage) now separated by solid border lines for clearer visual structure
+
+### Fixed
+- Screen share encoder no longer busy-waits, reducing idle CPU usage via `recv_timeout`
+- Theater mode screen share viewer now correctly aligns with sidebar instead of using hardcoded offset
+- Volume mute toggle now remembers pre-mute level and restores it on unmute
 
 ### Added
 - Session management — view active sessions with device and location info, revoke individual sessions or all other devices, with optional prompt after password change
