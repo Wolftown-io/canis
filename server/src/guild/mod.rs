@@ -46,6 +46,10 @@ pub fn router() -> Router<AppState> {
             "/{id}/settings",
             get(handlers::get_guild_settings).patch(handlers::update_guild_settings),
         )
+        .route(
+            "/{id}/dismiss-discovery-prompt",
+            post(handlers::dismiss_discovery_prompt),
+        )
         // Role routes
         .route(
             "/{id}/roles",

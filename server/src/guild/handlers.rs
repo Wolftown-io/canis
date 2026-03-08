@@ -1110,10 +1110,15 @@ pub async fn get_guild_settings(
         return Err(GuildError::Forbidden);
     }
 
-    let settings: (bool, bool, Vec<String>, Option<String>) = sqlx::query_as(
-        "SELECT threads_enabled, discoverable, tags, banner_url FROM guilds WHERE id = $1",
+    let settings: (bool, bool, Vec<String>, Option<String>, bool) = sqlx::query_as(
+        r"SELECT g.threads_enabled, g.discoverable, g.tags, g.banner_url,
+                 (gm.discovery_prompt_dismissed_at IS NOT NULL) AS dismissed
+          FROM guilds g
+          INNER JOIN guild_members gm ON gm.guild_id = g.id AND gm.user_id = $2
+          WHERE g.id = $1",
     )
     .bind(guild_id)
+    .bind(auth.id)
     .fetch_optional(&state.db)
     .await?
     .ok_or(GuildError::NotFound)?;
@@ -1123,6 +1128,7 @@ pub async fn get_guild_settings(
         discoverable: settings.1,
         tags: settings.2,
         banner_url: settings.3,
+        discovery_prompt_dismissed: settings.4,
     }))
 }
 
@@ -1229,12 +1235,61 @@ pub async fn update_guild_settings(
         .fetch_one(&state.db)
         .await?;
 
+    // Fetch per-member discovery prompt dismissal status
+    let dismissed: (bool,) = sqlx::query_as(
+        "SELECT (discovery_prompt_dismissed_at IS NOT NULL) FROM guild_members WHERE guild_id = $1 AND user_id = $2",
+    )
+    .bind(guild_id)
+    .bind(auth.id)
+    .fetch_one(&state.db)
+    .await?;
+
     Ok(Json(GuildSettings {
         threads_enabled,
         discoverable,
         tags,
         banner_url,
+        discovery_prompt_dismissed: dismissed.0,
     }))
+}
+
+/// Dismiss the discovery setup prompt for the current user in a guild.
+/// POST /api/guilds/{id}/dismiss-discovery-prompt
+#[utoipa::path(
+    post,
+    path = "/api/guilds/{id}/dismiss-discovery-prompt",
+    tag = "guilds",
+    params(("id" = Uuid, Path, description = "Guild ID")),
+    responses(
+        (status = 204, description = "Prompt dismissed successfully"),
+        (status = 403, description = "Not a member of this guild"),
+    ),
+    security(("bearer_auth" = []))
+)]
+#[tracing::instrument(skip(state))]
+pub async fn dismiss_discovery_prompt(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(guild_id): Path<Uuid>,
+) -> Result<StatusCode, GuildError> {
+    // Verify guild membership
+    let is_member = db::is_guild_member(&state.db, guild_id, auth.id).await?;
+    if !is_member {
+        return Err(GuildError::Forbidden);
+    }
+
+    sqlx::query(
+        r"UPDATE guild_members
+          SET discovery_prompt_dismissed_at = NOW()
+          WHERE guild_id = $1 AND user_id = $2
+            AND discovery_prompt_dismissed_at IS NULL",
+    )
+    .bind(guild_id)
+    .bind(auth.id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ============================================================================

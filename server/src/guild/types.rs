@@ -181,6 +181,8 @@ pub struct GuildSettings {
     pub discoverable: bool,
     pub tags: Vec<String>,
     pub banner_url: Option<String>,
+    /// Whether the current user has dismissed the discovery setup prompt.
+    pub discovery_prompt_dismissed: bool,
 }
 
 /// Request to update guild settings.
