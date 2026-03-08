@@ -33,6 +33,7 @@ async fn test_websocket_broadcast_flow() {
         rate_limiter: None,
         email: None,
         oidc_manager: None,
+        http_client: reqwest::Client::new(),
     });
 
     // 2. Create Test Data with unique identifiers
@@ -191,6 +192,7 @@ impl PermissionTestContext {
             rate_limiter: None,
             email: None,
             oidc_manager: None,
+            http_client: reqwest::Client::new(),
         });
 
         // Create test data with unique identifiers
