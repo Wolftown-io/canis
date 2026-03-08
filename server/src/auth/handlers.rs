@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Multipart, Path, State};
 use axum::http::header::{ORIGIN, USER_AGENT};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Json};
 use axum_extra::extract::CookieJar;
@@ -18,7 +18,9 @@ use validator::Validate;
 
 use super::backup_codes::{find_matching_backup_code, generate_backup_codes, BACKUP_CODE_COUNT};
 use super::cookies;
+use super::geoip;
 use super::error::{AuthError, AuthResult};
+use super::ua_parser;
 use super::jwt::{generate_token_pair, validate_refresh_token};
 use super::mfa_crypto::{decrypt_mfa_secret, encrypt_mfa_secret};
 use super::middleware::AuthUser;
@@ -237,6 +239,9 @@ pub struct UpdatePasswordRequest {
     /// New password (8-128 characters).
     #[validate(length(min = 8, max = 128))]
     pub new_password: String,
+    /// Whether to revoke all other sessions after password change.
+    #[serde(default)]
+    pub revoke_others: bool,
 }
 
 impl std::fmt::Debug for UpdatePasswordRequest {
@@ -244,8 +249,46 @@ impl std::fmt::Debug for UpdatePasswordRequest {
         f.debug_struct("UpdatePasswordRequest")
             .field("current_password", &"[REDACTED]")
             .field("new_password", &"[REDACTED]")
+            .field("revoke_others", &self.revoke_others)
             .finish()
     }
+}
+
+/// Information about a single active auth session.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[schema(as = AuthSessionInfo)]
+pub struct SessionInfo {
+    /// Session ID.
+    pub id: Uuid,
+    /// Friendly device description (e.g. "Chrome on Linux").
+    pub device: String,
+    /// IP address of the client.
+    pub ip_address: Option<String>,
+    /// City from `GeoIP` lookup.
+    pub city: Option<String>,
+    /// Country from `GeoIP` lookup.
+    pub country: Option<String>,
+    /// When the session was created.
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    /// When the session expires.
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+    /// Whether this is the currently active session.
+    pub is_current: bool,
+}
+
+/// Response containing the list of active auth sessions.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[schema(as = AuthSessionListResponse)]
+pub struct SessionListResponse {
+    /// Active sessions for the authenticated user.
+    pub sessions: Vec<SessionInfo>,
+}
+
+/// Response for revoking all other sessions.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct RevokeAllResponse {
+    /// Number of sessions that were revoked.
+    pub revoked_count: i64,
 }
 
 // ============================================================================
@@ -263,6 +306,27 @@ static USERNAME_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::
 
 // Re-use the public hash_token function from parent module
 use super::hash_token;
+
+/// Extract the current session's token hash from cookie (browser) or `X-Refresh-Token` header (Tauri).
+///
+/// Browser clients send the refresh token via an `HttpOnly` cookie.
+/// Tauri clients cannot use cookies for same-origin requests to the API, so they
+/// send the refresh token via the `X-Refresh-Token` header instead.
+fn extract_current_token_hash(headers: &HeaderMap, jar: &CookieJar) -> Option<String> {
+    // Try cookie first (browser clients)
+    if let Some(cookie) = jar.get(cookies::REFRESH_COOKIE_NAME) {
+        return Some(hash_token(cookie.value()));
+    }
+    // Fall back to X-Refresh-Token header (Tauri clients)
+    if let Some(header_value) = headers.get("x-refresh-token") {
+        if let Ok(token) = header_value.to_str() {
+            if !token.is_empty() {
+                return Some(hash_token(token));
+            }
+        }
+    }
+    None
+}
 
 /// Extract User-Agent from headers (sanitized and truncated to 512 chars for DB storage).
 fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
@@ -496,16 +560,24 @@ pub async fn register(
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
+    let geo =
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
+            .await;
+    let city = geo.as_ref().and_then(|g| g.city.as_deref());
+    let country = geo.as_ref().and_then(|g| g.country.as_deref());
+
     let ip_str = Some(addr.ip().to_string());
     sqlx::query(
-        r"INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
-          VALUES ($1, $2, $3, $4::inet, $5)",
+        r"INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent, city, country)
+          VALUES ($1, $2, $3, $4::inet, $5, $6, $7)",
     )
     .bind(user.id)
     .bind(&token_hash)
     .bind(expires_at)
     .bind(ip_str.as_deref())
     .bind(user_agent.as_deref())
+    .bind(city)
+    .bind(country)
     .execute(&mut *tx)
     .await
     .map_err(|e| {
@@ -708,6 +780,12 @@ pub async fn login(
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
+    let geo =
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
+            .await;
+    let city = geo.as_ref().and_then(|g| g.city.as_deref());
+    let country = geo.as_ref().and_then(|g| g.country.as_deref());
+
     create_session(
         &state.db,
         user.id,
@@ -715,6 +793,8 @@ pub async fn login(
         expires_at,
         Some(&addr.ip().to_string()),
         user_agent.as_deref(),
+        city,
+        country,
     )
     .await?;
 
@@ -793,7 +873,7 @@ pub async fn refresh_token(
     // Lock the session row to prevent concurrent refresh
     let session: Option<Session> = sqlx::query_as(
         r"
-        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
+        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, city, country, created_at
         FROM sessions
         WHERE token_hash = $1 AND expires_at > NOW()
         FOR UPDATE
@@ -838,10 +918,16 @@ pub async fn refresh_token(
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
     let user_agent = extract_user_agent(&headers);
 
+    let geo =
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
+            .await;
+    let city = geo.as_ref().and_then(|g| g.city.as_deref());
+    let country = geo.as_ref().and_then(|g| g.country.as_deref());
+
     sqlx::query(
         r"
-        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
-        VALUES ($1, $2, $3, $4::inet, $5)
+        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent, city, country)
+        VALUES ($1, $2, $3, $4::inet, $5, $6, $7)
         ",
     )
     .bind(user_id)
@@ -849,6 +935,8 @@ pub async fn refresh_token(
     .bind(expires_at)
     .bind(addr.ip().to_string())
     .bind(user_agent.as_deref())
+    .bind(city)
+    .bind(country)
     .execute(&mut *tx)
     .await?;
 
@@ -919,6 +1007,164 @@ pub async fn logout(
     tracing::info!(user_id = %auth_user.id, "User logged out");
 
     Ok(jar.add(cookies::build_clear_cookie(&state.config)))
+}
+
+/// List all active sessions for the authenticated user.
+///
+/// GET /auth/sessions
+#[utoipa::path(
+    get,
+    path = "/auth/sessions",
+    tag = "auth",
+    responses(
+        (status = 200, description = "Active auth sessions", body = SessionListResponse),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state, jar, headers))]
+pub async fn list_sessions(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    headers: HeaderMap,
+    jar: CookieJar,
+) -> AuthResult<Json<SessionListResponse>> {
+    // Try to identify the current session from cookie (browser) or header (Tauri).
+    // Best-effort: if neither is available, all sessions will have is_current = false.
+    let current_hash = extract_current_token_hash(&headers, &jar);
+
+    let sessions: Vec<Session> = sqlx::query_as(
+        r"SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address,
+                 user_agent, city, country, created_at
+          FROM sessions
+          WHERE user_id = $1 AND expires_at > NOW()
+          ORDER BY created_at DESC",
+    )
+    .bind(auth_user.id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let session_infos: Vec<SessionInfo> = sessions
+        .iter()
+        .map(|s| {
+            let device = s
+                .user_agent
+                .as_deref()
+                .map(ua_parser::parse_device_name)
+                .unwrap_or_else(|| "Unknown device".to_string());
+
+            SessionInfo {
+                id: s.id,
+                device,
+                ip_address: s.ip_address.clone(),
+                city: s.city.clone(),
+                country: s.country.clone(),
+                created_at: s.created_at,
+                expires_at: s.expires_at,
+                is_current: current_hash.as_deref() == Some(&s.token_hash),
+            }
+        })
+        .collect();
+
+    Ok(Json(SessionListResponse {
+        sessions: session_infos,
+    }))
+}
+
+/// Revoke a specific session by ID.
+///
+/// `DELETE /auth/sessions/{session_id}`
+#[utoipa::path(
+    delete,
+    path = "/auth/sessions/{session_id}",
+    tag = "auth",
+    params(("session_id" = Uuid, Path, description = "Session ID to revoke")),
+    responses(
+        (status = 204, description = "Session revoked"),
+        (status = 403, description = "Cannot revoke current session or another user's session"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state, jar, headers))]
+pub async fn revoke_session(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Path(session_id): Path<Uuid>,
+    headers: HeaderMap,
+    jar: CookieJar,
+) -> AuthResult<StatusCode> {
+    // Find the session
+    let session: Option<Session> = sqlx::query_as(
+        "SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, city, country, created_at
+         FROM sessions WHERE id = $1",
+    )
+    .bind(session_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let session = session.ok_or_else(|| AuthError::NotFound("Session not found".to_string()))?;
+
+    // Must belong to the authenticated user
+    if session.user_id != auth_user.id {
+        return Err(AuthError::Forbidden);
+    }
+
+    // Cannot revoke current session (use logout instead)
+    let current_hash = extract_current_token_hash(&headers, &jar);
+    if current_hash.as_deref() == Some(&session.token_hash) {
+        return Err(AuthError::Forbidden);
+    }
+
+    sqlx::query("DELETE FROM sessions WHERE id = $1")
+        .bind(session_id)
+        .execute(&state.db)
+        .await?;
+
+    tracing::info!(user_id = %auth_user.id, session_id = %session_id, "Session revoked");
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Revoke all sessions except the current one.
+///
+/// DELETE /auth/sessions
+#[utoipa::path(
+    delete,
+    path = "/auth/sessions",
+    tag = "auth",
+    responses(
+        (status = 200, description = "All other sessions revoked", body = RevokeAllResponse),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state, jar, headers))]
+pub async fn revoke_all_other_sessions(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    headers: HeaderMap,
+    jar: CookieJar,
+) -> AuthResult<Json<RevokeAllResponse>> {
+    let current_hash = extract_current_token_hash(&headers, &jar);
+
+    // If we cannot identify the current session, refuse to proceed — otherwise
+    // we would delete ALL sessions (including the caller's own).
+    let current_hash = current_hash.ok_or_else(|| {
+        tracing::warn!(user_id = %auth_user.id, "Cannot identify current session for revoke-all-others");
+        AuthError::Validation(
+            "Cannot identify current session. Please provide a refresh token via cookie or X-Refresh-Token header.".to_string(),
+        )
+    })?;
+
+    let result = sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
+        .bind(auth_user.id)
+        .bind(&current_hash)
+        .execute(&state.db)
+        .await?;
+
+    let revoked_count = result.rows_affected() as i64;
+    tracing::info!(user_id = %auth_user.id, revoked_count, "All other sessions revoked");
+
+    Ok(Json(RevokeAllResponse { revoked_count }))
 }
 
 /// Get current user profile.
@@ -1223,10 +1469,12 @@ pub async fn update_profile(
     ),
     security(("bearer_auth" = [])),
 )]
-#[tracing::instrument(skip(state, body), fields(user_id = %auth_user.id))]
+#[tracing::instrument(skip(state, body, headers), fields(user_id = %auth_user.id))]
 pub async fn update_password(
     State(state): State<AppState>,
     auth_user: AuthUser,
+    headers: HeaderMap,
+    jar: CookieJar,
     Json(body): Json<UpdatePasswordRequest>,
 ) -> AuthResult<Json<serde_json::Value>> {
     body.validate()
@@ -1251,7 +1499,7 @@ pub async fn update_password(
 
     let new_hash = hash_password(&body.new_password).map_err(|_| AuthError::PasswordHash)?;
 
-    // Transaction: update password + invalidate all sessions (matches reset_password pattern)
+    // Transaction: update password + optionally revoke other sessions
     let mut tx = state.db.begin().await.map_err(AuthError::Database)?;
 
     sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
@@ -1261,20 +1509,36 @@ pub async fn update_password(
         .await
         .map_err(AuthError::Database)?;
 
-    // Invalidate all sessions — force re-login after password change
-    sqlx::query("DELETE FROM sessions WHERE user_id = $1")
-        .bind(auth_user.id)
-        .execute(&mut *tx)
-        .await
-        .map_err(AuthError::Database)?;
+    let revoked_count = if body.revoke_others {
+        let current_token_hash = extract_current_token_hash(&headers, &jar);
+        if let Some(ref hash) = current_token_hash {
+            sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
+                .bind(auth_user.id)
+                .bind(hash)
+                .execute(&mut *tx)
+                .await
+                .map_err(AuthError::Database)?
+                .rows_affected()
+        } else {
+            // Cannot identify current session — skip revocation rather than
+            // accidentally deleting all sessions (including the caller's own).
+            tracing::warn!(
+                user_id = %auth_user.id,
+                "Cannot identify current session for password-change revocation; skipping"
+            );
+            0u64
+        }
+    } else {
+        0u64
+    };
 
     tx.commit().await.map_err(AuthError::Database)?;
-    tracing::info!(user_id = %auth_user.id, "Password updated and all sessions invalidated");
+    tracing::info!(user_id = %auth_user.id, revoked_others = body.revoke_others, revoked_count, "Password updated");
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "Password updated successfully. All sessions have been invalidated — please log in again.",
-        "requires_reauth": true
+        "message": "Password updated successfully.",
+        "revoked_count": revoked_count
     })))
 }
 
@@ -2032,7 +2296,7 @@ pub async fn oidc_callback(
     // Store session
     let token_hash = hash_token(&tokens.refresh_token);
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
-    create_session(&state.db, user.id, &token_hash, expires_at, None, None).await?;
+    create_session(&state.db, user.id, &token_hash, expires_at, None, None, None, None).await?;
 
     let setup_complete = is_setup_complete(&state.db).await?;
 

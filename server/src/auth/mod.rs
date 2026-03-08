@@ -5,15 +5,17 @@
 mod backup_codes;
 pub(crate) mod cookies;
 pub(crate) mod error;
+pub mod geoip;
 pub(crate) mod handlers;
 pub mod jwt;
 pub mod mfa_crypto;
 mod middleware;
 pub mod oidc;
 mod password;
+pub mod ua_parser;
 
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{middleware as axum_middleware, Router};
 pub use error::{AuthError, AuthResult};
 pub use jwt::Claims;
@@ -48,6 +50,9 @@ pub fn hash_token(token: &str) -> String {
 ///
 /// Protected routes (auth required):
 /// - POST /logout - Invalidate session
+/// - GET /sessions - List active sessions
+/// - DELETE /sessions - Revoke all sessions except current
+/// - DELETE /sessions/{id} - Revoke a specific session
 /// - GET /me - Get current user profile
 /// - POST /me - Update profile
 /// - POST /me/password - Change password (invalidates all sessions)
@@ -156,6 +161,11 @@ pub fn router(state: AppState) -> Router<AppState> {
     // Protected routes (auth required)
     let protected_routes = Router::new()
         .route("/logout", post(handlers::logout))
+        .route(
+            "/sessions",
+            get(handlers::list_sessions).delete(handlers::revoke_all_other_sessions),
+        )
+        .route("/sessions/{id}", delete(handlers::revoke_session))
         .route("/me", get(handlers::get_profile))
         .route("/me", post(handlers::update_profile))
         .route("/me/password", post(handlers::update_password))

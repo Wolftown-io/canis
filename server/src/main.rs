@@ -339,6 +339,10 @@ async fn main() -> Result<()> {
         rate_limiter,
         email: email_service,
         oidc_manager,
+        http_client: reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("Failed to create HTTP client"),
     });
 
     // Build router

@@ -80,6 +80,9 @@ import type {
   TracesResponse,
   ObsLinksResponse,
   ObsTimeRange,
+  SessionInfo,
+  SessionListResponse,
+  RevokeAllResponse,
 } from "./types";
 
 // Re-export types for convenience
@@ -149,6 +152,9 @@ export type {
   PageRevision,
   RevisionListItem,
   PageCategory,
+  SessionInfo,
+  SessionListResponse,
+  RevokeAllResponse,
 };
 
 /**
@@ -569,6 +575,12 @@ async function httpRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // Tauri clients send the refresh token via header so the server can identify
+  // the current session (it cannot read HttpOnly cookies like browsers do).
+  if (isTauri && browserState.refreshToken) {
+    headers["X-Refresh-Token"] = browserState.refreshToken;
+  }
+
   // Remove trailing slash from serverUrl and ensure path starts with /
   const baseUrl = browserState.serverUrl.replace(/\/+$/, "");
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
@@ -585,6 +597,9 @@ async function httpRequest<T>(
   const logHeaders = { ...headers };
   if (logHeaders.Authorization) {
     logHeaders.Authorization = "Bearer [REDACTED]";
+  }
+  if (logHeaders["X-Refresh-Token"]) {
+    logHeaders["X-Refresh-Token"] = "[REDACTED]";
   }
 
   console.log(`[httpRequest] ${method} ${path}`, {
@@ -908,12 +923,40 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 /** Update the current user's password. */
-export async function updatePassword(current_password: string, new_password: string): Promise<void> {
-  if (isTauri) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("update_password", { currentPassword: current_password, newPassword: new_password });
-  }
-  return httpRequest("POST", "/auth/me/password", { current_password, new_password });
+export async function updatePassword(
+  current_password: string,
+  new_password: string,
+  revoke_others: boolean = false,
+): Promise<{ success: boolean; message: string; revoked_count: number }> {
+  return fetchApi("/auth/me/password", {
+    method: "POST",
+    body: { current_password, new_password, revoke_others },
+  });
+}
+
+// ============================================================================
+// Session Management Commands
+// ============================================================================
+
+/**
+ * List all active sessions for the current user.
+ */
+export async function listSessions(): Promise<SessionListResponse> {
+  return fetchApi<SessionListResponse>("/auth/sessions");
+}
+
+/**
+ * Revoke a specific session by ID.
+ */
+export async function revokeSession(sessionId: string): Promise<void> {
+  await fetchApi<void>(`/auth/sessions/${sessionId}`, { method: "DELETE" });
+}
+
+/**
+ * Revoke all sessions except the current one.
+ */
+export async function revokeAllOtherSessions(): Promise<RevokeAllResponse> {
+  return fetchApi<RevokeAllResponse>("/auth/sessions", { method: "DELETE" });
 }
 
 // ============================================================================

@@ -215,6 +215,7 @@ pub async fn set_mfa_secret(
 // ============================================================================
 
 /// Create a new session (for refresh token tracking).
+#[allow(clippy::too_many_arguments)]
 pub async fn create_session(
     pool: &PgPool,
     user_id: Uuid,
@@ -222,12 +223,14 @@ pub async fn create_session(
     expires_at: DateTime<Utc>,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
+    city: Option<&str>,
+    country: Option<&str>,
 ) -> sqlx::Result<Session> {
     sqlx::query_as::<_, Session>(
         r"
-        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
-        VALUES ($1, $2, $3, $4::inet, $5)
-        RETURNING id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
+        INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent, city, country)
+        VALUES ($1, $2, $3, $4::inet, $5, $6, $7)
+        RETURNING id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, city, country, created_at
         ",
     )
     .bind(user_id)
@@ -235,6 +238,8 @@ pub async fn create_session(
     .bind(expires_at)
     .bind(ip_address)
     .bind(user_agent)
+    .bind(city)
+    .bind(country)
     .fetch_one(pool)
     .await
     .map_err(db_error!("create_session", user_id = %user_id))
@@ -247,7 +252,7 @@ pub async fn find_session_by_token_hash(
 ) -> sqlx::Result<Option<Session>> {
     sqlx::query_as::<_, Session>(
         r"
-        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, created_at
+        SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address, user_agent, city, country, created_at
         FROM sessions
         WHERE token_hash = $1 AND expires_at > NOW()
         ",

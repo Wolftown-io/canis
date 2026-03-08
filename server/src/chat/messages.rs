@@ -1935,6 +1935,7 @@ mod tests {
             rate_limiter: None,
             email: None,
             oidc_manager: None,
+            http_client: reqwest::Client::new(),
         })
     }
 

@@ -223,6 +223,7 @@ impl TestApp {
             rate_limiter: None,
             email: None,
             oidc_manager: None,
+            http_client: reqwest::Client::new(),
         });
         let router = create_router(state);
         let config = Arc::new(config);
@@ -252,6 +253,7 @@ impl TestApp {
             rate_limiter: None,
             email: None,
             oidc_manager: None,
+            http_client: reqwest::Client::new(),
         });
         let router = create_router(state);
         let config = Arc::new(config);
@@ -326,6 +328,7 @@ pub async fn fresh_test_app_with_s3() -> (TestApp, String) {
         rate_limiter: None,
         email: None,
         oidc_manager: None,
+        http_client: reqwest::Client::new(),
     });
     let router = create_router(state);
 

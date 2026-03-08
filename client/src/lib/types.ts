@@ -382,6 +382,27 @@ export interface ScreenShareServerInfo {
   started_at: string;
 }
 
+// Session Management Types
+
+export interface SessionInfo {
+  id: string;
+  device: string;
+  ip_address: string | null;
+  city: string | null;
+  country: string | null;
+  created_at: string;
+  expires_at: string;
+  is_current: boolean;
+}
+
+export interface SessionListResponse {
+  sessions: SessionInfo[];
+}
+
+export interface RevokeAllResponse {
+  revoked_count: number;
+}
+
 // Auth Types
 
 export interface LoginRequest {

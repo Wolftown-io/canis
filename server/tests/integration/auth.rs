@@ -216,6 +216,8 @@ async fn test_session_creation_and_lookup() {
         expires_at,
         Some("127.0.0.1"),
         Some("Test Agent"),
+        None,
+        None,
     )
     .await
     .expect("Session creation should succeed");
@@ -261,11 +263,11 @@ async fn test_session_revocation() {
     let token2_hash = vc_server::auth::hash_token("token2");
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
 
-    vc_server::db::create_session(&pool, user.id, &token1_hash, expires_at, None, None)
+    vc_server::db::create_session(&pool, user.id, &token1_hash, expires_at, None, None, None, None)
         .await
         .expect("Session 1 should be created");
 
-    vc_server::db::create_session(&pool, user.id, &token2_hash, expires_at, None, None)
+    vc_server::db::create_session(&pool, user.id, &token2_hash, expires_at, None, None, None, None)
         .await
         .expect("Session 2 should be created");
 

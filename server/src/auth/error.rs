@@ -21,6 +21,10 @@ pub enum AuthError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    /// Forbidden action.
+    #[error("Forbidden")]
+    Forbidden,
+
     /// User already exists (registration).
     #[error("Username or email already taken")]
     UserAlreadyExists,
@@ -117,6 +121,7 @@ impl IntoResponse for AuthError {
             Self::InvalidCredentials => (StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS"),
             Self::UserNotFound => (StatusCode::NOT_FOUND, "USER_NOT_FOUND"),
             Self::NotFound(_) => (StatusCode::NOT_FOUND, "NOT_FOUND"),
+            Self::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN"),
             Self::UserAlreadyExists => (StatusCode::CONFLICT, "USER_EXISTS"),
             Self::EmailTaken => (StatusCode::CONFLICT, "EMAIL_TAKEN"),
             Self::InvalidToken => (StatusCode::UNAUTHORIZED, "INVALID_TOKEN"),

@@ -67,6 +67,8 @@ pub struct AppState {
     pub oidc_manager: Option<Arc<OidcProviderManager>>,
     /// Per-guild content filter engine cache
     pub filter_cache: Arc<FilterCache>,
+    /// Shared HTTP client for outbound requests (geo-IP lookups, etc.)
+    pub http_client: reqwest::Client,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -85,6 +87,7 @@ pub struct AppStateConfig {
     pub rate_limiter: Option<RateLimiter>,
     pub email: Option<EmailService>,
     pub oidc_manager: Option<OidcProviderManager>,
+    pub http_client: reqwest::Client,
 }
 
 impl AppState {
@@ -101,6 +104,7 @@ impl AppState {
             email: cfg.email.map(Arc::new),
             oidc_manager: cfg.oidc_manager.map(Arc::new),
             filter_cache: Arc::new(FilterCache::new()),
+            http_client: cfg.http_client,
         }
     }
 

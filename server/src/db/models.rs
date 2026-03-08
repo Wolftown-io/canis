@@ -223,6 +223,10 @@ pub struct Session {
     pub ip_address: Option<String>,
     /// User agent of the client.
     pub user_agent: Option<String>,
+    /// City from `GeoIP` lookup (nullable).
+    pub city: Option<String>,
+    /// Country from `GeoIP` lookup (nullable).
+    pub country: Option<String>,
     /// When the session was created.
     pub created_at: DateTime<Utc>,
 }

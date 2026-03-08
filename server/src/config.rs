@@ -242,6 +242,10 @@ pub struct Config {
 
     /// Prometheus UI URL (optional)
     pub prometheus_url: Option<String>,
+
+    /// Geo-IP API URL template (optional). Use `{ip}` as placeholder for the IP address.
+    /// Default: `http://ip-api.com/json/{ip}?fields=city,country`
+    pub geoip_api_url: Option<String>,
 }
 
 impl Config {
@@ -409,6 +413,9 @@ impl Config {
             tempo_url: env::var("TEMPO_URL").ok(),
             loki_url: env::var("LOKI_URL").ok(),
             prometheus_url: env::var("PROMETHEUS_URL").ok(),
+            geoip_api_url: env::var("GEOIP_API_URL").ok().or_else(|| {
+                Some("http://ip-api.com/json/{ip}?fields=city,country".to_string())
+            }),
         };
 
         // SameSite=None requires the Secure flag — browsers reject the cookie otherwise
@@ -519,6 +526,7 @@ impl Config {
             tempo_url: None,
             loki_url: None,
             prometheus_url: None,
+            geoip_api_url: None,
         }
     }
 }

@@ -49,6 +49,7 @@ async fn create_rate_limited_app(limits: RateLimits) -> (super::helpers::TestSer
         rate_limiter: Some(limiter),
         email: None,
         oidc_manager: None,
+        http_client: reqwest::Client::new(),
     });
     let router = create_router(state);
     let server = spawn_test_server(router).await;
