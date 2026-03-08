@@ -1,6 +1,6 @@
 import { Component, createSignal, Show } from "solid-js";
 import { AlertCircle, CheckCircle2, X } from "lucide-solid";
-import { updatePassword } from "@/lib/tauri";
+import { updatePassword, revokeAllOtherSessions } from "@/lib/tauri";
 
 interface ChangePasswordModalProps {
     onClose: () => void;
@@ -10,10 +10,10 @@ const ChangePasswordModal: Component<ChangePasswordModalProps> = (props) => {
     const [currentPassword, setCurrentPassword] = createSignal("");
     const [newPassword, setNewPassword] = createSignal("");
     const [confirmPassword, setConfirmPassword] = createSignal("");
-
     const [isLoading, setIsLoading] = createSignal(false);
     const [error, setError] = createSignal<string | null>(null);
-    const [success, setSuccess] = createSignal(false);
+    const [showRevokePrompt, setShowRevokePrompt] = createSignal(false);
+    const [isRevoking, setIsRevoking] = createSignal(false);
 
     const handleSubmit = async (e: Event) => {
         e.preventDefault();
@@ -34,15 +34,23 @@ const ChangePasswordModal: Component<ChangePasswordModalProps> = (props) => {
 
         try {
             await updatePassword(currentPassword(), newPassword());
-            setSuccess(true);
-            setTimeout(() => {
-                props.onClose();
-            }, 2000);
+            setShowRevokePrompt(true);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to update password");
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleRevokeAll = async () => {
+        setIsRevoking(true);
+        try {
+            await revokeAllOtherSessions();
+        } catch (err) {
+            // Best-effort — password already changed successfully
+            console.error("Failed to revoke sessions:", err);
+        }
+        props.onClose();
     };
 
     return (
@@ -64,92 +72,117 @@ const ChangePasswordModal: Component<ChangePasswordModalProps> = (props) => {
                     </button>
                 </div>
 
-                <div class="p-6">
-                    <Show when={error()}>
-                        <div class="mb-6 p-4 bg-status-danger/10 border border-status-danger/20 rounded-xl flex gap-3 text-status-danger">
-                            <AlertCircle class="w-5 h-5 shrink-0" />
-                            <p class="text-sm">{error()}</p>
-                        </div>
-                    </Show>
+                <Show when={showRevokePrompt()} fallback={
+                    <div class="p-6">
+                        <Show when={error()}>
+                            <div class="mb-6 p-4 bg-status-danger/10 border border-status-danger/20 rounded-xl flex gap-3 text-status-danger">
+                                <AlertCircle class="w-5 h-5 shrink-0" />
+                                <p class="text-sm">{error()}</p>
+                            </div>
+                        </Show>
 
-                    <Show when={success()}>
-                        <div class="mb-6 p-4 bg-status-success/10 border border-status-success/20 rounded-xl flex items-center gap-3 text-status-success">
+                        <form onSubmit={handleSubmit} class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-text-primary mb-2">
+                                    Current Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={currentPassword()}
+                                    onInput={(e) => setCurrentPassword(e.currentTarget.value)}
+                                    class="w-full px-4 py-2 bg-surface-layer1 border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors disabled:opacity-50"
+                                    required
+                                    disabled={isLoading()}
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-text-primary mb-2">
+                                    New Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={newPassword()}
+                                    onInput={(e) => setNewPassword(e.currentTarget.value)}
+                                    class="w-full px-4 py-2 bg-surface-layer1 border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors disabled:opacity-50"
+                                    required
+                                    minLength={8}
+                                    disabled={isLoading()}
+                                />
+                                <p class="text-xs text-text-secondary mt-1">Must be at least 8 characters long.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-text-primary mb-2">
+                                    Confirm New Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword()}
+                                    onInput={(e) => setConfirmPassword(e.currentTarget.value)}
+                                    class="w-full px-4 py-2 bg-surface-layer1 border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors disabled:opacity-50"
+                                    required
+                                    minLength={8}
+                                    disabled={isLoading()}
+                                />
+                            </div>
+
+                            <div class="pt-4 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={props.onClose}
+                                    class="px-5 py-2 text-text-primary hover:bg-white/5 rounded-xl font-medium transition-colors"
+                                    disabled={isLoading()}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isLoading() || !currentPassword() || !newPassword() || !confirmPassword()}
+                                    class="px-5 py-2 bg-accent-primary text-white rounded-xl font-medium hover:bg-accent-primary/90 transition-colors disabled:bg-surface-highlight disabled:text-text-secondary flex items-center justify-center min-w-[120px]"
+                                >
+                                    {isLoading() ? (
+                                        <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        "Change Password"
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                }>
+                    <div class="p-6 space-y-4">
+                        <div class="flex items-center gap-3 p-4 bg-status-success/10 border border-status-success/20 rounded-xl text-status-success">
                             <CheckCircle2 class="w-5 h-5 shrink-0" />
-                            <p class="text-sm font-medium">Password updated successfully!</p>
+                            <p class="text-sm font-medium">Password changed successfully!</p>
                         </div>
-                    </Show>
-
-                    <form onSubmit={handleSubmit} class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-text-primary mb-2">
-                                Current Password
-                            </label>
-                            <input
-                                type="password"
-                                value={currentPassword()}
-                                onInput={(e) => setCurrentPassword(e.currentTarget.value)}
-                                class="w-full px-4 py-2 bg-surface-layer1 border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors disabled:opacity-50"
-                                required
-                                disabled={isLoading() || success()}
-                            />
+                        <div class="text-center space-y-2">
+                            <p class="text-sm text-text-secondary">
+                                Would you like to log out of all other devices?
+                            </p>
                         </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-text-primary mb-2">
-                                New Password
-                            </label>
-                            <input
-                                type="password"
-                                value={newPassword()}
-                                onInput={(e) => setNewPassword(e.currentTarget.value)}
-                                class="w-full px-4 py-2 bg-surface-layer1 border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors disabled:opacity-50"
-                                required
-                                minLength={8}
-                                disabled={isLoading() || success()}
-                            />
-                            <p class="text-xs text-text-secondary mt-1">Must be at least 8 characters long.</p>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-text-primary mb-2">
-                                Confirm New Password
-                            </label>
-                            <input
-                                type="password"
-                                value={confirmPassword()}
-                                onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-                                class="w-full px-4 py-2 bg-surface-layer1 border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors disabled:opacity-50"
-                                required
-                                minLength={8}
-                                disabled={isLoading() || success()}
-                            />
-                        </div>
-
-                        <div class="pt-4 flex justify-end gap-3">
+                        <div class="flex gap-3 justify-end pt-2">
                             <button
-                                type="button"
                                 onClick={props.onClose}
                                 class="px-5 py-2 text-text-primary hover:bg-white/5 rounded-xl font-medium transition-colors"
-                                disabled={isLoading() || success()}
+                                disabled={isRevoking()}
                             >
-                                Cancel
+                                No
                             </button>
                             <button
-                                type="submit"
-                                disabled={isLoading() || success() || !currentPassword() || !newPassword() || !confirmPassword()}
-                                class="px-5 py-2 bg-accent-primary text-white rounded-xl font-medium hover:bg-accent-primary/90 transition-colors disabled:bg-surface-highlight disabled:text-text-secondary flex items-center justify-center min-w-[120px]"
+                                onClick={handleRevokeAll}
+                                disabled={isRevoking()}
+                                class="px-5 py-2 bg-status-danger/20 text-status-danger rounded-xl font-medium hover:bg-status-danger/30 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[180px]"
                             >
-                                {isLoading() ? (
-                                    <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : success() ? (
-                                    "Updated"
+                                {isRevoking() ? (
+                                    <div class="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                                 ) : (
-                                    "Change Password"
+                                    "Yes, log out other devices"
                                 )}
                             </button>
                         </div>
-                    </form>
-                </div>
+                    </div>
+                </Show>
             </div>
         </div>
     );
