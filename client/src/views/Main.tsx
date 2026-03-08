@@ -45,6 +45,7 @@ const DiscoveryView = lazy(
 const Main: Component = () => {
   const channel = selectedChannel;
   const [showShortcuts, setShowShortcuts] = createSignal(false);
+  const [channelSearchScope, setChannelSearchScope] = createSignal(false);
 
   // Load guilds on mount
   onMount(() => {
@@ -57,6 +58,14 @@ const Main: Component = () => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "F") {
       e.preventDefault();
       setShowGlobalSearch(!showGlobalSearch());
+      return;
+    }
+
+    // Ctrl+F → channel-scoped search (must be checked after Ctrl+Shift+F)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "f") {
+      e.preventDefault();
+      setChannelSearchScope(true);
+      setShowGlobalSearch(true);
       return;
     }
 
@@ -111,6 +120,7 @@ const Main: Component = () => {
             class="absolute inset-0 bg-black/50"
             onClick={() => {
               setShowGlobalSearch(false);
+              setChannelSearchScope(false);
               clearSearch();
             }}
           />
@@ -120,8 +130,11 @@ const Main: Component = () => {
           >
             <SearchPanel
               mode="global"
+              initialScope={channelSearchScope() ? "channel" : "all"}
+              channelId={channel()?.id}
               onClose={() => {
                 setShowGlobalSearch(false);
+                setChannelSearchScope(false);
                 clearSearch();
               }}
             />

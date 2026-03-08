@@ -43,6 +43,7 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
   {
     title: "Chat",
     shortcuts: [
+      { keys: ["Ctrl", "F"], description: "Search in channel" },
       { keys: ["Enter"], description: "Send message" },
       { keys: ["Shift", "Enter"], description: "New line" },
       { keys: ["Ctrl", "B"], description: "Bold text" },
