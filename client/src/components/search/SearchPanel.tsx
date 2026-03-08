@@ -11,8 +11,10 @@ import {
   Show,
   For,
   createSignal,
+  createEffect,
   onCleanup,
   createMemo,
+  untrack,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import {
@@ -51,6 +53,8 @@ import { createVirtualizer } from "@/lib/virtualizer";
 interface SearchPanelProps {
   onClose: () => void;
   mode?: "guild" | "dm" | "global";
+  initialScope?: "channel" | "guild" | "all";
+  channelId?: string;
 }
 
 const SearchPanel: Component<SearchPanelProps> = (props) => {
@@ -63,6 +67,9 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
   const [hasFilter, setHasFilter] = createSignal<"link" | "file" | "">("");
   const [sortOrder, setSortOrder] = createSignal<"relevance" | "date">(
     "relevance",
+  );
+  const [scope, setScope] = createSignal<"channel" | "guild" | "all">(
+    props.initialScope ?? (props.mode === "global" ? "all" : "guild"),
   );
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let resultsContainerRef: HTMLDivElement | undefined;
@@ -102,7 +109,11 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
     }
 
     const filters = buildFilters();
-    if (mode() === "global") {
+    const currentScope = scope();
+
+    if (currentScope === "channel" && props.channelId) {
+      searchGlobal(value, filters, props.channelId);
+    } else if (currentScope === "all") {
       searchGlobal(value, filters);
     } else if (mode() === "dm") {
       searchDMs(value, filters);
@@ -125,6 +136,18 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
 
     searchTimeout = setTimeout(triggerSearch, 300);
   };
+
+  // Re-trigger search when scope changes (if there's already a query).
+  // Only scope() is tracked; inputValue is read via untrack to avoid
+  // double-firing on every keystroke.
+  createEffect(() => {
+    scope(); // track scope changes
+    untrack(() => {
+      if (inputValue().trim().length >= 2) {
+        triggerSearch();
+      }
+    });
+  });
 
   // Navigate to the message's channel when clicked
   const handleResultClick = (result: SearchResult | GlobalSearchResult) => {
@@ -170,13 +193,14 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
   });
 
   const placeholderText = () => {
-    switch (mode()) {
-      case "global":
-        return "Search everywhere...";
-      case "dm":
-        return "Search DMs...";
+    if (mode() === "dm") return "Search DMs...";
+    switch (scope()) {
+      case "channel":
+        return "Search this channel...";
+      case "all":
+        return "Search all servers...";
       default:
-        return "Search messages...";
+        return "Search this server...";
     }
   };
 
@@ -215,6 +239,49 @@ const SearchPanel: Component<SearchPanelProps> = (props) => {
           <X class="w-4 h-4" />
         </button>
       </div>
+
+      {/* Scope Selector */}
+      <Show when={mode() !== "dm"}>
+        <div class="flex gap-1 px-3 py-1.5 border-b border-white/10">
+          <button
+            data-testid="scope-channel"
+            onClick={() => setScope("channel")}
+            disabled={!props.channelId}
+            class="px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            classList={{
+              "bg-accent-primary/20 text-accent-primary": scope() === "channel",
+              "bg-surface-layer1 text-text-secondary hover:text-text-primary":
+                scope() !== "channel",
+            }}
+          >
+            This Channel
+          </button>
+          <button
+            data-testid="scope-guild"
+            onClick={() => setScope("guild")}
+            class="px-2.5 py-1 rounded text-xs font-medium transition-colors"
+            classList={{
+              "bg-accent-primary/20 text-accent-primary": scope() === "guild",
+              "bg-surface-layer1 text-text-secondary hover:text-text-primary":
+                scope() !== "guild",
+            }}
+          >
+            This Server
+          </button>
+          <button
+            data-testid="scope-all"
+            onClick={() => setScope("all")}
+            class="px-2.5 py-1 rounded text-xs font-medium transition-colors"
+            classList={{
+              "bg-accent-primary/20 text-accent-primary": scope() === "all",
+              "bg-surface-layer1 text-text-secondary hover:text-text-primary":
+                scope() !== "all",
+            }}
+          >
+            All
+          </button>
+        </div>
+      </Show>
 
       {/* Filters Panel */}
       <Show when={showFilters()}>
