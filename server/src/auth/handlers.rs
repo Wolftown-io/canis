@@ -20,6 +20,7 @@ use super::backup_codes::{find_matching_backup_code, generate_backup_codes, BACK
 use super::cookies;
 use super::geoip;
 use super::error::{AuthError, AuthResult};
+use super::ua_parser;
 use super::jwt::{generate_token_pair, validate_refresh_token};
 use super::mfa_crypto::{decrypt_mfa_secret, encrypt_mfa_secret};
 use super::middleware::AuthUser;
@@ -247,6 +248,36 @@ impl std::fmt::Debug for UpdatePasswordRequest {
             .field("new_password", &"[REDACTED]")
             .finish()
     }
+}
+
+/// Information about a single active auth session.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[schema(as = AuthSessionInfo)]
+pub struct SessionInfo {
+    /// Session ID.
+    pub id: Uuid,
+    /// Friendly device description (e.g. "Chrome on Linux").
+    pub device: String,
+    /// IP address of the client.
+    pub ip_address: Option<String>,
+    /// City from `GeoIP` lookup.
+    pub city: Option<String>,
+    /// Country from `GeoIP` lookup.
+    pub country: Option<String>,
+    /// When the session was created.
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    /// When the session expires.
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+    /// Whether this is the currently active session.
+    pub is_current: bool,
+}
+
+/// Response containing the list of active auth sessions.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[schema(as = AuthSessionListResponse)]
+pub struct SessionListResponse {
+    /// Active sessions for the authenticated user.
+    pub sessions: Vec<SessionInfo>,
 }
 
 // ============================================================================
@@ -944,6 +975,69 @@ pub async fn logout(
     tracing::info!(user_id = %auth_user.id, "User logged out");
 
     Ok(jar.add(cookies::build_clear_cookie(&state.config)))
+}
+
+/// List all active sessions for the authenticated user.
+///
+/// GET /auth/sessions
+#[utoipa::path(
+    get,
+    path = "/auth/sessions",
+    tag = "auth",
+    responses(
+        (status = 200, description = "Active auth sessions", body = SessionListResponse),
+    ),
+    security(("bearer_auth" = [])),
+)]
+#[tracing::instrument(skip(state, jar))]
+pub async fn list_sessions(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    jar: CookieJar,
+) -> AuthResult<Json<SessionListResponse>> {
+    // Try to identify the current session by hashing the refresh token cookie.
+    // Best-effort: if there is no cookie (e.g. Tauri client), all sessions
+    // will have is_current = false which is acceptable.
+    let current_hash = jar
+        .get(cookies::REFRESH_COOKIE_NAME)
+        .map(|c| hash_token(c.value()));
+
+    let sessions: Vec<Session> = sqlx::query_as(
+        r"SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address,
+                 user_agent, city, country, created_at
+          FROM sessions
+          WHERE user_id = $1 AND expires_at > NOW()
+          ORDER BY created_at DESC",
+    )
+    .bind(auth_user.id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let session_infos: Vec<SessionInfo> = sessions
+        .iter()
+        .map(|s| {
+            let device = s
+                .user_agent
+                .as_deref()
+                .map(ua_parser::parse_device_name)
+                .unwrap_or_else(|| "Unknown device".to_string());
+
+            SessionInfo {
+                id: s.id,
+                device,
+                ip_address: s.ip_address.clone(),
+                city: s.city.clone(),
+                country: s.country.clone(),
+                created_at: s.created_at,
+                expires_at: s.expires_at,
+                is_current: current_hash.as_deref() == Some(&s.token_hash),
+            }
+        })
+        .collect();
+
+    Ok(Json(SessionListResponse {
+        sessions: session_infos,
+    }))
 }
 
 /// Get current user profile.

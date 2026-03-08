@@ -12,6 +12,7 @@ pub mod mfa_crypto;
 mod middleware;
 pub mod oidc;
 mod password;
+pub mod ua_parser;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
@@ -49,6 +50,7 @@ pub fn hash_token(token: &str) -> String {
 ///
 /// Protected routes (auth required):
 /// - POST /logout - Invalidate session
+/// - GET /sessions - List active sessions
 /// - GET /me - Get current user profile
 /// - POST /me - Update profile
 /// - POST /me/password - Change password (invalidates all sessions)
@@ -157,6 +159,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     // Protected routes (auth required)
     let protected_routes = Router::new()
         .route("/logout", post(handlers::logout))
+        .route("/sessions", get(handlers::list_sessions))
         .route("/me", get(handlers::get_profile))
         .route("/me", post(handlers::update_profile))
         .route("/me/password", post(handlers::update_password))
