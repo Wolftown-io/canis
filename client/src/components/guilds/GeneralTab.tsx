@@ -10,9 +10,17 @@ import {
   Show,
   onMount,
 } from "solid-js";
-import { X } from "lucide-solid";
-import { getGuildSettings, updateGuildSettings } from "@/lib/tauri";
+import { X, Compass } from "lucide-solid";
+import {
+  getGuildSettings,
+  updateGuildSettings,
+  dismissDiscoveryPrompt,
+} from "@/lib/tauri";
 import { showToast } from "@/components/ui/Toast";
+import { isGuildOwner } from "@/stores/guilds";
+import { authState } from "@/stores/auth";
+import { memberHasPermission } from "@/stores/permissions";
+import { PermissionBits } from "@/lib/permissionConstants";
 
 interface GeneralTabProps {
   guildId: string;
@@ -31,6 +39,7 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
   const [savingCount, setSavingCount] = createSignal(0);
   const saving = () => savingCount() > 0;
   const [bannerLoadError, setBannerLoadError] = createSignal(false);
+  const [promptDismissed, setPromptDismissed] = createSignal(true);
 
   const trimmedBannerUrl = createMemo(() => bannerUrl().trim());
   const isValidBannerUrl = createMemo(() => {
@@ -43,6 +52,28 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
     }
   });
 
+  const canManageGuild = () => {
+    const userId = authState.user?.id || "";
+    return (
+      isGuildOwner(props.guildId, userId) ||
+      memberHasPermission(
+        props.guildId,
+        userId,
+        false,
+        PermissionBits.MANAGE_GUILD,
+      )
+    );
+  };
+
+  const showDiscoveryBanner = createMemo(
+    () =>
+      !loading() &&
+      canManageGuild() &&
+      !discoverable() &&
+      tags().length === 0 &&
+      !promptDismissed(),
+  );
+
   onMount(async () => {
     try {
       const settings = await getGuildSettings(props.guildId);
@@ -50,6 +81,7 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
       setDiscoverable(settings.discoverable);
       setTags(settings.tags ?? []);
       setBannerUrl(settings.banner_url ?? "");
+      setPromptDismissed(settings.discovery_prompt_dismissed);
     } catch (err) {
       console.error("Failed to load guild settings:", err);
       showToast({
@@ -188,8 +220,59 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
     }
   };
 
+  const handleDismissPrompt = async () => {
+    setPromptDismissed(true);
+    try {
+      await dismissDiscoveryPrompt(props.guildId);
+    } catch (err) {
+      console.error("Failed to dismiss discovery prompt:", err);
+      // Banner stays hidden even if the API call fails — UX choice to
+      // avoid the banner popping back. It will reappear on next load.
+    }
+  };
+
+  const handleSetUpDiscovery = () => {
+    const el = document.getElementById("discoverable-toggle");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
   return (
     <div class="p-6 space-y-6">
+      {/* Discovery Setup Banner */}
+      <Show when={showDiscoveryBanner()}>
+        <div class="relative p-4 rounded-xl border border-accent-primary/20 bg-accent-primary/5">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-lg bg-accent-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Compass class="w-5 h-5 text-accent-primary" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-semibold text-text-primary">
+                Make your server easier to find
+              </div>
+              <div class="text-xs text-text-secondary mt-1">
+                Set up server discovery so others can find and join your server.
+              </div>
+              <div class="flex items-center gap-2 mt-3">
+                <button
+                  onClick={handleSetUpDiscovery}
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent-primary text-white hover:bg-accent-hover transition-colors"
+                >
+                  Set up
+                </button>
+                <button
+                  onClick={handleDismissPrompt}
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Show>
+
       <div>
         <h3 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
           General
@@ -237,7 +320,10 @@ const GeneralTab: Component<GeneralTabProps> = (props) => {
         </h3>
 
         {/* Discoverable Toggle */}
-        <div class="flex items-center justify-between p-4 bg-surface-layer2 rounded-xl border border-white/5">
+        <div
+          id="discoverable-toggle"
+          class="flex items-center justify-between p-4 bg-surface-layer2 rounded-xl border border-white/5"
+        >
           <div class="flex-1 mr-4">
             <div class="text-sm font-medium text-text-primary">
               Make Server Discoverable

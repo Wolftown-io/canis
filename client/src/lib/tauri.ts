@@ -1550,6 +1550,15 @@ export async function updateGuildSettings(
 }
 
 /**
+ * Dismiss the discovery setup prompt for the current user in a guild.
+ */
+export async function dismissDiscoveryPrompt(guildId: string): Promise<void> {
+  await fetchApi<void>(`/api/guilds/${guildId}/dismiss-discovery-prompt`, {
+    method: "POST",
+  });
+}
+
+/**
  * Browse discoverable guilds (public, no auth required).
  */
 export async function discoverGuilds(params?: {

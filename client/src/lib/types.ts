@@ -136,6 +136,7 @@ export interface GuildSettings {
   discoverable: boolean;
   tags: string[];
   banner_url: string | null;
+  discovery_prompt_dismissed: boolean;
 }
 
 export interface DiscoverableGuild {
