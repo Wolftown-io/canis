@@ -44,12 +44,13 @@ pub struct ScreenShareInfo {
     pub has_audio: bool,
     /// Current quality tier
     pub quality: Quality,
+    /// When the screen share session started
+    pub started_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl ScreenShareInfo {
     /// Create a new [`ScreenShareInfo`].
-    #[must_use]
-    pub const fn new(
+    pub fn new(
         user_id: Uuid,
         username: String,
         source_label: String,
@@ -62,6 +63,7 @@ impl ScreenShareInfo {
             source_label,
             has_audio,
             quality,
+            started_at: chrono::Utc::now(),
         }
     }
 }
@@ -279,6 +281,7 @@ mod tests {
 
     #[test]
     fn test_screen_share_info_creation() {
+        let before = chrono::Utc::now();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
             user_id,
@@ -287,16 +290,19 @@ mod tests {
             true,
             Quality::High,
         );
+        let after = chrono::Utc::now();
 
         assert_eq!(info.user_id, user_id);
         assert_eq!(info.username, "alice");
         assert_eq!(info.source_label, "Display 1");
         assert!(info.has_audio);
         assert_eq!(info.quality, Quality::High);
+        assert!(info.started_at >= before && info.started_at <= after);
     }
 
     #[test]
     fn test_screen_share_info_without_audio() {
+        let before = chrono::Utc::now();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
             user_id,
@@ -305,9 +311,11 @@ mod tests {
             false,
             Quality::Medium,
         );
+        let after = chrono::Utc::now();
 
         assert!(!info.has_audio);
         assert_eq!(info.quality, Quality::Medium);
+        assert!(info.started_at >= before && info.started_at <= after);
     }
 
     #[test]
@@ -325,6 +333,7 @@ mod tests {
         assert!(json.contains("\"username\":\"alice\""));
         assert!(json.contains("\"source_label\":\"Display 1\""));
         assert!(json.contains("\"has_audio\":true"));
+        assert!(json.contains("\"started_at\""));
 
         // Roundtrip
         let deserialized: ScreenShareInfo = serde_json::from_str(&json).unwrap();
