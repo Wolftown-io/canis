@@ -6,6 +6,7 @@ import * as tauri from "@/lib/tauri";
 import { validateFileSize, getUploadLimitText } from "@/lib/tauri";
 import { showToast } from "@/components/ui/Toast";
 import ChangePasswordModal from "./ChangePasswordModal";
+import SessionsSection from "./SessionsSection";
 
 const AccountSettings: Component = () => {
   const user = () => authState.user;
@@ -158,6 +159,11 @@ const AccountSettings: Component = () => {
             Update your password to keep your account secure
           </div>
         </button>
+      </div>
+
+      {/* Sessions */}
+      <div class="pt-4 border-t border-white/5">
+        <SessionsSection />
       </div>
 
       <Show when={isPasswordModalOpen()}>
