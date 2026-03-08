@@ -575,6 +575,12 @@ async function httpRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // Tauri clients send the refresh token via header so the server can identify
+  // the current session (it cannot read HttpOnly cookies like browsers do).
+  if (isTauri && browserState.refreshToken) {
+    headers["X-Refresh-Token"] = browserState.refreshToken;
+  }
+
   // Remove trailing slash from serverUrl and ensure path starts with /
   const baseUrl = browserState.serverUrl.replace(/\/+$/, "");
   const cleanPath = path.startsWith("/") ? path : `/${path}`;

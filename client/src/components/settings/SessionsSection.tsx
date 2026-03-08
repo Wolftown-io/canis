@@ -101,7 +101,7 @@ const SessionsSection: Component = () => {
         </div>
       </Show>
 
-      <Show when={!loading()}>
+      <Show when={!loading() && !error()}>
         <div class="space-y-2">
           <For each={sessions()}>
             {(session) => {

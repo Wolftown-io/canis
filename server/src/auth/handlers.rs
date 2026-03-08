@@ -307,6 +307,27 @@ static USERNAME_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::
 // Re-use the public hash_token function from parent module
 use super::hash_token;
 
+/// Extract the current session's token hash from cookie (browser) or `X-Refresh-Token` header (Tauri).
+///
+/// Browser clients send the refresh token via an `HttpOnly` cookie.
+/// Tauri clients cannot use cookies for same-origin requests to the API, so they
+/// send the refresh token via the `X-Refresh-Token` header instead.
+fn extract_current_token_hash(headers: &HeaderMap, jar: &CookieJar) -> Option<String> {
+    // Try cookie first (browser clients)
+    if let Some(cookie) = jar.get(cookies::REFRESH_COOKIE_NAME) {
+        return Some(hash_token(cookie.value()));
+    }
+    // Fall back to X-Refresh-Token header (Tauri clients)
+    if let Some(header_value) = headers.get("x-refresh-token") {
+        if let Ok(token) = header_value.to_str() {
+            if !token.is_empty() {
+                return Some(hash_token(token));
+            }
+        }
+    }
+    None
+}
+
 /// Extract User-Agent from headers (sanitized and truncated to 512 chars for DB storage).
 fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
     headers
@@ -1000,18 +1021,16 @@ pub async fn logout(
     ),
     security(("bearer_auth" = [])),
 )]
-#[tracing::instrument(skip(state, jar))]
+#[tracing::instrument(skip(state, jar, headers))]
 pub async fn list_sessions(
     State(state): State<AppState>,
     auth_user: AuthUser,
+    headers: HeaderMap,
     jar: CookieJar,
 ) -> AuthResult<Json<SessionListResponse>> {
-    // Try to identify the current session by hashing the refresh token cookie.
-    // Best-effort: if there is no cookie (e.g. Tauri client), all sessions
-    // will have is_current = false which is acceptable.
-    let current_hash = jar
-        .get(cookies::REFRESH_COOKIE_NAME)
-        .map(|c| hash_token(c.value()));
+    // Try to identify the current session from cookie (browser) or header (Tauri).
+    // Best-effort: if neither is available, all sessions will have is_current = false.
+    let current_hash = extract_current_token_hash(&headers, &jar);
 
     let sessions: Vec<Session> = sqlx::query_as(
         r"SELECT id, user_id, token_hash, expires_at, host(ip_address) as ip_address,
@@ -1066,11 +1085,12 @@ pub async fn list_sessions(
     ),
     security(("bearer_auth" = [])),
 )]
-#[tracing::instrument(skip(state, jar))]
+#[tracing::instrument(skip(state, jar, headers))]
 pub async fn revoke_session(
     State(state): State<AppState>,
     auth_user: AuthUser,
     Path(session_id): Path<Uuid>,
+    headers: HeaderMap,
     jar: CookieJar,
 ) -> AuthResult<StatusCode> {
     // Find the session
@@ -1090,9 +1110,7 @@ pub async fn revoke_session(
     }
 
     // Cannot revoke current session (use logout instead)
-    let current_hash = jar
-        .get(cookies::REFRESH_COOKIE_NAME)
-        .map(|c| hash_token(c.value()));
+    let current_hash = extract_current_token_hash(&headers, &jar);
     if current_hash.as_deref() == Some(&session.token_hash) {
         return Err(AuthError::Forbidden);
     }
@@ -1119,19 +1137,27 @@ pub async fn revoke_session(
     ),
     security(("bearer_auth" = [])),
 )]
-#[tracing::instrument(skip(state, jar))]
+#[tracing::instrument(skip(state, jar, headers))]
 pub async fn revoke_all_other_sessions(
     State(state): State<AppState>,
     auth_user: AuthUser,
+    headers: HeaderMap,
     jar: CookieJar,
 ) -> AuthResult<Json<RevokeAllResponse>> {
-    let current_hash = jar
-        .get(cookies::REFRESH_COOKIE_NAME)
-        .map(|c| hash_token(c.value()));
+    let current_hash = extract_current_token_hash(&headers, &jar);
+
+    // If we cannot identify the current session, refuse to proceed — otherwise
+    // we would delete ALL sessions (including the caller's own).
+    let current_hash = current_hash.ok_or_else(|| {
+        tracing::warn!(user_id = %auth_user.id, "Cannot identify current session for revoke-all-others");
+        AuthError::Validation(
+            "Cannot identify current session. Please provide a refresh token via cookie or X-Refresh-Token header.".to_string(),
+        )
+    })?;
 
     let result = sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
         .bind(auth_user.id)
-        .bind(current_hash.as_deref().unwrap_or(""))
+        .bind(&current_hash)
         .execute(&state.db)
         .await?;
 
@@ -1443,10 +1469,11 @@ pub async fn update_profile(
     ),
     security(("bearer_auth" = [])),
 )]
-#[tracing::instrument(skip(state, body), fields(user_id = %auth_user.id))]
+#[tracing::instrument(skip(state, body, headers), fields(user_id = %auth_user.id))]
 pub async fn update_password(
     State(state): State<AppState>,
     auth_user: AuthUser,
+    headers: HeaderMap,
     jar: CookieJar,
     Json(body): Json<UpdatePasswordRequest>,
 ) -> AuthResult<Json<serde_json::Value>> {
@@ -1483,16 +1510,24 @@ pub async fn update_password(
         .map_err(AuthError::Database)?;
 
     let revoked_count = if body.revoke_others {
-        let current_hash = jar
-            .get(cookies::REFRESH_COOKIE_NAME)
-            .map(|c| hash_token(c.value()));
-        sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
-            .bind(auth_user.id)
-            .bind(current_hash.as_deref().unwrap_or(""))
-            .execute(&mut *tx)
-            .await
-            .map_err(AuthError::Database)?
-            .rows_affected()
+        let current_token_hash = extract_current_token_hash(&headers, &jar);
+        if let Some(ref hash) = current_token_hash {
+            sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
+                .bind(auth_user.id)
+                .bind(hash)
+                .execute(&mut *tx)
+                .await
+                .map_err(AuthError::Database)?
+                .rows_affected()
+        } else {
+            // Cannot identify current session — skip revocation rather than
+            // accidentally deleting all sessions (including the caller's own).
+            tracing::warn!(
+                user_id = %auth_user.id,
+                "Cannot identify current session for password-change revocation; skipping"
+            );
+            0u64
+        }
     } else {
         0u64
     };
