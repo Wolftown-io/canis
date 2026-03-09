@@ -1,20 +1,35 @@
 import {
   Component,
   Show,
+  For,
   createEffect,
   createSignal,
   onMount,
   onCleanup,
 } from "solid-js";
 import { Portal } from "solid-js/web";
-import { X, Minimize2, Maximize2, Volume2, VolumeX, Play } from "lucide-solid";
+import {
+  X,
+  Minimize2,
+  Maximize2,
+  Volume2,
+  VolumeX,
+  Play,
+  LayoutGrid,
+  Maximize,
+} from "lucide-solid";
 import {
   viewerState,
   stopViewing,
   setViewMode,
   setScreenVolume,
   toggleMute,
+  swapPrimary,
+  setLayoutMode,
+  addToGrid,
+  getAvailableSharers,
   type ViewMode,
+  type LayoutMode,
 } from "@/stores/screenShareViewer";
 import { voiceState } from "@/stores/voice";
 
@@ -89,10 +104,31 @@ const ScreenShareViewer: Component = () => {
   };
 
   const cycleViewMode = () => {
+    // When in grid mode, cycling view mode switches back to focus mode first
+    if (viewerState.layoutMode === "grid") {
+      setLayoutMode("focus");
+      return;
+    }
     const modes: ViewMode[] = ["spotlight", "pip", "theater"];
     const currentIndex = modes.indexOf(viewerState.viewMode);
     const nextIndex = (currentIndex + 1) % modes.length;
     setViewMode(modes[nextIndex]);
+  };
+
+  /** Toggle between focus and grid layout modes */
+  const toggleLayoutMode = () => {
+    if (viewerState.layoutMode === "grid") {
+      setLayoutMode("focus");
+    } else {
+      // Auto-populate grid with available streams if empty
+      if (viewerState.gridStreamIds.length === 0) {
+        const sharers = getAvailableSharers();
+        for (const sharer of sharers.slice(0, 4)) {
+          addToGrid(sharer.streamId);
+        }
+      }
+      setLayoutMode("grid");
+    }
   };
 
   // Keyboard shortcuts (only active when viewing a screen share)
@@ -126,6 +162,7 @@ const ScreenShareViewer: Component = () => {
       case "F":
         if (!e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
+          setLayoutMode("focus");
           setViewMode("spotlight");
         }
         break;
@@ -149,6 +186,7 @@ const ScreenShareViewer: Component = () => {
             sharerName={sharerName()}
             onClose={handleClose}
             onCycleMode={cycleViewMode}
+            onToggleLayout={toggleLayoutMode}
             autoplayBlocked={autoplayBlocked()}
             onClickToPlay={handleClickToPlay}
           />
@@ -169,6 +207,7 @@ const ScreenShareViewer: Component = () => {
             sharerName={sharerName()}
             onClose={handleClose}
             onCycleMode={cycleViewMode}
+            onToggleLayout={toggleLayoutMode}
             autoplayBlocked={autoplayBlocked()}
             onClickToPlay={handleClickToPlay}
           />
@@ -201,6 +240,7 @@ const SpotlightView: Component<{
   sharerName: string;
   onClose: () => void;
   onCycleMode: () => void;
+  onToggleLayout: () => void;
   autoplayBlocked: boolean;
   onClickToPlay: () => void;
 }> = (props) => {
@@ -215,6 +255,10 @@ const SpotlightView: Component<{
         </div>
         <div class="flex items-center gap-2">
           <VolumeControl />
+          <LayoutToggleButton
+            layoutMode={viewerState.layoutMode}
+            onToggle={props.onToggleLayout}
+          />
           <button
             onClick={props.onCycleMode}
             class="p-2 text-white/70 hover:text-white transition-colors"
@@ -244,6 +288,9 @@ const SpotlightView: Component<{
           <ClickToPlayOverlay onClickToPlay={props.onClickToPlay} />
         </Show>
       </div>
+
+      {/* Thumbnail strip for other available streams */}
+      <ThumbnailStrip />
     </div>
   );
 };
@@ -308,6 +355,7 @@ const TheaterView: Component<{
   sharerName: string;
   onClose: () => void;
   onCycleMode: () => void;
+  onToggleLayout: () => void;
   autoplayBlocked: boolean;
   onClickToPlay: () => void;
 }> = (props) => {
@@ -320,6 +368,10 @@ const TheaterView: Component<{
         </span>
         <div class="flex items-center gap-2">
           <VolumeControl />
+          <LayoutToggleButton
+            layoutMode={viewerState.layoutMode}
+            onToggle={props.onToggleLayout}
+          />
           <button
             onClick={props.onCycleMode}
             class="p-1.5 text-white/70 hover:text-white transition-colors"
@@ -349,7 +401,95 @@ const TheaterView: Component<{
           <ClickToPlayOverlay onClickToPlay={props.onClickToPlay} />
         </Show>
       </div>
+
+      {/* Thumbnail strip for other available streams */}
+      <ThumbnailStrip />
     </div>
+  );
+};
+
+/** Thumbnail strip showing other available streams below the primary video */
+const ThumbnailStrip: Component = () => {
+  const sharers = () => getAvailableSharers();
+  const others = () =>
+    sharers().filter((s) => s.streamId !== viewerState.viewingStreamId);
+
+  return (
+    <Show when={others().length > 0}>
+      <div class="flex gap-2 p-2 bg-zinc-900/90 overflow-x-auto">
+        <For each={others()}>
+          {(sharer) => {
+            const sharerDisplayName = () => {
+              const participant = voiceState.participants[sharer.userId];
+              return (
+                participant?.display_name ||
+                participant?.username ||
+                sharer.username ||
+                sharer.userId.slice(0, 8)
+              );
+            };
+
+            const label = () => {
+              if (sharer.sourceLabel && sharer.sourceLabel !== "Screen") {
+                return `${sharerDisplayName()} — ${sharer.sourceLabel}`;
+              }
+              return sharerDisplayName();
+            };
+
+            return (
+              <button
+                class="flex-shrink-0 w-40 h-24 rounded border border-zinc-700 hover:border-blue-500 relative overflow-hidden bg-black transition-colors"
+                onClick={() => swapPrimary(sharer.streamId)}
+                title={`Switch to ${label()}`}
+              >
+                <video
+                  ref={(el) => {
+                    const info = viewerState.availableTracks.get(
+                      sharer.streamId,
+                    );
+                    if (info && el) {
+                      const stream = new MediaStream([info.track]);
+                      el.srcObject = stream;
+                    }
+                  }}
+                  autoplay
+                  muted
+                  playsinline
+                  class="w-full h-full object-contain"
+                />
+                <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-xs px-1 py-0.5 truncate text-white">
+                  {label()}
+                </div>
+              </button>
+            );
+          }}
+        </For>
+      </div>
+    </Show>
+  );
+};
+
+/** Layout toggle button — switches between focus and grid modes */
+const LayoutToggleButton: Component<{
+  layoutMode: LayoutMode;
+  onToggle: () => void;
+}> = (props) => {
+  return (
+    <button
+      onClick={props.onToggle}
+      class="p-2 text-white/70 hover:text-white transition-colors"
+      title={
+        props.layoutMode === "focus"
+          ? "Switch to grid view (G)"
+          : "Switch to focus view (G)"
+      }
+    >
+      {props.layoutMode === "focus" ? (
+        <LayoutGrid class="w-5 h-5" />
+      ) : (
+        <Maximize class="w-5 h-5" />
+      )}
+    </button>
   );
 };
 
