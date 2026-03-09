@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Volume mute toggle now remembers pre-mute level and restores it on unmute
 
 ### Added
+- Multi-stream screen sharing — up to 3 simultaneous screen shares per user and 6 per channel (configurable), with stream-specific start/stop, viewer UI with focus mode + thumbnail strip, 2x2 grid mode for up to 4 streams, keyboard shortcuts (G for grid, F for focus), and full Tauri + browser parity
 - Session management — view active sessions with device and location info, revoke individual sessions or all other devices, with optional prompt after password change
 - Discovery setup step in guild creation flow — new servers can be made discoverable with tags and banner during creation, with a mini preview card showing how the guild will appear in the server browser
 - Custom status backend support: users can set a text + emoji status with optional expiry via WebSocket. Server enforces validation (128-char text, 10-emoji limit, Unicode safety including Zalgo prevention), broadcasts updates to friends in real time, and runs a 60-second expiry sweep. Custom status is hidden when offline/invisible. Connect flow now sends full presence snapshot (status + activity + custom status) to fix pre-existing gap. (#346)
