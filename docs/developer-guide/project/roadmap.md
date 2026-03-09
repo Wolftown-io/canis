@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-03-08
 
 ## Quick Status Overview
 
@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 59% (10/17) | Personal workspaces, digital library, focus engine, custom status, QA polish (edit messages, emoji composer, session expiry, shortcuts, formatting, friends empty state). Remaining: mobile, guild discovery prompt, channel search, session management, guild bans, channel pins, PTT hotkey, simulcast |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 65% (11/17) | Personal workspaces, digital library, focus engine, custom status, session management, QA polish (edit messages, emoji composer, session expiry, shortcuts, formatting, friends empty state). Remaining: mobile, guild discovery prompt, channel search, guild bans, channel pins, PTT hotkey, simulcast |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
@@ -582,6 +582,13 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [x] **[UX] Context-Aware Focus Engine** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md))
   - **Context:** Prevent platform fatigue with intelligent notification routing.
   - **Strategy:** Use Tauri's desktop APIs to detect active foreground apps (e.g., IDEs, DAWs). Implement **VIP/Emergency Overrides** that allow specific users or channels to bypass DND during focused work sessions.
+- [x] **[Auth] Session Management** ✅ (PR #352)
+  - View all active sessions with device name (user-agent parsing via `woothee`), IP address, and approximate location (GeoIP lookup).
+  - Revoke individual sessions or bulk-revoke all other sessions. Current-session protection prevents accidental self-logout.
+  - Password change flow with optional "log out all other devices" prompt.
+  - Tauri clients identified via `X-Refresh-Token` header (browsers use HttpOnly cookies).
+  - **Design:** `docs/plans/2026-03-08-session-management-design.md`
+  - **Plan:** `docs/plans/2026-03-08-session-management-plan.md`
 - [x] **[SaaS] The Digital Library (Wiki Mastery)** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md)) ✅
   - **Context:** Transform "Information Pages" into a structured Knowledge Base.
   - **Strategy:** Enhance current Info Pages with version recovery, deep-linkable sections, and a "Library" view for long-term guild documentation.
