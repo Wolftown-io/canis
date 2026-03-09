@@ -737,12 +737,12 @@ async fn handle_screen_share_stop(
         tracing::warn!("Screen share limiter unavailable during stop — counter not decremented");
     }
 
-    // Collect screen share track sources from the peer's incoming tracks
+    // Collect only the track sources belonging to this specific stream_id
     let screen_sources: Vec<TrackSource> = if let Some(peer) = room.get_peer(user_id).await {
         let incoming = peer.incoming_tracks.read().await;
         incoming
             .keys()
-            .filter(|s| s.is_screen_share())
+            .filter(|s| s.stream_id() == Some(stream_id))
             .copied()
             .collect()
     } else {
