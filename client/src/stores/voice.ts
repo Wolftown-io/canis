@@ -434,16 +434,26 @@ export async function joinVoice(channelId: string): Promise<void> {
       },
       onScreenShareTrack: (userId, streamId, track) => {
         console.log("[Voice] Screen share track received:", userId, streamId);
-        // Import and call viewer store
-        import("@/stores/screenShareViewer").then(({ startViewing }) => {
-          startViewing(userId, track);
-        });
+        // Import and call viewer store — register track then start viewing
+        import("@/stores/screenShareViewer").then(
+          ({ addAvailableTrack, startViewing }) => {
+            // Find the screen share info to get username/sourceLabel
+            const shareInfo = voiceState.screenShares.find(
+              (s) => s.stream_id === streamId,
+            );
+            const username =
+              shareInfo?.username || userId.slice(0, 8);
+            const sourceLabel = shareInfo?.source_label || "Screen";
+            addAvailableTrack(streamId, track, userId, username, sourceLabel);
+            startViewing(streamId);
+          },
+        );
       },
       onScreenShareTrackRemoved: (userId, streamId) => {
         console.log("[Voice] Screen share track removed:", userId, streamId);
         import("@/stores/screenShareViewer").then(
           ({ removeAvailableTrack }) => {
-            removeAvailableTrack(userId);
+            removeAvailableTrack(streamId);
           },
         );
       },

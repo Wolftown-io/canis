@@ -2,7 +2,10 @@
  * Screen Share Viewer Store
  *
  * Manages state for viewing screen shares - which share is being viewed,
- * view mode, volume settings, etc.
+ * view mode, volume settings, grid layout, etc.
+ *
+ * Tracks are keyed by streamId (not userId) to support multiple streams
+ * per user.
  */
 
 import { createStore } from "solid-js/store";
@@ -10,38 +13,59 @@ import { createStore } from "solid-js/store";
 /** View mode for the screen share viewer */
 export type ViewMode = "spotlight" | "pip" | "theater";
 
+/** Layout mode: focus on one stream, or grid of up to 4 */
+export type LayoutMode = "focus" | "grid";
+
 /** Position for PiP mode */
 export interface PipPosition {
   x: number;
   y: number;
 }
 
+/** Info about an available screen share track */
+export interface AvailableTrackInfo {
+  track: MediaStreamTrack;
+  userId: string;
+  username: string;
+  sourceLabel: string;
+}
+
 /** Screen share viewer state */
 interface ScreenShareViewerState {
-  /** User ID of the screen share being viewed (null if none) */
-  viewingUserId: string | null;
-  /** The video track being displayed */
+  /** Stream ID of the screen share being viewed in primary view (null if none) */
+  viewingStreamId: string | null;
+  /** The video track being displayed in primary view */
   videoTrack: MediaStreamTrack | null;
-  /** Current view mode */
+  /** Current view mode (spotlight/pip/theater) */
   viewMode: ViewMode;
+
+  /** Stream IDs shown in grid view (max 4) */
+  gridStreamIds: string[];
+  /** Layout mode: focus on one stream or grid of up to 4 */
+  layoutMode: LayoutMode;
+
   /** Volume for screen audio (0-100) */
   screenVolume: number;
+  /** Previous volume before muting (for toggle restore) */
+  previousVolume: number;
   /** PiP position (for pip mode) */
   pipPosition: PipPosition;
   /** PiP size */
   pipSize: { width: number; height: number };
-  /** Previous volume before muting (for toggle restore) */
-  previousVolume: number;
-  /** Available screen share tracks by user ID */
-  availableTracks: Map<string, MediaStreamTrack>;
+
+  /** Available screen share tracks keyed by streamId */
+  availableTracks: Map<string, AvailableTrackInfo>;
 }
 
+const MAX_GRID_STREAMS = 4;
 const DEFAULT_PIP_SIZE = { width: 400, height: 225 };
 
 const [viewerState, setViewerState] = createStore<ScreenShareViewerState>({
-  viewingUserId: null,
+  viewingStreamId: null,
   videoTrack: null,
   viewMode: "spotlight",
+  gridStreamIds: [],
+  layoutMode: "focus",
   screenVolume: 100,
   previousVolume: 100,
   pipPosition: { x: 20, y: 20 },
@@ -54,98 +78,186 @@ const [viewerState, setViewerState] = createStore<ScreenShareViewerState>({
  * Called when a remote user's screen share track is received.
  */
 export function addAvailableTrack(
-  userId: string,
+  streamId: string,
   track: MediaStreamTrack,
+  userId: string,
+  username: string,
+  sourceLabel: string,
 ): void {
   // Auto-cleanup when track ends
   track.onended = () => {
-    removeAvailableTrack(userId);
+    removeAvailableTrack(streamId);
   };
 
   const newTracks = new Map(viewerState.availableTracks);
-  newTracks.set(userId, track);
+  newTracks.set(streamId, { track, userId, username, sourceLabel });
   setViewerState({ availableTracks: newTracks });
 }
 
 /**
- * Remove a screen share track (user stopped sharing).
+ * Remove a screen share track (stream stopped).
+ * If it was the primary view, auto-switch to next available stream.
  */
-export function removeAvailableTrack(userId: string): void {
+export function removeAvailableTrack(streamId: string): void {
   const newTracks = new Map(viewerState.availableTracks);
-  newTracks.delete(userId);
+  newTracks.delete(streamId);
   setViewerState({ availableTracks: newTracks });
 
-  // If we were viewing this user, stop viewing
-  if (viewerState.viewingUserId === userId) {
-    stopViewing();
+  // Remove from grid if present
+  if (viewerState.gridStreamIds.includes(streamId)) {
+    setViewerState({
+      gridStreamIds: viewerState.gridStreamIds.filter((id) => id !== streamId),
+    });
+  }
+
+  // If we were viewing this stream, auto-switch to next available
+  if (viewerState.viewingStreamId === streamId) {
+    const remaining = Array.from(newTracks.keys());
+    if (remaining.length > 0) {
+      const nextStreamId = remaining[0];
+      const nextInfo = newTracks.get(nextStreamId)!;
+      setViewerState({
+        viewingStreamId: nextStreamId,
+        videoTrack: nextInfo.track,
+      });
+    } else {
+      setViewerState({
+        viewingStreamId: null,
+        videoTrack: null,
+      });
+    }
   }
 }
 
 /**
- * Start viewing a screen share.
- * Also registers the track as available.
+ * Start viewing a specific screen share stream.
+ * Sets the stream as the primary view. If the stream is already registered
+ * as available, uses the existing track; otherwise this is a no-op
+ * (use addAvailableTrack first).
  */
-export function startViewing(userId: string, track: MediaStreamTrack): void {
-  // Auto-cleanup when track ends
-  track.onended = () => {
-    removeAvailableTrack(userId);
-  };
-
-  // Register track as available
-  const newTracks = new Map(viewerState.availableTracks);
-  newTracks.set(userId, track);
-
-  setViewerState({
-    viewingUserId: userId,
-    videoTrack: track,
-    availableTracks: newTracks,
-  });
-}
-
-/**
- * View a specific user's screen share by looking up their track.
- * Returns true if successful, false if no active track available.
- */
-export function viewUserShare(userId: string): boolean {
-  const track = viewerState.availableTracks.get(userId);
-  if (!track) {
-    console.warn("[ScreenShareViewer] No track available for user:", userId);
-    return false;
+export function startViewing(streamId: string): void {
+  const info = viewerState.availableTracks.get(streamId);
+  if (!info) {
+    console.warn(
+      "[ScreenShareViewer] Cannot start viewing — no track for stream:",
+      streamId,
+    );
+    return;
   }
 
   // Check if track is still active
-  if (track.readyState === "ended") {
-    console.warn("[ScreenShareViewer] Track has ended for user:", userId);
-    removeAvailableTrack(userId);
-    return false;
+  if (info.track.readyState === "ended") {
+    console.warn(
+      "[ScreenShareViewer] Track has ended for stream:",
+      streamId,
+    );
+    removeAvailableTrack(streamId);
+    return;
   }
 
   setViewerState({
-    viewingUserId: userId,
-    videoTrack: track,
+    viewingStreamId: streamId,
+    videoTrack: info.track,
   });
-  return true;
 }
 
 /**
- * Stop viewing the current screen share.
+ * Stop viewing the current screen share (clear primary view).
  */
 export function stopViewing(): void {
   setViewerState({
-    viewingUserId: null,
+    viewingStreamId: null,
     videoTrack: null,
   });
 }
 
 /**
- * Get list of users with available screen shares.
+ * Get list of available screen shares with metadata.
  */
-export function getAvailableSharers(): string[] {
-  return Array.from(viewerState.availableTracks.keys());
+export function getAvailableSharers(): {
+  streamId: string;
+  userId: string;
+  username: string;
+  sourceLabel: string;
+}[] {
+  return Array.from(viewerState.availableTracks.entries()).map(
+    ([streamId, info]) => ({
+      streamId,
+      userId: info.userId,
+      username: info.username,
+      sourceLabel: info.sourceLabel,
+    }),
+  );
 }
 
 /**
- * Set the view mode.
+ * Set the layout mode (focus or grid).
+ */
+export function setLayoutMode(mode: LayoutMode): void {
+  setViewerState({ layoutMode: mode });
+}
+
+/**
+ * Add a stream to the grid view (max 4).
+ * Returns true if added, false if grid is full or stream already in grid.
+ */
+export function addToGrid(streamId: string): boolean {
+  if (viewerState.gridStreamIds.includes(streamId)) {
+    return false;
+  }
+  if (viewerState.gridStreamIds.length >= MAX_GRID_STREAMS) {
+    return false;
+  }
+  // Verify the stream exists
+  if (!viewerState.availableTracks.has(streamId)) {
+    return false;
+  }
+  setViewerState({
+    gridStreamIds: [...viewerState.gridStreamIds, streamId],
+  });
+  return true;
+}
+
+/**
+ * Remove a stream from the grid view.
+ */
+export function removeFromGrid(streamId: string): void {
+  setViewerState({
+    gridStreamIds: viewerState.gridStreamIds.filter((id) => id !== streamId),
+  });
+}
+
+/**
+ * Swap a stream into the primary view.
+ * If there's a current primary, it stays available but is no longer the focus.
+ */
+export function swapPrimary(streamId: string): void {
+  const info = viewerState.availableTracks.get(streamId);
+  if (!info) {
+    console.warn(
+      "[ScreenShareViewer] Cannot swap — no track for stream:",
+      streamId,
+    );
+    return;
+  }
+
+  if (info.track.readyState === "ended") {
+    console.warn(
+      "[ScreenShareViewer] Track has ended for stream:",
+      streamId,
+    );
+    removeAvailableTrack(streamId);
+    return;
+  }
+
+  setViewerState({
+    viewingStreamId: streamId,
+    videoTrack: info.track,
+  });
+}
+
+/**
+ * Set the view mode (spotlight/pip/theater).
  */
 export function setViewMode(mode: ViewMode): void {
   setViewerState({ viewMode: mode });
@@ -185,10 +297,10 @@ export function setPipSize(size: { width: number; height: number }): void {
 }
 
 /**
- * Check if currently viewing a specific user's screen share.
+ * Check if currently viewing a specific stream.
  */
-export function isViewing(userId: string): boolean {
-  return viewerState.viewingUserId === userId;
+export function isViewingStream(streamId: string): boolean {
+  return viewerState.viewingStreamId === streamId;
 }
 
 export { viewerState };

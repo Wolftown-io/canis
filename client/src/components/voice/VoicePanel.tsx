@@ -14,7 +14,7 @@ import {
   getLocalMetrics,
 } from "@/stores/voice";
 import { getChannel } from "@/stores/channels";
-import { viewUserShare } from "@/stores/screenShareViewer";
+import { startViewing } from "@/stores/screenShareViewer";
 import { formatElapsedTime } from "@/lib/utils";
 import { QualityIndicator } from "./QualityIndicator";
 import { QualityTooltip } from "./QualityTooltip";
@@ -148,7 +148,13 @@ const VoicePanel: Component = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          viewUserShare(participant.user_id);
+                          // Find first screen share stream for this user
+                          const share = voiceState.screenShares.find(
+                            (s) => s.user_id === participant.user_id,
+                          );
+                          if (share) {
+                            startViewing(share.stream_id);
+                          }
                         }}
                         class="p-0.5 hover:bg-accent-success/30 rounded transition-colors"
                         title="View screen share"
@@ -171,7 +177,7 @@ const VoicePanel: Component = () => {
               {(share) => (
                 <div
                   class="flex items-center gap-2 px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
-                  onClick={() => viewUserShare(share.user_id)}
+                  onClick={() => startViewing(share.stream_id)}
                 >
                   <MonitorUp class="w-4 h-4 text-accent-success" />
                   <div class="flex-1 min-w-0">

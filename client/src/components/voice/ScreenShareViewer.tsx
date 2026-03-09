@@ -67,12 +67,21 @@ const ScreenShareViewer: Component = () => {
   });
 
   const sharerName = () => {
-    const userId = viewerState.viewingUserId;
-    if (!userId) return "Unknown";
-    const participant = voiceState.participants[userId];
-    return (
-      participant?.display_name || participant?.username || userId.slice(0, 8)
-    );
+    const streamId = viewerState.viewingStreamId;
+    if (!streamId) return "Unknown";
+    const trackInfo = viewerState.availableTracks.get(streamId);
+    if (!trackInfo) return "Unknown";
+    const participant = voiceState.participants[trackInfo.userId];
+    const name =
+      participant?.display_name ||
+      participant?.username ||
+      trackInfo.username ||
+      trackInfo.userId.slice(0, 8);
+    // Include source label if available and not just "Screen"
+    if (trackInfo.sourceLabel && trackInfo.sourceLabel !== "Screen") {
+      return `${name} — ${trackInfo.sourceLabel}`;
+    }
+    return name;
   };
 
   const handleClose = () => {
@@ -88,7 +97,7 @@ const ScreenShareViewer: Component = () => {
 
   // Keyboard shortcuts (only active when viewing a screen share)
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (!viewerState.viewingUserId) return;
+    if (!viewerState.viewingStreamId) return;
 
     // Ignore when typing in input elements
     const tag = (e.target as HTMLElement)?.tagName;
@@ -132,7 +141,7 @@ const ScreenShareViewer: Component = () => {
   });
 
   return (
-    <Show when={viewerState.viewingUserId && viewerState.videoTrack}>
+    <Show when={viewerState.viewingStreamId && viewerState.videoTrack}>
       <Portal>
         <Show when={viewerState.viewMode === "spotlight"}>
           <SpotlightView
