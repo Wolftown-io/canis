@@ -57,9 +57,13 @@ fn test_screen_share_error_into_response_status_codes() {
 
 #[test]
 fn test_screen_share_start_request_deserialization() {
-    let json = r#"{"quality":"high","has_audio":true,"source_label":"Display 1"}"#;
-    let req: ScreenShareStartRequest = serde_json::from_str(json).unwrap();
+    let stream_id = Uuid::new_v4();
+    let json = format!(
+        r#"{{"stream_id":"{stream_id}","quality":"high","has_audio":true,"source_label":"Display 1"}}"#
+    );
+    let req: ScreenShareStartRequest = serde_json::from_str(&json).unwrap();
 
+    assert_eq!(req.stream_id, stream_id);
     assert_eq!(req.quality, Quality::High);
     assert!(req.has_audio);
     assert_eq!(req.source_label, "Display 1");
@@ -67,9 +71,10 @@ fn test_screen_share_start_request_deserialization() {
 
 #[test]
 fn test_screen_share_info_roundtrip() {
+    let stream_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let info = ScreenShareInfo::new(
-        Uuid::new_v4(),
+        stream_id,
         user_id,
         "testuser".to_string(),
         "Display 1".to_string(),
@@ -80,6 +85,7 @@ fn test_screen_share_info_roundtrip() {
     let json = serde_json::to_string(&info).unwrap();
     let deserialized: ScreenShareInfo = serde_json::from_str(&json).unwrap();
 
+    assert_eq!(deserialized.stream_id, stream_id);
     assert_eq!(deserialized.user_id, user_id);
     assert_eq!(deserialized.username, "testuser");
     assert_eq!(deserialized.source_label, "Display 1");
@@ -164,6 +170,236 @@ fn test_server_event_screen_share_quality_changed_serialization() {
 }
 
 // ============================================================================
+// Multi-Stream Unit Tests (no database/Redis required)
+// ============================================================================
+use vc_server::voice::sfu::Room;
+
+/// A single user can add multiple screen share streams to a room.
+#[tokio::test]
+async fn test_user_can_start_multiple_streams() {
+    let channel_id = Uuid::new_v4();
+    let room = Room::new(channel_id, 10);
+    let user_id = Uuid::new_v4();
+
+    // Start stream 1 — should succeed
+    let stream1 = Uuid::new_v4();
+    let info1 = ScreenShareInfo::new(
+        stream1,
+        user_id,
+        "alice".to_string(),
+        "Display 1".to_string(),
+        true,
+        Quality::High,
+    );
+    room.add_screen_share(info1).await;
+    assert_eq!(room.get_user_stream_count(user_id).await, 1);
+
+    // Start stream 2 — should succeed
+    let stream2 = Uuid::new_v4();
+    let info2 = ScreenShareInfo::new(
+        stream2,
+        user_id,
+        "alice".to_string(),
+        "Firefox".to_string(),
+        false,
+        Quality::Medium,
+    );
+    room.add_screen_share(info2).await;
+    assert_eq!(room.get_user_stream_count(user_id).await, 2);
+
+    // Start stream 3 — should succeed
+    let stream3 = Uuid::new_v4();
+    let info3 = ScreenShareInfo::new(
+        stream3,
+        user_id,
+        "alice".to_string(),
+        "VS Code".to_string(),
+        false,
+        Quality::Low,
+    );
+    room.add_screen_share(info3).await;
+    assert_eq!(room.get_user_stream_count(user_id).await, 3);
+
+    // All 3 streams should be in the room
+    let all_shares = room.get_screen_shares().await;
+    assert_eq!(all_shares.len(), 3);
+
+    // Each stream has its own unique stream_id
+    let stream_ids: std::collections::HashSet<Uuid> =
+        all_shares.iter().map(|s| s.stream_id).collect();
+    assert_eq!(stream_ids.len(), 3);
+    assert!(stream_ids.contains(&stream1));
+    assert!(stream_ids.contains(&stream2));
+    assert!(stream_ids.contains(&stream3));
+}
+
+/// Removing a single stream only removes that stream, not others from the same user.
+#[tokio::test]
+async fn test_remove_single_stream_preserves_others() {
+    let channel_id = Uuid::new_v4();
+    let room = Room::new(channel_id, 10);
+    let user_id = Uuid::new_v4();
+
+    let stream1 = Uuid::new_v4();
+    let stream2 = Uuid::new_v4();
+
+    room.add_screen_share(ScreenShareInfo::new(
+        stream1,
+        user_id,
+        "alice".to_string(),
+        "Display 1".to_string(),
+        true,
+        Quality::High,
+    ))
+    .await;
+    room.add_screen_share(ScreenShareInfo::new(
+        stream2,
+        user_id,
+        "alice".to_string(),
+        "Firefox".to_string(),
+        false,
+        Quality::Medium,
+    ))
+    .await;
+
+    assert_eq!(room.get_user_stream_count(user_id).await, 2);
+
+    // Remove only stream 1
+    let removed = room.remove_screen_share(stream1).await;
+    assert!(removed.is_some());
+    assert_eq!(removed.unwrap().source_label, "Display 1");
+
+    // Stream 2 should still exist
+    assert_eq!(room.get_user_stream_count(user_id).await, 1);
+    let remaining = room.get_screen_shares().await;
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].stream_id, stream2);
+    assert_eq!(remaining[0].source_label, "Firefox");
+}
+
+/// When a user leaves, all their streams are cleaned up.
+#[tokio::test]
+async fn test_leave_cleans_up_all_user_streams() {
+    let channel_id = Uuid::new_v4();
+    let room = Room::new(channel_id, 10);
+    let user_id = Uuid::new_v4();
+    let other_user_id = Uuid::new_v4();
+
+    // User starts 2 streams
+    room.add_screen_share(ScreenShareInfo::new(
+        Uuid::new_v4(),
+        user_id,
+        "alice".to_string(),
+        "Display 1".to_string(),
+        true,
+        Quality::High,
+    ))
+    .await;
+    room.add_screen_share(ScreenShareInfo::new(
+        Uuid::new_v4(),
+        user_id,
+        "alice".to_string(),
+        "Firefox".to_string(),
+        false,
+        Quality::Medium,
+    ))
+    .await;
+
+    // Another user has 1 stream
+    let other_stream_id = Uuid::new_v4();
+    room.add_screen_share(ScreenShareInfo::new(
+        other_stream_id,
+        other_user_id,
+        "bob".to_string(),
+        "Display 2".to_string(),
+        false,
+        Quality::High,
+    ))
+    .await;
+
+    assert_eq!(room.get_screen_shares().await.len(), 3);
+
+    // User leaves — remove all their streams
+    let removed = room.remove_user_screen_shares(user_id).await;
+    assert_eq!(removed.len(), 2);
+
+    // Only the other user's stream remains
+    let remaining = room.get_screen_shares().await;
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].user_id, other_user_id);
+    assert_eq!(remaining[0].stream_id, other_stream_id);
+
+    // User's count is now 0
+    assert_eq!(room.get_user_stream_count(user_id).await, 0);
+}
+
+/// Multiple users can share simultaneously in the same room.
+#[tokio::test]
+async fn test_multiple_users_can_share_simultaneously() {
+    let channel_id = Uuid::new_v4();
+    let room = Room::new(channel_id, 10);
+
+    let user1 = Uuid::new_v4();
+    let user2 = Uuid::new_v4();
+    let user3 = Uuid::new_v4();
+
+    room.add_screen_share(ScreenShareInfo::new(
+        Uuid::new_v4(),
+        user1,
+        "alice".to_string(),
+        "Display 1".to_string(),
+        true,
+        Quality::High,
+    ))
+    .await;
+    room.add_screen_share(ScreenShareInfo::new(
+        Uuid::new_v4(),
+        user2,
+        "bob".to_string(),
+        "Display 1".to_string(),
+        false,
+        Quality::Medium,
+    ))
+    .await;
+    room.add_screen_share(ScreenShareInfo::new(
+        Uuid::new_v4(),
+        user3,
+        "carol".to_string(),
+        "Display 1".to_string(),
+        true,
+        Quality::Low,
+    ))
+    .await;
+
+    assert_eq!(room.get_screen_shares().await.len(), 3);
+    assert_eq!(room.get_user_stream_count(user1).await, 1);
+    assert_eq!(room.get_user_stream_count(user2).await, 1);
+    assert_eq!(room.get_user_stream_count(user3).await, 1);
+}
+
+/// Removing a non-existent stream returns None.
+#[tokio::test]
+async fn test_remove_nonexistent_stream_returns_none() {
+    let channel_id = Uuid::new_v4();
+    let room = Room::new(channel_id, 10);
+
+    let result = room.remove_screen_share(Uuid::new_v4()).await;
+    assert!(result.is_none());
+}
+
+/// `ScreenShareStopRequest` deserializes correctly with `stream_id`.
+#[test]
+fn test_screen_share_stop_request_deserialization() {
+    use vc_server::voice::ScreenShareStopRequest;
+
+    let stream_id = Uuid::new_v4();
+    let json = format!(r#"{{"stream_id":"{stream_id}"}}"#);
+    let req: ScreenShareStopRequest = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(req.stream_id, stream_id);
+}
+
+// ============================================================================
 // Integration Tests (require database + Redis)
 // ============================================================================
 
@@ -172,8 +408,8 @@ use axum::http::{Method, Request, StatusCode};
 use http_body_util::BodyExt;
 
 use super::helpers::{
-    create_guild_with_default_role, create_test_user, create_voice_channel,
-    generate_access_token, TestApp,
+    create_guild_with_default_role, create_test_user, create_voice_channel, generate_access_token,
+    TestApp,
 };
 use vc_server::permissions::GuildPermissions;
 
