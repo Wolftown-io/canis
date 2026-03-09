@@ -4,6 +4,8 @@
 //! (microphone audio, screen video, screen audio, webcam video) for the SFU
 //! to route appropriately.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -18,15 +20,17 @@ pub enum TrackKind {
 }
 
 /// The source of a media track.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+///
+/// `ScreenVideo` and `ScreenAudio` carry a `stream_id` (`Uuid`) to support
+/// multiple concurrent screen shares per user (up to 3).
+#[derive(Debug, Clone, Copy)]
 pub enum TrackSource {
     /// Microphone audio from the user.
     Microphone,
-    /// Video from screen sharing.
-    ScreenVideo,
-    /// Audio from screen sharing (system audio).
-    ScreenAudio,
+    /// Video from screen sharing, identified by `stream_id`.
+    ScreenVideo(Uuid),
+    /// Audio from screen sharing (system audio), identified by `stream_id`.
+    ScreenAudio(Uuid),
     /// Video from webcam.
     Webcam,
 }
@@ -36,8 +40,8 @@ impl TrackSource {
     #[must_use]
     pub const fn kind(&self) -> TrackKind {
         match self {
-            Self::Microphone | Self::ScreenAudio => TrackKind::Audio,
-            Self::ScreenVideo | Self::Webcam => TrackKind::Video,
+            Self::Microphone | Self::ScreenAudio(_) => TrackKind::Audio,
+            Self::ScreenVideo(_) | Self::Webcam => TrackKind::Video,
         }
     }
 
@@ -51,6 +55,89 @@ impl TrackSource {
     #[must_use]
     pub const fn is_audio(&self) -> bool {
         matches!(self.kind(), TrackKind::Audio)
+    }
+
+    /// Returns the `stream_id` if this is a screen share source.
+    #[must_use]
+    pub const fn stream_id(&self) -> Option<Uuid> {
+        match self {
+            Self::ScreenVideo(id) | Self::ScreenAudio(id) => Some(*id),
+            Self::Microphone | Self::Webcam => None,
+        }
+    }
+
+    /// Returns true if this is a screen share source (video or audio).
+    #[must_use]
+    pub const fn is_screen_share(&self) -> bool {
+        matches!(self, Self::ScreenVideo(_) | Self::ScreenAudio(_))
+    }
+}
+
+// Manual PartialEq: compare variant discriminant + stream_id for screen sources.
+impl PartialEq for TrackSource {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Microphone, Self::Microphone) | (Self::Webcam, Self::Webcam) => true,
+            (Self::ScreenVideo(a), Self::ScreenVideo(b))
+            | (Self::ScreenAudio(a), Self::ScreenAudio(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for TrackSource {}
+
+// Manual Hash: must be consistent with PartialEq.
+impl std::hash::Hash for TrackSource {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Self::ScreenVideo(id) | Self::ScreenAudio(id) => id.hash(state),
+            Self::Microphone | Self::Webcam => {}
+        }
+    }
+}
+
+// Display: `microphone`, `screen_video:{uuid}`, `screen_audio:{uuid}`, `webcam`
+impl fmt::Display for TrackSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Microphone => write!(f, "microphone"),
+            Self::ScreenVideo(id) => write!(f, "screen_video:{id}"),
+            Self::ScreenAudio(id) => write!(f, "screen_audio:{id}"),
+            Self::Webcam => write!(f, "webcam"),
+        }
+    }
+}
+
+// Custom Serialize: `"microphone"`, `"screen_video:{uuid}"`, `"screen_audio:{uuid}"`, `"webcam"`
+impl Serialize for TrackSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+// Custom Deserialize: inverse of Serialize.
+impl<'de> Deserialize<'de> for TrackSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "microphone" => Ok(Self::Microphone),
+            "webcam" => Ok(Self::Webcam),
+            other => {
+                if let Some(uuid_str) = other.strip_prefix("screen_video:") {
+                    let id = Uuid::parse_str(uuid_str).map_err(serde::de::Error::custom)?;
+                    Ok(Self::ScreenVideo(id))
+                } else if let Some(uuid_str) = other.strip_prefix("screen_audio:") {
+                    let id = Uuid::parse_str(uuid_str).map_err(serde::de::Error::custom)?;
+                    Ok(Self::ScreenAudio(id))
+                } else {
+                    Err(serde::de::Error::custom(format!(
+                        "unknown TrackSource: {other}"
+                    )))
+                }
+            }
+        }
     }
 }
 
@@ -100,14 +187,36 @@ impl TrackInfo {
 
     /// Create track info for a screen video track.
     #[must_use]
-    pub fn screen_video(track_id: Uuid, user_id: Uuid, codec: impl Into<String>) -> Self {
-        Self::new(track_id, user_id, TrackSource::ScreenVideo, codec, None)
+    pub fn screen_video(
+        track_id: Uuid,
+        user_id: Uuid,
+        stream_id: Uuid,
+        codec: impl Into<String>,
+    ) -> Self {
+        Self::new(
+            track_id,
+            user_id,
+            TrackSource::ScreenVideo(stream_id),
+            codec,
+            None,
+        )
     }
 
     /// Create track info for a screen audio track.
     #[must_use]
-    pub fn screen_audio(track_id: Uuid, user_id: Uuid, codec: impl Into<String>) -> Self {
-        Self::new(track_id, user_id, TrackSource::ScreenAudio, codec, None)
+    pub fn screen_audio(
+        track_id: Uuid,
+        user_id: Uuid,
+        stream_id: Uuid,
+        codec: impl Into<String>,
+    ) -> Self {
+        Self::new(
+            track_id,
+            user_id,
+            TrackSource::ScreenAudio(stream_id),
+            codec,
+            None,
+        )
     }
 
     /// Create track info for a webcam video track.
@@ -130,31 +239,104 @@ mod tests {
 
     #[test]
     fn track_source_kind_returns_correct_kind() {
+        let stream_id = Uuid::nil();
         assert_eq!(TrackSource::Microphone.kind(), TrackKind::Audio);
-        assert_eq!(TrackSource::ScreenAudio.kind(), TrackKind::Audio);
-        assert_eq!(TrackSource::ScreenVideo.kind(), TrackKind::Video);
+        assert_eq!(TrackSource::ScreenAudio(stream_id).kind(), TrackKind::Audio);
+        assert_eq!(TrackSource::ScreenVideo(stream_id).kind(), TrackKind::Video);
         assert_eq!(TrackSource::Webcam.kind(), TrackKind::Video);
     }
 
     #[test]
     fn track_source_is_video_and_is_audio_helpers() {
+        let stream_id = Uuid::nil();
+
         // Audio sources
         assert!(TrackSource::Microphone.is_audio());
         assert!(!TrackSource::Microphone.is_video());
-        assert!(TrackSource::ScreenAudio.is_audio());
-        assert!(!TrackSource::ScreenAudio.is_video());
+        assert!(TrackSource::ScreenAudio(stream_id).is_audio());
+        assert!(!TrackSource::ScreenAudio(stream_id).is_video());
 
         // Video sources
-        assert!(TrackSource::ScreenVideo.is_video());
-        assert!(!TrackSource::ScreenVideo.is_audio());
+        assert!(TrackSource::ScreenVideo(stream_id).is_video());
+        assert!(!TrackSource::ScreenVideo(stream_id).is_audio());
         assert!(TrackSource::Webcam.is_video());
         assert!(!TrackSource::Webcam.is_audio());
+    }
+
+    #[test]
+    fn track_source_stream_id() {
+        let stream_id = Uuid::new_v4();
+        assert_eq!(TrackSource::Microphone.stream_id(), None);
+        assert_eq!(TrackSource::Webcam.stream_id(), None);
+        assert_eq!(
+            TrackSource::ScreenVideo(stream_id).stream_id(),
+            Some(stream_id)
+        );
+        assert_eq!(
+            TrackSource::ScreenAudio(stream_id).stream_id(),
+            Some(stream_id)
+        );
+    }
+
+    #[test]
+    fn track_source_is_screen_share() {
+        let stream_id = Uuid::nil();
+        assert!(!TrackSource::Microphone.is_screen_share());
+        assert!(!TrackSource::Webcam.is_screen_share());
+        assert!(TrackSource::ScreenVideo(stream_id).is_screen_share());
+        assert!(TrackSource::ScreenAudio(stream_id).is_screen_share());
+    }
+
+    #[test]
+    fn track_source_equality_considers_stream_id() {
+        let id_a = Uuid::new_v4();
+        let id_b = Uuid::new_v4();
+
+        assert_eq!(
+            TrackSource::ScreenVideo(id_a),
+            TrackSource::ScreenVideo(id_a)
+        );
+        assert_ne!(
+            TrackSource::ScreenVideo(id_a),
+            TrackSource::ScreenVideo(id_b)
+        );
+        assert_ne!(
+            TrackSource::ScreenVideo(id_a),
+            TrackSource::ScreenAudio(id_a)
+        );
+    }
+
+    #[test]
+    fn track_source_display_and_serde_roundtrip() {
+        let stream_id = Uuid::parse_str("01234567-89ab-cdef-0123-456789abcdef").unwrap();
+
+        let cases = [
+            (TrackSource::Microphone, "\"microphone\""),
+            (TrackSource::Webcam, "\"webcam\""),
+            (
+                TrackSource::ScreenVideo(stream_id),
+                "\"screen_video:01234567-89ab-cdef-0123-456789abcdef\"",
+            ),
+            (
+                TrackSource::ScreenAudio(stream_id),
+                "\"screen_audio:01234567-89ab-cdef-0123-456789abcdef\"",
+            ),
+        ];
+
+        for (source, expected_json) in &cases {
+            let json = serde_json::to_string(source).unwrap();
+            assert_eq!(&json, expected_json, "serialize mismatch for {source:?}");
+
+            let deserialized: TrackSource = serde_json::from_str(&json).unwrap();
+            assert_eq!(&deserialized, source, "deserialize mismatch for {source:?}");
+        }
     }
 
     #[test]
     fn track_info_factory_methods() {
         let track_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
+        let stream_id = Uuid::new_v4();
 
         // Microphone
         let mic = TrackInfo::microphone(track_id, user_id, "opus");
@@ -166,15 +348,15 @@ mod tests {
         assert!(mic.label.is_none());
 
         // Screen video
-        let screen_vid = TrackInfo::screen_video(track_id, user_id, "vp8");
+        let screen_vid = TrackInfo::screen_video(track_id, user_id, stream_id, "vp8");
         assert_eq!(screen_vid.kind, TrackKind::Video);
-        assert_eq!(screen_vid.source, TrackSource::ScreenVideo);
+        assert_eq!(screen_vid.source, TrackSource::ScreenVideo(stream_id));
         assert_eq!(screen_vid.codec, "vp8");
 
         // Screen audio
-        let screen_aud = TrackInfo::screen_audio(track_id, user_id, "opus");
+        let screen_aud = TrackInfo::screen_audio(track_id, user_id, stream_id, "opus");
         assert_eq!(screen_aud.kind, TrackKind::Audio);
-        assert_eq!(screen_aud.source, TrackSource::ScreenAudio);
+        assert_eq!(screen_aud.source, TrackSource::ScreenAudio(stream_id));
 
         // Webcam
         let webcam = TrackInfo::webcam(track_id, user_id, "h264");
@@ -200,5 +382,20 @@ mod tests {
         assert!(json.contains("\"kind\":\"audio\""));
         assert!(json.contains("\"source\":\"microphone\""));
         assert!(json.contains("\"label\":\"My Microphone\""));
+    }
+
+    #[test]
+    fn track_info_screen_video_serialization_includes_stream_id() {
+        let track_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let stream_id = Uuid::parse_str("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").unwrap();
+
+        let track = TrackInfo::screen_video(track_id, user_id, stream_id, "vp8");
+        let json = serde_json::to_string(&track).unwrap();
+
+        assert!(json.contains("screen_video:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"));
+
+        let deserialized: TrackInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, track);
     }
 }

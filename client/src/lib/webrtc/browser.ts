@@ -37,10 +37,12 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   private localStream: MediaStream | null = null;
   private remoteStreams = new Map<string, MediaStream>();
 
-  // Screen share state
-  private screenShareStream: MediaStream | null = null;
-  private screenShareTrack: RTCRtpSender | null = null;
-  private screenShareAudioTrack: RTCRtpSender | null = null;
+  // Screen share state — keyed by streamId for multi-stream support
+  private screenShares: Map<string, {
+    stream: MediaStream;
+    videoSender: RTCRtpSender;
+    audioSender: RTCRtpSender | null;
+  }> = new Map();
 
   // Webcam state
   private webcamStream: MediaStream | null = null;
@@ -193,9 +195,9 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   async leave(): Promise<VoiceResult<void>> {
     console.log("[BrowserVoiceAdapter] Leaving voice");
 
-    // Clean up screen share and webcam first
-    if (this.screenShareStream) {
-      this.cleanupScreenShareState();
+    // Clean up all screen shares and webcam first
+    if (this.screenShares.size > 0) {
+      this.cleanupAllScreenShares();
     }
     if (this.webcamStream) {
       this.cleanupWebcamState();
@@ -664,25 +666,50 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   // Screen sharing
 
   isScreenSharing(): boolean {
-    return this.screenShareStream !== null;
+    return this.screenShares.size > 0;
   }
 
   /**
-   * Get information about the current screen share.
+   * Get information about a specific screen share (or the first one if no streamId).
    * Returns null if not sharing.
    */
-  getScreenShareInfo(): { hasAudio: boolean; sourceLabel: string } | null {
-    if (!this.screenShareStream) {
+  getScreenShareInfo(streamId?: string): { streamId: string; hasAudio: boolean; sourceLabel: string } | null {
+    if (this.screenShares.size === 0) {
       return null;
     }
 
-    const videoTrack = this.screenShareStream.getVideoTracks()[0];
-    const hasAudio = this.screenShareStream.getAudioTracks().length > 0;
+    if (streamId) {
+      const entry = this.screenShares.get(streamId);
+      if (!entry) return null;
 
-    // Get source label from video track (e.g., "screen:0:0", window title, etc.)
+      const videoTrack = entry.stream.getVideoTracks()[0];
+      const hasAudio = entry.stream.getAudioTracks().length > 0;
+      const sourceLabel = videoTrack?.label || "Screen";
+
+      return { streamId, hasAudio, sourceLabel };
+    }
+
+    // No streamId specified — return first entry
+    const [firstId, firstEntry] = this.screenShares.entries().next().value!;
+    const videoTrack = firstEntry.stream.getVideoTracks()[0];
+    const hasAudio = firstEntry.stream.getAudioTracks().length > 0;
     const sourceLabel = videoTrack?.label || "Screen";
 
-    return { hasAudio, sourceLabel };
+    return { streamId: firstId, hasAudio, sourceLabel };
+  }
+
+  /**
+   * Get info for all active screen shares.
+   */
+  getAllScreenShareInfo(): { streamId: string; hasAudio: boolean; sourceLabel: string }[] {
+    const result: { streamId: string; hasAudio: boolean; sourceLabel: string }[] = [];
+    for (const [id, entry] of this.screenShares) {
+      const videoTrack = entry.stream.getVideoTracks()[0];
+      const hasAudio = entry.stream.getAudioTracks().length > 0;
+      const sourceLabel = videoTrack?.label || "Screen";
+      result.push({ streamId: id, hasAudio, sourceLabel });
+    }
+    return result;
   }
 
   async startScreenShare(
@@ -692,12 +719,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       return { ok: false, error: { type: "not_connected" } };
     }
 
-    if (this.screenShareStream) {
-      return {
-        ok: false,
-        error: { type: "unknown", message: "Already sharing screen" },
-      };
-    }
+    const streamId = options?.streamId ?? crypto.randomUUID();
 
     try {
       // Request display media with quality constraints
@@ -722,27 +744,32 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
       // Listen for track ending (user clicked "Stop sharing" in browser UI)
       videoTrack.onended = () => {
-        console.log("[BrowserVoiceAdapter] Screen share track ended by user");
-        this.handleScreenShareEnded();
+        console.log("[BrowserVoiceAdapter] Screen share track ended by user, streamId:", streamId);
+        this.handleScreenShareEnded(streamId);
       };
 
       // Add video track to peer connection
-      this.screenShareTrack = this.peerConnection.addTrack(videoTrack, stream);
+      const videoSender = this.peerConnection.addTrack(videoTrack, stream);
 
       // If audio track present, add it too
       const audioTrack = stream.getAudioTracks()[0];
+      let audioSender: RTCRtpSender | null = null;
       if (audioTrack) {
-        this.screenShareAudioTrack = this.peerConnection.addTrack(
-          audioTrack,
-          stream,
-        );
+        audioSender = this.peerConnection.addTrack(audioTrack, stream);
       }
 
-      this.screenShareStream = stream;
+      // Store in the multi-stream map
+      this.screenShares.set(streamId, {
+        stream,
+        videoSender,
+        audioSender,
+      });
 
       console.log("[BrowserVoiceAdapter] Screen share started", {
+        streamId,
         hasAudio: !!audioTrack,
         quality: options?.quality ?? "medium",
+        totalShares: this.screenShares.size,
       });
 
       return { ok: true, value: undefined };
@@ -829,8 +856,29 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     }
   }
 
-  async stopScreenShare(): Promise<VoiceResult<void>> {
-    if (!this.screenShareStream) {
+  async stopScreenShare(streamId?: string): Promise<VoiceResult<void>> {
+    if (streamId) {
+      // Stop a specific stream
+      const entry = this.screenShares.get(streamId);
+      if (!entry) {
+        return {
+          ok: false,
+          error: { type: "unknown", message: `Screen share not found: ${streamId}` },
+        };
+      }
+
+      try {
+        this.cleanupSingleScreenShare(streamId, entry);
+        console.log("[BrowserVoiceAdapter] Screen share stopped:", streamId);
+        return { ok: true, value: undefined };
+      } catch (err) {
+        console.error("[BrowserVoiceAdapter] Failed to stop screen share:", err);
+        return { ok: false, error: { type: "unknown", message: String(err) } };
+      }
+    }
+
+    // No streamId — stop the first (or only) stream for backward compat
+    if (this.screenShares.size === 0) {
       return {
         ok: false,
         error: { type: "unknown", message: "Not sharing screen" },
@@ -838,11 +886,28 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     }
 
     try {
-      this.cleanupScreenShareState();
-      console.log("[BrowserVoiceAdapter] Screen share stopped");
+      const firstId = this.screenShares.keys().next().value!;
+      const firstEntry = this.screenShares.get(firstId)!;
+      this.cleanupSingleScreenShare(firstId, firstEntry);
+      console.log("[BrowserVoiceAdapter] Screen share stopped:", firstId);
       return { ok: true, value: undefined };
     } catch (err) {
       console.error("[BrowserVoiceAdapter] Failed to stop screen share:", err);
+      return { ok: false, error: { type: "unknown", message: String(err) } };
+    }
+  }
+
+  async stopAllScreenShares(): Promise<VoiceResult<void>> {
+    if (this.screenShares.size === 0) {
+      return { ok: true, value: undefined };
+    }
+
+    try {
+      this.cleanupAllScreenShares();
+      console.log("[BrowserVoiceAdapter] All screen shares stopped");
+      return { ok: true, value: undefined };
+    } catch (err) {
+      console.error("[BrowserVoiceAdapter] Failed to stop all screen shares:", err);
       return { ok: false, error: { type: "unknown", message: String(err) } };
     }
   }
@@ -960,33 +1025,56 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     };
   }
 
-  private handleScreenShareEnded(): void {
-    this.cleanupScreenShareState();
+  private handleScreenShareEnded(streamId: string): void {
+    const entry = this.screenShares.get(streamId);
+    if (entry) {
+      this.cleanupSingleScreenShare(streamId, entry);
+    }
     // Notify via event handler - need to get user ID
     // For browser, we don't easily have our own user ID here, so pass empty
-    this.eventHandlers.onScreenShareStopped?.("", "user_stopped");
+    this.eventHandlers.onScreenShareStopped?.("", streamId, "user_stopped");
   }
 
-  private cleanupScreenShareState(): void {
+  /**
+   * Clean up a single screen share stream.
+   */
+  private cleanupSingleScreenShare(
+    streamId: string,
+    entry: { stream: MediaStream; videoSender: RTCRtpSender; audioSender: RTCRtpSender | null },
+  ): void {
     // Remove tracks from peer connection
     if (this.peerConnection) {
-      if (this.screenShareAudioTrack) {
-        this.peerConnection.removeTrack(this.screenShareAudioTrack);
+      if (entry.audioSender) {
+        this.peerConnection.removeTrack(entry.audioSender);
       }
-      if (this.screenShareTrack) {
-        this.peerConnection.removeTrack(this.screenShareTrack);
-      }
+      this.peerConnection.removeTrack(entry.videoSender);
     }
 
     // Stop the stream tracks
-    if (this.screenShareStream) {
-      this.screenShareStream.getTracks().forEach((track) => track.stop());
+    entry.stream.getTracks().forEach((track) => track.stop());
+
+    // Remove from map
+    this.screenShares.delete(streamId);
+  }
+
+  /**
+   * Clean up all active screen shares (for disconnect/leave).
+   */
+  private cleanupAllScreenShares(): void {
+    for (const [, entry] of this.screenShares) {
+      // Remove tracks from peer connection
+      if (this.peerConnection) {
+        if (entry.audioSender) {
+          this.peerConnection.removeTrack(entry.audioSender);
+        }
+        this.peerConnection.removeTrack(entry.videoSender);
+      }
+
+      // Stop the stream tracks
+      entry.stream.getTracks().forEach((track) => track.stop());
     }
 
-    // Clear state
-    this.screenShareStream = null;
-    this.screenShareTrack = null;
-    this.screenShareAudioTrack = null;
+    this.screenShares.clear();
   }
 
   private cleanupWebcamState(): void {
@@ -1059,15 +1147,19 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       const track = event.track;
       const stream = event.streams[0];
 
-      // Parse stream ID format: "{userId}:{sourceType}" (e.g. "uuid:Webcam", "uuid:ScreenVideo")
-      const [userId, sourceType] = stream.id.split(":");
+      // Parse stream ID format: "{userId}:{sourceType}" using Display format
+      // (e.g. "uuid:webcam", "uuid:screen_video:stream_uuid", "uuid:microphone")
+      // Split on first colon only to get [userId, sourceType]
+      const colonIdx = stream.id.indexOf(":");
+      const userId = colonIdx > 0 ? stream.id.slice(0, colonIdx) : stream.id;
+      const sourceType = colonIdx > 0 ? stream.id.slice(colonIdx + 1) : "";
 
       console.log(
         `[BrowserVoiceAdapter] Remote ${track.kind} track received, source: ${sourceType}, from: ${userId}`,
       );
 
       if (track.kind === "video") {
-        if (sourceType === "Webcam") {
+        if (sourceType === "webcam") {
           // Webcam video track
           console.log("[BrowserVoiceAdapter] Webcam video track from:", userId);
           this.eventHandlers.onWebcamTrack?.(userId, track);
@@ -1080,16 +1172,19 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
             this.eventHandlers.onWebcamTrackRemoved?.(userId);
           };
         } else {
-          // Screen share video track (ScreenVideo or fallback)
+          // Screen share video track — parse stream_id from "screen_video:uuid"
+          const streamId = this.parseScreenShareStreamId(sourceType);
           console.log(
             "[BrowserVoiceAdapter] Screen share video track from:",
             userId,
+            "streamId:",
+            streamId,
           );
-          this.eventHandlers.onScreenShareTrack?.(userId, track);
+          this.eventHandlers.onScreenShareTrack?.(userId, streamId, track);
 
           track.onended = () => {
-            console.log("[BrowserVoiceAdapter] Screen share track ended");
-            this.eventHandlers.onScreenShareTrackRemoved?.(userId);
+            console.log("[BrowserVoiceAdapter] Screen share track ended, streamId:", streamId);
+            this.eventHandlers.onScreenShareTrackRemoved?.(userId, streamId);
           };
         }
       } else {
@@ -1176,6 +1271,12 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
     // Stop VAD
     this.stopVAD();
 
+    // Stop all screen shares (stop media tracks before closing peer connection)
+    for (const entry of this.screenShares.values()) {
+      entry.stream.getTracks().forEach((track) => track.stop());
+    }
+    this.screenShares.clear();
+
     // Stop local stream
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => track.stop());
@@ -1193,6 +1294,16 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
 
     // Stop mic test if running
     this.stopMicTest();
+  }
+
+  /**
+   * Parse stream_id from a TrackSource Display string like "screen_video:uuid".
+   * Falls back to "unknown" if the format doesn't match.
+   */
+  private parseScreenShareStreamId(sourceType: string): string {
+    // Format: "screen_video:01234567-89ab-cdef-0123-456789abcdef"
+    const match = sourceType.match(/^screen_(?:video|audio):(.+)$/);
+    return match?.[1] ?? "unknown";
   }
 
   private mapMediaError(err: unknown): VoiceError {

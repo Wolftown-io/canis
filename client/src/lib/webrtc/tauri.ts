@@ -26,12 +26,13 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   private muted = false;
   private deafened = false;
   private noiseSuppression = false;
-  private screenSharing = false;
   private webcamActive = false;
 
-  // Screen share state (native Rust capture)
-  private screenShareSourceName: string | null = null;
-  private screenShareWithAudio = false;
+  // Screen share state (native Rust capture) — multi-stream
+  private activeScreenShares: Map<
+    string,
+    { sourceName: string; withAudio: boolean }
+  > = new Map();
 
   // Event handlers
   private eventHandlers: Partial<VoiceAdapterEvents> = {};
@@ -60,16 +61,16 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   async leave(): Promise<VoiceResult<void>> {
     console.log("[TauriVoiceAdapter] Leaving voice");
 
-    // Clean up screen share if active (native capture is stopped via Rust command)
-    if (this.screenSharing) {
-      try {
-        await invoke("stop_screen_share");
-      } catch {
-        // Best effort — leave_voice will also clean up
+    // Clean up all screen shares (native capture is stopped via Rust command)
+    if (this.activeScreenShares.size > 0) {
+      for (const streamId of [...this.activeScreenShares.keys()]) {
+        try {
+          await invoke("stop_screen_share", { streamId });
+        } catch {
+          // Best effort — leave_voice will also clean up
+        }
       }
-      this.screenSharing = false;
-      this.screenShareSourceName = null;
-      this.screenShareWithAudio = false;
+      this.activeScreenShares.clear();
     }
 
     try {
@@ -274,22 +275,46 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   // Screen sharing (native Rust capture via Tauri commands)
 
   isScreenSharing(): boolean {
-    return this.screenSharing;
+    return this.activeScreenShares.size > 0;
   }
 
   /**
-   * Get information about the current screen share.
-   * Returns null if not sharing.
+   * Get information about a screen share by stream ID.
+   * Returns null if not sharing or stream not found.
    */
-  getScreenShareInfo(): { hasAudio: boolean; sourceLabel: string } | null {
-    if (!this.screenSharing) {
+  getScreenShareInfo(streamId?: string): { streamId: string; hasAudio: boolean; sourceLabel: string } | null {
+    if (this.activeScreenShares.size === 0) {
       return null;
     }
 
+    if (streamId) {
+      const info = this.activeScreenShares.get(streamId);
+      if (!info) return null;
+      return {
+        streamId,
+        hasAudio: info.withAudio,
+        sourceLabel: info.sourceName,
+      };
+    }
+
+    // Return first share if no streamId specified
+    const [firstId, firstInfo] = [...this.activeScreenShares.entries()][0];
     return {
-      hasAudio: this.screenShareWithAudio,
-      sourceLabel: this.screenShareSourceName || "Screen",
+      streamId: firstId,
+      hasAudio: firstInfo.withAudio,
+      sourceLabel: firstInfo.sourceName,
     };
+  }
+
+  /**
+   * Get info for all active screen shares.
+   */
+  getAllScreenShareInfo(): { streamId: string; hasAudio: boolean; sourceLabel: string }[] {
+    return [...this.activeScreenShares.entries()].map(([id, info]) => ({
+      streamId: id,
+      hasAudio: info.withAudio,
+      sourceLabel: info.sourceName,
+    }));
   }
 
   /**
@@ -312,10 +337,10 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   ): Promise<VoiceResult<void>> {
     console.log("[TauriVoiceAdapter] Starting native screen share", options);
 
-    if (this.screenSharing) {
+    if (this.activeScreenShares.size >= 3) {
       return {
         ok: false,
-        error: { type: "unknown", message: "Already sharing screen" },
+        error: { type: "unknown", message: "Maximum of 3 concurrent screen shares reached" },
       };
     }
 
@@ -326,26 +351,34 @@ export class TauriVoiceAdapter implements VoiceAdapter {
       };
     }
 
+    const streamId = options.streamId ?? crypto.randomUUID();
+
     try {
       await invoke("start_screen_share", {
         sourceId: options.sourceId,
         quality: options.quality ?? "medium",
         withAudio: options.withAudio ?? false,
+        streamId,
       });
 
-      this.screenSharing = true;
-      this.screenShareWithAudio = options.withAudio ?? false;
       // Fetch source name from status
+      let sourceName = "Screen";
       try {
-        const status = await invoke<{ source_name: string } | null>(
+        const statuses = await invoke<{ stream_id: string; source_name: string }[]>(
           "get_screen_share_status",
         );
-        this.screenShareSourceName = status?.source_name ?? "Screen";
+        const thisStatus = statuses.find((s) => s.stream_id === streamId);
+        sourceName = thisStatus?.source_name ?? "Screen";
       } catch {
-        this.screenShareSourceName = "Screen";
+        // Fall through with default
       }
 
-      console.log("[TauriVoiceAdapter] Native screen share started");
+      this.activeScreenShares.set(streamId, {
+        sourceName,
+        withAudio: options.withAudio ?? false,
+      });
+
+      console.log(`[TauriVoiceAdapter] Native screen share started: ${streamId}`);
       return { ok: true, value: undefined };
     } catch (err) {
       console.error("[TauriVoiceAdapter] Failed to start screen share:", err);
@@ -353,29 +386,42 @@ export class TauriVoiceAdapter implements VoiceAdapter {
     }
   }
 
-  async stopScreenShare(): Promise<VoiceResult<void>> {
-    console.log("[TauriVoiceAdapter] Stopping native screen share");
-
-    if (!this.screenSharing) {
+  async stopScreenShare(streamId?: string): Promise<VoiceResult<void>> {
+    if (this.activeScreenShares.size === 0) {
       return {
         ok: false,
         error: { type: "unknown", message: "Not sharing screen" },
       };
     }
 
+    // If no streamId given, stop the first one
+    const targetId = streamId ?? [...this.activeScreenShares.keys()][0];
+    console.log(`[TauriVoiceAdapter] Stopping native screen share: ${targetId}`);
+
     try {
-      await invoke("stop_screen_share");
+      await invoke("stop_screen_share", { streamId: targetId });
 
-      this.screenSharing = false;
-      this.screenShareSourceName = null;
-      this.screenShareWithAudio = false;
+      this.activeScreenShares.delete(targetId);
 
-      console.log("[TauriVoiceAdapter] Screen share stopped");
+      console.log(`[TauriVoiceAdapter] Screen share stopped: ${targetId}`);
       return { ok: true, value: undefined };
     } catch (err) {
       console.error("[TauriVoiceAdapter] Failed to stop screen share:", err);
       return { ok: false, error: this.mapTauriError(err) };
     }
+  }
+
+  async stopAllScreenShares(): Promise<VoiceResult<void>> {
+    const streamIds = [...this.activeScreenShares.keys()];
+    for (const streamId of streamIds) {
+      try {
+        await invoke("stop_screen_share", { streamId });
+      } catch (err) {
+        console.error(`[TauriVoiceAdapter] Failed to stop screen share ${streamId}:`, err);
+      }
+    }
+    this.activeScreenShares.clear();
+    return { ok: true, value: undefined };
   }
 
   // Webcam (delegates to Tauri Rust backend)
@@ -440,13 +486,11 @@ export class TauriVoiceAdapter implements VoiceAdapter {
       this.webcamActive = false;
     }
 
-    // Clean up screen share if active (fire-and-forget)
-    if (this.screenSharing) {
-      invoke("stop_screen_share").catch(() => {});
-      this.screenSharing = false;
-      this.screenShareSourceName = null;
-      this.screenShareWithAudio = false;
+    // Clean up all screen shares (fire-and-forget)
+    for (const streamId of this.activeScreenShares.keys()) {
+      invoke("stop_screen_share", { streamId }).catch(() => {});
     }
+    this.activeScreenShares.clear();
 
     this.unlisteners.forEach((unlisten) => unlisten());
     this.unlisteners = [];

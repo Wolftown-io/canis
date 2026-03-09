@@ -34,6 +34,8 @@ pub fn validate_source_label(label: &str) -> Result<(), ScreenShareError> {
 /// Information about an active screen share session.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ScreenShareInfo {
+    /// Unique identifier for this screen share stream
+    pub stream_id: Uuid,
     /// User who is sharing
     pub user_id: Uuid,
     /// Username for display
@@ -51,6 +53,7 @@ pub struct ScreenShareInfo {
 impl ScreenShareInfo {
     /// Create a new [`ScreenShareInfo`].
     pub fn new(
+        stream_id: Uuid,
         user_id: Uuid,
         username: String,
         source_label: String,
@@ -58,6 +61,7 @@ impl ScreenShareInfo {
         quality: Quality,
     ) -> Self {
         Self {
+            stream_id,
             user_id,
             username,
             source_label,
@@ -71,12 +75,21 @@ impl ScreenShareInfo {
 /// Request to start a screen share.
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema)]
 pub struct ScreenShareStartRequest {
+    /// Client-generated stream identifier for this screen share
+    pub stream_id: Uuid,
     /// Requested quality tier
     pub quality: Quality,
     /// Include system audio
     pub has_audio: bool,
     /// Source label for display
     pub source_label: String,
+}
+
+/// Request to stop a specific screen share stream.
+#[derive(Clone, Debug, Deserialize, utoipa::ToSchema)]
+pub struct ScreenShareStopRequest {
+    /// Stream identifier of the screen share to stop
+    pub stream_id: Uuid,
 }
 
 /// Response to screen share check/start request.
@@ -178,9 +191,22 @@ impl ScreenShareLimiter {
         max_shares: u32,
         op: &str,
     ) -> Result<(bool, i64), ScreenShareError> {
+        self.run_script_with_extra(channel_id, max_shares, op, &[])
+            .await
+    }
+
+    /// Run the Lua script with optional extra ARGV arguments and retry on NOSCRIPT.
+    async fn run_script_with_extra(
+        &self,
+        channel_id: Uuid,
+        max_shares: u32,
+        op: &str,
+        extra_args: &[String],
+    ) -> Result<(bool, i64), ScreenShareError> {
         let key = format!("screenshare:limit:{channel_id}");
         let sha = self.script_sha.read().await.clone();
-        let args: Vec<String> = vec![max_shares.to_string(), op.to_string()];
+        let mut args: Vec<String> = vec![max_shares.to_string(), op.to_string()];
+        args.extend_from_slice(extra_args);
 
         match self
             .redis
@@ -269,6 +295,28 @@ impl ScreenShareLimiter {
             );
         }
     }
+
+    /// Release N screen share slots at once (atomic batch decrement).
+    ///
+    /// Used when a user with multiple active screen shares leaves.
+    /// Clamps to zero if `count` exceeds the current counter value.
+    pub async fn stop_n(&self, channel_id: Uuid, count: usize) {
+        if count == 0 {
+            return;
+        }
+        // max_shares arg is unused by "stop_n" op, pass 0
+        if let Err(e) = self
+            .run_script_with_extra(channel_id, 0, "stop_n", &[count.to_string()])
+            .await
+        {
+            warn!(
+                channel_id = %channel_id,
+                count = count,
+                error = ?e,
+                "Failed to batch-decrement screen share counter"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -282,8 +330,10 @@ mod tests {
     #[test]
     fn test_screen_share_info_creation() {
         let before = chrono::Utc::now();
+        let stream_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
+            stream_id,
             user_id,
             "alice".to_string(),
             "Display 1".to_string(),
@@ -292,6 +342,7 @@ mod tests {
         );
         let after = chrono::Utc::now();
 
+        assert_eq!(info.stream_id, stream_id);
         assert_eq!(info.user_id, user_id);
         assert_eq!(info.username, "alice");
         assert_eq!(info.source_label, "Display 1");
@@ -305,6 +356,7 @@ mod tests {
         let before = chrono::Utc::now();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
+            Uuid::new_v4(),
             user_id,
             "bob".to_string(),
             "Firefox".to_string(),
@@ -320,8 +372,10 @@ mod tests {
 
     #[test]
     fn test_screen_share_info_serialization() {
+        let stream_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
+            stream_id,
             user_id,
             "alice".to_string(),
             "Display 1".to_string(),
@@ -330,6 +384,7 @@ mod tests {
         );
 
         let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"stream_id\""));
         assert!(json.contains("\"username\":\"alice\""));
         assert!(json.contains("\"source_label\":\"Display 1\""));
         assert!(json.contains("\"has_audio\":true"));
@@ -337,6 +392,7 @@ mod tests {
 
         // Roundtrip
         let deserialized: ScreenShareInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.stream_id, stream_id);
         assert_eq!(deserialized.user_id, user_id);
         assert_eq!(deserialized.username, "alice");
     }
@@ -546,9 +602,13 @@ mod tests {
 
     #[test]
     fn test_start_request_deserialization() {
-        let json = r#"{"quality":"high","has_audio":true,"source_label":"Display 1"}"#;
-        let req: ScreenShareStartRequest = serde_json::from_str(json).unwrap();
+        let stream_id = Uuid::new_v4();
+        let json = format!(
+            r#"{{"stream_id":"{stream_id}","quality":"high","has_audio":true,"source_label":"Display 1"}}"#
+        );
+        let req: ScreenShareStartRequest = serde_json::from_str(&json).unwrap();
 
+        assert_eq!(req.stream_id, stream_id);
         assert_eq!(req.quality, Quality::High);
         assert!(req.has_audio);
         assert_eq!(req.source_label, "Display 1");
@@ -564,11 +624,26 @@ mod tests {
             Quality::Premium,
         ];
 
+        let stream_id = Uuid::new_v4();
         for (quality_str, expected_quality) in qualities.iter().zip(expected.iter()) {
-            let json =
-                format!(r#"{{"quality":"{quality_str}","has_audio":false,"source_label":"test"}}"#);
+            let json = format!(
+                r#"{{"stream_id":"{stream_id}","quality":"{quality_str}","has_audio":false,"source_label":"test"}}"#
+            );
             let req: ScreenShareStartRequest = serde_json::from_str(&json).unwrap();
             assert_eq!(req.quality, *expected_quality);
         }
+    }
+
+    // =========================================================================
+    // ScreenShareStopRequest Tests
+    // =========================================================================
+
+    #[test]
+    fn test_stop_request_deserialization() {
+        let stream_id = Uuid::new_v4();
+        let json = format!(r#"{{"stream_id":"{stream_id}"}}"#);
+        let req: ScreenShareStopRequest = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(req.stream_id, stream_id);
     }
 }

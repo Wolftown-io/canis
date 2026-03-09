@@ -11,6 +11,7 @@ mod presence;
 mod video;
 mod webrtc;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use audio::AudioHandle;
@@ -23,6 +24,7 @@ use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use tokio::sync::{mpsc, Mutex, RwLock};
+use uuid::Uuid;
 use webrtc::WebRtcClient;
 
 /// Run the Tauri application.
@@ -297,8 +299,8 @@ pub struct VoiceState {
     pub channel_id: Option<String>,
     /// Sender for encoded audio to WebRTC.
     pub audio_tx: Option<mpsc::Sender<Vec<u8>>>,
-    /// Active screen share pipeline, if any.
-    pub screen_share: Option<ScreenSharePipeline>,
+    /// Active screen share pipelines, keyed by stream ID. Max 3 concurrent.
+    pub screen_shares: HashMap<Uuid, ScreenSharePipeline>,
     /// Active webcam pipeline, if any.
     pub webcam: Option<WebcamPipeline>,
 }
@@ -312,7 +314,7 @@ impl VoiceState {
             audio,
             channel_id: None,
             audio_tx: None,
-            screen_share: None,
+            screen_shares: HashMap::new(),
             webcam: None,
         })
     }

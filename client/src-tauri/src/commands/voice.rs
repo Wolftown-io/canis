@@ -226,10 +226,17 @@ pub async fn leave_voice(state: State<'_, AppState>) -> Result<(), String> {
 
     let channel_id = voice_state.channel_id.take();
 
-    // Stop screen share if active
-    if let Some(pipeline) = voice_state.screen_share.take() {
-        info!("Auto-stopping screen share on voice leave");
-        pipeline.shutdown().await;
+    // Stop all screen shares if active
+    if !voice_state.screen_shares.is_empty() {
+        info!(
+            count = voice_state.screen_shares.len(),
+            "Auto-stopping screen shares on voice leave"
+        );
+        let pipelines: Vec<_> = voice_state.screen_shares.drain().collect();
+        for (stream_id, pipeline) in pipelines {
+            info!(stream_id = %stream_id, "Shutting down screen share pipeline");
+            pipeline.shutdown().await;
+        }
     }
 
     // Stop webcam if active
