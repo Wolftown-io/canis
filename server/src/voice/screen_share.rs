@@ -75,12 +75,21 @@ impl ScreenShareInfo {
 /// Request to start a screen share.
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema)]
 pub struct ScreenShareStartRequest {
+    /// Client-generated stream identifier for this screen share
+    pub stream_id: Uuid,
     /// Requested quality tier
     pub quality: Quality,
     /// Include system audio
     pub has_audio: bool,
     /// Source label for display
     pub source_label: String,
+}
+
+/// Request to stop a specific screen share stream.
+#[derive(Clone, Debug, Deserialize, utoipa::ToSchema)]
+pub struct ScreenShareStopRequest {
+    /// Stream identifier of the screen share to stop
+    pub stream_id: Uuid,
 }
 
 /// Response to screen share check/start request.
@@ -593,9 +602,13 @@ mod tests {
 
     #[test]
     fn test_start_request_deserialization() {
-        let json = r#"{"quality":"high","has_audio":true,"source_label":"Display 1"}"#;
-        let req: ScreenShareStartRequest = serde_json::from_str(json).unwrap();
+        let stream_id = Uuid::new_v4();
+        let json = format!(
+            r#"{{"stream_id":"{stream_id}","quality":"high","has_audio":true,"source_label":"Display 1"}}"#
+        );
+        let req: ScreenShareStartRequest = serde_json::from_str(&json).unwrap();
 
+        assert_eq!(req.stream_id, stream_id);
         assert_eq!(req.quality, Quality::High);
         assert!(req.has_audio);
         assert_eq!(req.source_label, "Display 1");
@@ -611,11 +624,26 @@ mod tests {
             Quality::Premium,
         ];
 
+        let stream_id = Uuid::new_v4();
         for (quality_str, expected_quality) in qualities.iter().zip(expected.iter()) {
-            let json =
-                format!(r#"{{"quality":"{quality_str}","has_audio":false,"source_label":"test"}}"#);
+            let json = format!(
+                r#"{{"stream_id":"{stream_id}","quality":"{quality_str}","has_audio":false,"source_label":"test"}}"#
+            );
             let req: ScreenShareStartRequest = serde_json::from_str(&json).unwrap();
             assert_eq!(req.quality, *expected_quality);
         }
+    }
+
+    // =========================================================================
+    // ScreenShareStopRequest Tests
+    // =========================================================================
+
+    #[test]
+    fn test_stop_request_deserialization() {
+        let stream_id = Uuid::new_v4();
+        let json = format!(r#"{{"stream_id":"{stream_id}"}}"#);
+        let req: ScreenShareStopRequest = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(req.stream_id, stream_id);
     }
 }

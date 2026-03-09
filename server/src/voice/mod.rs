@@ -33,7 +33,7 @@ pub use error::VoiceError;
 pub use quality::Quality;
 pub use screen_share::{
     ScreenShareCheckResponse, ScreenShareError, ScreenShareInfo, ScreenShareLimiter,
-    ScreenShareStartRequest,
+    ScreenShareStartRequest, ScreenShareStopRequest,
 };
 pub use sfu::{ParticipantInfo, Room, SfuServer};
 pub use stats::{UserStats, VoiceStats};
