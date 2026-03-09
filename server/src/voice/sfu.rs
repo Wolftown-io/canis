@@ -134,16 +134,37 @@ impl Room {
             .collect()
     }
 
-    /// Add a screen share session.
+    /// Add a screen share session (keyed by `stream_id`).
     pub async fn add_screen_share(&self, info: ScreenShareInfo) {
         let mut shares = self.screen_shares.write().await;
-        shares.insert(info.user_id, info);
+        shares.insert(info.stream_id, info);
     }
 
-    /// Remove a screen share session.
-    pub async fn remove_screen_share(&self, user_id: Uuid) -> Option<ScreenShareInfo> {
+    /// Remove a single screen share session by `stream_id`.
+    pub async fn remove_screen_share(&self, stream_id: Uuid) -> Option<ScreenShareInfo> {
         let mut shares = self.screen_shares.write().await;
-        shares.remove(&user_id)
+        shares.remove(&stream_id)
+    }
+
+    /// Remove all screen share sessions belonging to a user.
+    /// Returns the removed entries so callers can broadcast stop events.
+    pub async fn remove_user_screen_shares(&self, user_id: Uuid) -> Vec<ScreenShareInfo> {
+        let mut shares = self.screen_shares.write().await;
+        let stream_ids: Vec<Uuid> = shares
+            .values()
+            .filter(|s| s.user_id == user_id)
+            .map(|s| s.stream_id)
+            .collect();
+        stream_ids
+            .iter()
+            .filter_map(|id| shares.remove(id))
+            .collect()
+    }
+
+    /// Count how many active screen share streams a user has.
+    pub async fn get_user_stream_count(&self, user_id: Uuid) -> usize {
+        let shares = self.screen_shares.read().await;
+        shares.values().filter(|s| s.user_id == user_id).count()
     }
 
     /// Get all screen shares.
@@ -183,7 +204,7 @@ impl Room {
                 username: Some(peer.username.clone()),
                 display_name: Some(peer.display_name.clone()),
                 muted: peer.is_muted().await,
-                screen_sharing: shares.contains_key(user_id),
+                screen_sharing: shares.values().any(|s| s.user_id == *user_id),
                 webcam_active: webcams.contains_key(user_id),
             });
         }

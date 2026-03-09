@@ -193,10 +193,11 @@ pub async fn start(
         return Err(ScreenShareError::NotInChannel);
     }
 
-    // Check not already sharing
+    // Check per-user stream limit (max 3 concurrent streams)
     {
-        let screen_shares = room.screen_shares.read().await;
-        if screen_shares.contains_key(&user.id) {
+        const MAX_STREAMS_PER_USER: usize = 3;
+        let count = room.get_user_stream_count(user.id).await;
+        if count >= MAX_STREAMS_PER_USER {
             return Err(ScreenShareError::AlreadySharing);
         }
     }
@@ -255,35 +256,42 @@ pub async fn stop(
     user: AuthUser,
     Path(channel_id): Path<Uuid>,
 ) -> Result<(), ScreenShareError> {
-    let had_screen_share = if let Some(room) = state.sfu.get_room(channel_id).await {
-        room.screen_shares.read().await.contains_key(&user.id)
+    // Find the user's screen share (pick first/oldest match).
+    // TODO(multi-stream): Task 7 will add stream_id to the REST stop request.
+    let share_info = if let Some(room) = state.sfu.get_room(channel_id).await {
+        let shares = room.screen_shares.read().await;
+        shares
+            .values()
+            .filter(|s| s.user_id == user.id)
+            .min_by_key(|s| s.started_at)
+            .cloned()
     } else {
-        false
+        None
     };
 
-    if had_screen_share {
+    if let Some(info) = share_info {
         if let Some(ref limiter) = state.screen_share_limiter {
             limiter.stop(channel_id).await;
         } else {
             tracing::warn!("Screen share limiter unavailable during stop — counter not decremented");
         }
-    }
 
-    if let Some(room) = state.sfu.get_room(channel_id).await {
-        room.remove_screen_share(user.id).await;
+        if let Some(room) = state.sfu.get_room(channel_id).await {
+            room.remove_screen_share(info.stream_id).await;
 
-        let event = ServerEvent::ScreenShareStopped {
-            channel_id,
-            user_id: user.id,
-            reason: "user_stopped".to_string(),
-        };
-        if let Err(e) = broadcast_to_channel(&state.redis, channel_id, &event).await {
-            error!(
-                channel_id = %channel_id,
-                user_id = %user.id,
-                error = %e,
-                "Failed to broadcast screen share stopped event"
-            );
+            let event = ServerEvent::ScreenShareStopped {
+                channel_id,
+                user_id: user.id,
+                reason: "user_stopped".to_string(),
+            };
+            if let Err(e) = broadcast_to_channel(&state.redis, channel_id, &event).await {
+                error!(
+                    channel_id = %channel_id,
+                    user_id = %user.id,
+                    error = %e,
+                    "Failed to broadcast screen share stopped event"
+                );
+            }
         }
     }
 

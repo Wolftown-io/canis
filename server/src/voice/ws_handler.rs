@@ -265,8 +265,9 @@ async fn handle_leave(
         .await
         .ok_or(VoiceError::RoomNotFound(channel_id))?;
 
-    // Check if sharing screen and stop it
-    if room.remove_screen_share(user_id).await.is_some() {
+    // Remove all screen shares for this user
+    let removed_shares = room.remove_user_screen_shares(user_id).await;
+    for _share in &removed_shares {
         if let Some(limiter) = screen_share_limiter {
             limiter.stop(channel_id).await;
         } else {
@@ -588,10 +589,11 @@ async fn handle_screen_share_start(
         .await
         .ok_or(VoiceError::ParticipantNotFound(params.user_id))?;
 
-    // Check if user is already sharing
+    // Check if user has reached the per-user stream limit (max 3 concurrent streams)
     {
-        let shares = room.screen_shares.read().await;
-        if shares.contains_key(&params.user_id) {
+        const MAX_STREAMS_PER_USER: usize = 3;
+        let count = room.get_user_stream_count(params.user_id).await;
+        if count >= MAX_STREAMS_PER_USER {
             return Err(VoiceError::Signaling("Already sharing screen".to_string()));
         }
     }
@@ -698,8 +700,20 @@ async fn handle_screen_share_stop(
         .await
         .ok_or(VoiceError::RoomNotFound(channel_id))?;
 
-    // Remove screen share from room
-    let _had_audio = if let Some(info) = room.remove_screen_share(user_id).await {
+    // Find the user's screen share stream_id (no stream_id in event yet — pick first match).
+    // TODO(multi-stream): Task 4 will add stream_id to the WS event so we can target a
+    // specific stream. For now, remove the first (oldest) share owned by this user.
+    let share_info = {
+        let shares = room.screen_shares.read().await;
+        shares
+            .values()
+            .filter(|s| s.user_id == user_id)
+            .min_by_key(|s| s.started_at)
+            .cloned()
+    };
+
+    let _had_audio = if let Some(info) = share_info {
+        room.remove_screen_share(info.stream_id).await;
         info.has_audio
     } else {
         // User wasn't sharing, but that's okay - idempotent

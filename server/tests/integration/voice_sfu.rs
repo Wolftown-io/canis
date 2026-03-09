@@ -226,10 +226,11 @@ async fn test_room_screen_share_add_and_remove() {
 
     let room = Room::new(Uuid::new_v4(), DEFAULT_MAX_PARTICIPANTS);
     let user_id = Uuid::new_v4();
+    let stream_id = Uuid::new_v4();
 
     // Add screen share
     let share_info = ScreenShareInfo::new(
-        Uuid::new_v4(),
+        stream_id,
         user_id,
         "testuser".to_string(),
         "Display 1".to_string(),
@@ -242,12 +243,13 @@ async fn test_room_screen_share_add_and_remove() {
     let shares = room.get_screen_shares().await;
     assert_eq!(shares.len(), 1);
     assert_eq!(shares[0].user_id, user_id);
+    assert_eq!(shares[0].stream_id, stream_id);
     assert!(matches!(shares[0].quality, Quality::Medium));
 
-    // Remove screen share
-    let removed = room.remove_screen_share(user_id).await;
+    // Remove screen share by stream_id
+    let removed = room.remove_screen_share(stream_id).await;
     assert!(removed.is_some());
-    assert_eq!(removed.unwrap().user_id, user_id);
+    assert_eq!(removed.unwrap().stream_id, stream_id);
 
     // Verify it was removed
     let shares_after = room.get_screen_shares().await;
@@ -281,7 +283,7 @@ async fn test_room_multiple_screen_shares() {
 }
 
 #[tokio::test]
-async fn test_room_screen_share_duplicate_user_replaces() {
+async fn test_room_screen_share_same_user_multiple_streams() {
     use vc_server::voice::screen_share::ScreenShareInfo;
     use vc_server::voice::sfu::Room;
     use vc_server::voice::Quality;
@@ -289,9 +291,10 @@ async fn test_room_screen_share_duplicate_user_replaces() {
     let room = Room::new(Uuid::new_v4(), DEFAULT_MAX_PARTICIPANTS);
     let user_id = Uuid::new_v4();
 
-    // Add first screen share
+    // Add first screen share (stream 1)
+    let stream_id1 = Uuid::new_v4();
     let share1 = ScreenShareInfo::new(
-        Uuid::new_v4(),
+        stream_id1,
         user_id,
         "testuser".to_string(),
         "Display 1".to_string(),
@@ -300,9 +303,10 @@ async fn test_room_screen_share_duplicate_user_replaces() {
     );
     room.add_screen_share(share1).await;
 
-    // Add second screen share from same user (should replace)
+    // Add second screen share from same user (different stream_id — both coexist)
+    let stream_id2 = Uuid::new_v4();
     let share2 = ScreenShareInfo::new(
-        Uuid::new_v4(),
+        stream_id2,
         user_id,
         "testuser".to_string(),
         "Display 2".to_string(),
@@ -311,11 +315,17 @@ async fn test_room_screen_share_duplicate_user_replaces() {
     );
     room.add_screen_share(share2).await;
 
-    // Should still only have one entry
+    // Both streams should be present
     let shares = room.get_screen_shares().await;
-    assert_eq!(shares.len(), 1);
-    assert!(matches!(shares[0].quality, Quality::High));
-    assert_eq!(shares[0].source_label, "Display 2");
+    assert_eq!(shares.len(), 2);
+    assert_eq!(room.get_user_stream_count(user_id).await, 2);
+
+    // Remove all user shares
+    let removed = room.remove_user_screen_shares(user_id).await;
+    assert_eq!(removed.len(), 2);
+
+    let shares_after = room.get_screen_shares().await;
+    assert!(shares_after.is_empty());
 }
 
 #[tokio::test]
