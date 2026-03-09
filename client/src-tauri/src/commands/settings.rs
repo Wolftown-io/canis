@@ -44,6 +44,10 @@ impl Default for AudioSettings {
 pub struct VoiceSettings {
     pub push_to_talk: bool,
     pub push_to_talk_key: Option<String>,
+    pub push_to_talk_release_delay: u32,
+    pub push_to_mute: bool,
+    pub push_to_mute_key: Option<String>,
+    pub push_to_mute_release_delay: u32,
     pub voice_activity_detection: bool,
     pub vad_threshold: f32,
 }
@@ -53,6 +57,10 @@ impl Default for VoiceSettings {
         Self {
             push_to_talk: false,
             push_to_talk_key: None,
+            push_to_talk_release_delay: 200,
+            push_to_mute: false,
+            push_to_mute_key: None,
+            push_to_mute_release_delay: 200,
             voice_activity_detection: true,
             vad_threshold: 0.5,
         }
@@ -93,6 +101,21 @@ impl Settings {
             self.voice.push_to_talk = false;
             self.voice.voice_activity_detection = true;
         }
+        // PTM without a key binding is unusable — disable it
+        if self.voice.push_to_mute && self.voice.push_to_mute_key.is_none() {
+            self.voice.push_to_mute = false;
+        }
+        // PTT and PTM keys must differ
+        if self.voice.push_to_talk
+            && self.voice.push_to_mute
+            && self.voice.push_to_talk_key == self.voice.push_to_mute_key
+        {
+            self.voice.push_to_mute = false;
+            self.voice.push_to_mute_key = None;
+        }
+        // Clamp release delays
+        self.voice.push_to_talk_release_delay = self.voice.push_to_talk_release_delay.min(1000);
+        self.voice.push_to_mute_release_delay = self.voice.push_to_mute_release_delay.min(1000);
         self
     }
 }

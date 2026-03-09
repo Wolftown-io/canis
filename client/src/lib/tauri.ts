@@ -2545,6 +2545,10 @@ export async function getSettings(): Promise<AppSettings> {
     voice: {
       push_to_talk: false,
       push_to_talk_key: null,
+      push_to_talk_release_delay: 200,
+      push_to_mute: false,
+      push_to_mute_key: null,
+      push_to_mute_release_delay: 200,
       voice_activity_detection: true,
       vad_threshold: 0.5,
     },
