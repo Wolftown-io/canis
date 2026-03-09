@@ -73,6 +73,7 @@ pub async fn handle_voice_event(
         }
         ClientEvent::VoiceScreenShareStart {
             channel_id,
+            stream_id,
             quality,
             has_audio,
             source_label,
@@ -83,6 +84,7 @@ pub async fn handle_voice_event(
                 HandleScreenShareStartParams {
                     user_id,
                     channel_id,
+                    stream_id,
                     quality,
                     has_audio,
                     source_label: &source_label,
@@ -91,8 +93,12 @@ pub async fn handle_voice_event(
             )
             .await
         }
-        ClientEvent::VoiceScreenShareStop { channel_id } => {
-            handle_screen_share_stop(sfu, user_id, channel_id, screen_share_limiter).await
+        ClientEvent::VoiceScreenShareStop {
+            channel_id,
+            stream_id,
+        } => {
+            handle_screen_share_stop(sfu, user_id, channel_id, stream_id, screen_share_limiter)
+                .await
         }
         ClientEvent::VoiceWebcamStart {
             channel_id,
@@ -267,7 +273,7 @@ async fn handle_leave(
 
     // Remove all screen shares for this user
     let removed_shares = room.remove_user_screen_shares(user_id).await;
-    for _share in &removed_shares {
+    for share in &removed_shares {
         if let Some(limiter) = screen_share_limiter {
             limiter.stop(channel_id).await;
         } else {
@@ -281,6 +287,7 @@ async fn handle_leave(
             ServerEvent::ScreenShareStopped {
                 channel_id,
                 user_id,
+                stream_id: share.stream_id,
                 reason: "disconnected".to_string(),
             },
         )
@@ -548,6 +555,7 @@ async fn handle_voice_stats(
 struct HandleScreenShareStartParams<'a> {
     user_id: Uuid,
     channel_id: Uuid,
+    stream_id: Uuid,
     quality: Quality,
     has_audio: bool,
     source_label: &'a str,
@@ -621,9 +629,8 @@ async fn handle_screen_share_start(
         }));
     }
 
-    // Generate a stream_id for this screen share session.
-    // TODO(multi-stream): In later tasks, this will come from the client event.
-    let stream_id = Uuid::new_v4();
+    // Use the stream_id provided by the client.
+    let stream_id = params.stream_id;
 
     // Queue pending track sources so setup_track_handler can identify them
     peer.push_pending_source(TrackSource::ScreenVideo(stream_id))
@@ -668,10 +675,12 @@ async fn handle_screen_share_start(
     room.broadcast_all(ServerEvent::ScreenShareStarted {
         channel_id: params.channel_id,
         user_id: params.user_id,
+        stream_id,
         username,
         source_label: params.source_label.to_string(),
         has_audio: params.has_audio,
         quality: params.quality,
+        started_at: info.started_at.to_rfc3339(),
     })
     .await;
 
@@ -690,9 +699,10 @@ async fn handle_screen_share_stop(
     sfu: &Arc<SfuServer>,
     user_id: Uuid,
     channel_id: Uuid,
+    stream_id: Uuid,
     screen_share_limiter: Option<&ScreenShareLimiter>,
 ) -> Result<(), VoiceError> {
-    info!(user_id = %user_id, channel_id = %channel_id, "User stopping screen share");
+    info!(user_id = %user_id, channel_id = %channel_id, stream_id = %stream_id, "User stopping screen share");
 
     // Get the room
     let room = sfu
@@ -700,20 +710,19 @@ async fn handle_screen_share_stop(
         .await
         .ok_or(VoiceError::RoomNotFound(channel_id))?;
 
-    // Find the user's screen share stream_id (no stream_id in event yet — pick first match).
-    // TODO(multi-stream): Task 4 will add stream_id to the WS event so we can target a
-    // specific stream. For now, remove the first (oldest) share owned by this user.
+    // Look up the specific stream by stream_id and verify ownership.
     let share_info = {
         let shares = room.screen_shares.read().await;
-        shares
-            .values()
-            .filter(|s| s.user_id == user_id)
-            .min_by_key(|s| s.started_at)
-            .cloned()
+        shares.get(&stream_id).cloned()
     };
 
     let _had_audio = if let Some(info) = share_info {
-        room.remove_screen_share(info.stream_id).await;
+        // Verify the requesting user owns this stream
+        if info.user_id != user_id {
+            warn!(user_id = %user_id, stream_id = %stream_id, "User tried to stop a screen share they don't own");
+            return Err(VoiceError::Signaling("Not your screen share".to_string()));
+        }
+        room.remove_screen_share(stream_id).await;
         info.has_audio
     } else {
         // User wasn't sharing, but that's okay - idempotent
@@ -779,6 +788,7 @@ async fn handle_screen_share_stop(
     room.broadcast_all(ServerEvent::ScreenShareStopped {
         channel_id,
         user_id,
+        stream_id,
         reason: "user_stopped".to_string(),
     })
     .await;
@@ -786,6 +796,7 @@ async fn handle_screen_share_stop(
     info!(
         user_id = %user_id,
         channel_id = %channel_id,
+        stream_id = %stream_id,
         "Screen share stopped"
     );
 

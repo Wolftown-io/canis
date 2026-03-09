@@ -98,22 +98,28 @@ fn test_server_event_screen_share_started_serialization() {
     let channel_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 
+    let stream_id = Uuid::new_v4();
+
     let event = ServerEvent::ScreenShareStarted {
         channel_id,
         user_id,
+        stream_id,
         username: "alice".to_string(),
         source_label: "Display 1".to_string(),
         has_audio: true,
         quality: Quality::High,
+        started_at: "2026-01-01T00:00:00+00:00".to_string(),
     };
 
     let json = serde_json::to_string(&event).unwrap();
     assert!(json.contains("\"type\":\"screen_share_started\""));
     assert!(json.contains(&format!("\"channel_id\":\"{channel_id}\"")));
     assert!(json.contains(&format!("\"user_id\":\"{user_id}\"")));
+    assert!(json.contains(&format!("\"stream_id\":\"{stream_id}\"")));
     assert!(json.contains("\"username\":\"alice\""));
     assert!(json.contains("\"source_label\":\"Display 1\""));
     assert!(json.contains("\"has_audio\":true"));
+    assert!(json.contains("\"started_at\":\"2026-01-01T00:00:00+00:00\""));
 }
 
 #[test]
@@ -123,14 +129,18 @@ fn test_server_event_screen_share_stopped_serialization() {
     let channel_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 
+    let stream_id = Uuid::new_v4();
+
     let event = ServerEvent::ScreenShareStopped {
         channel_id,
         user_id,
+        stream_id,
         reason: "user_stopped".to_string(),
     };
 
     let json = serde_json::to_string(&event).unwrap();
     assert!(json.contains("\"type\":\"screen_share_stopped\""));
+    assert!(json.contains(&format!("\"stream_id\":\"{stream_id}\"")));
     assert!(json.contains("\"reason\":\"user_stopped\""));
 }
 

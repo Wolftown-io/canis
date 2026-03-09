@@ -210,23 +210,27 @@ pub async fn start(
     limiter.start(channel_id, max_screen_shares).await?;
 
     // Update room & broadcast
+    let stream_id = Uuid::new_v4();
     let info = ScreenShareInfo::new(
-        Uuid::new_v4(),
+        stream_id,
         user.id,
         user.username.clone(),
         req.source_label.clone(),
         req.has_audio,
         granted_quality,
     );
+    let started_at = info.started_at.to_rfc3339();
     room.add_screen_share(info).await;
 
     let event = ServerEvent::ScreenShareStarted {
         channel_id,
         user_id: user.id,
+        stream_id,
         username: user.username,
         source_label: req.source_label,
         has_audio: req.has_audio,
         quality: granted_quality,
+        started_at,
     };
     if let Err(e) = broadcast_to_channel(&state.redis, channel_id, &event).await {
         error!(
@@ -282,6 +286,7 @@ pub async fn stop(
             let event = ServerEvent::ScreenShareStopped {
                 channel_id,
                 user_id: user.id,
+                stream_id: info.stream_id,
                 reason: "user_stopped".to_string(),
             };
             if let Err(e) = broadcast_to_channel(&state.redis, channel_id, &event).await {

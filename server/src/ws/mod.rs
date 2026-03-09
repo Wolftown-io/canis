@@ -186,6 +186,8 @@ pub enum ClientEvent {
     VoiceScreenShareStart {
         /// Voice channel.
         channel_id: Uuid,
+        /// Unique identifier for this screen share stream.
+        stream_id: Uuid,
         /// Requested quality tier.
         quality: Quality,
         /// Whether to include system audio.
@@ -197,6 +199,8 @@ pub enum ClientEvent {
     VoiceScreenShareStop {
         /// Voice channel.
         channel_id: Uuid,
+        /// Unique identifier for the screen share stream to stop.
+        stream_id: Uuid,
     },
 
     /// Start webcam in voice channel
@@ -475,6 +479,8 @@ pub enum ServerEvent {
         channel_id: Uuid,
         /// User who started sharing.
         user_id: Uuid,
+        /// Unique identifier for this screen share stream.
+        stream_id: Uuid,
         /// Username of sharer.
         username: String,
         /// Label of shared source.
@@ -483,6 +489,8 @@ pub enum ServerEvent {
         has_audio: bool,
         /// Quality tier.
         quality: Quality,
+        /// When the screen share started (ISO 8601).
+        started_at: String,
     },
     /// Screen share stopped
     ScreenShareStopped {
@@ -490,6 +498,8 @@ pub enum ServerEvent {
         channel_id: Uuid,
         /// User who stopped sharing.
         user_id: Uuid,
+        /// Unique identifier for the stopped screen share stream.
+        stream_id: Uuid,
         /// Reason for stop.
         reason: String,
     },
