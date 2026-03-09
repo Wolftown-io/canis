@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-07
 
 ## Quick Status Overview
 
@@ -690,6 +690,11 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 ---
 
 ## Recent Changes
+
+### 2026-03-07
+- **Context-Aware Focus Engine** (PR #349) — Completes the Focus Engine by wiring `evaluateFocusPolicy()` into the notification pipeline via a unified `shouldNotify()` gate (DND + focus mode + channel level), adding native OS desktop notifications via `tauri-plugin-notification` with Web Notification API browser fallback, and custom app detection rules UI. New `sendOsNotification()` formats title/body by event type (DM, mention, thread, call) with privacy toggle and E2EE-safe generic bodies. Notification preferences (`os_enabled`, `show_content`, `flash_taskbar`) synced via existing preferences infrastructure. Desktop Notifications settings section with test button. Custom App Detection Rules section in Focus Settings for user-defined process-to-category mappings. 10 unit tests for notification formatting. Three code review rounds fixed guild lookup bug (`g.channels?.some()` → `g.id === channel?.guild_id`), test notification visibility bypass (`force` parameter), and missing CHANGELOG entries.
+- **Keyboard Shortcuts, Formatting Toolbar & UX Polish** (PR #348) — Keyboard shortcuts help dialog (Ctrl+/ to open) listing all available shortcuts grouped by category, message formatting toolbar with bold/italic/code/link buttons above the composer, and friends tab empty state with pending request counts and navigation hints.
+- **snake_case Convention Refactor** (PR #347) — Renamed all camelCase wire-format fields across TypeScript interfaces and WebSocket event payloads to snake_case, matching Rust serde defaults per project standards. Updated all client-side consumers.
 
 ### 2026-03-06
 - **QA Polish & Feature Completion** — Comprehensive browser-based QA testing identified 9 improvement items added to Phase 6. High priority: message editing client wiring (server API fully implemented, client missing `editMessage()` + context menu + inline edit UI), emoji picker button in message composer (component exists but only wired to reactions), session expiry notification (`kaiku:session-expired` event dispatched but never listened to). Medium priority: custom status backend support (client UI complete, backend no-op), keyboard shortcuts help dialog (shortcuts scattered and undiscoverable), message formatting toolbar (plain textarea with no hints). Low priority: friends tab empty state improvement (no mention of pending requests), guild discovery default prompt (new guilds not discoverable by default), channel message search UX polish.
