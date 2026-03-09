@@ -1767,17 +1767,6 @@ export async function handleScreenShareStopped(event: any): Promise<void> {
           state.participants[event.user_id].screen_sharing = false;
         }
 
-        // If it was us and this stream matches, clear local state
-        if (state.screenShareInfo?.stream_id === event.stream_id) {
-          state.screenShareInfo = null;
-          // Only clear screenSharing if no more of our shares remain
-          const ourShares = state.screenShares.some(
-            (s) => s.user_id === event.user_id,
-          );
-          if (!ourShares) {
-            state.screenSharing = false;
-          }
-        }
       }),
     );
   }

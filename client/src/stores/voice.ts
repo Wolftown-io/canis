@@ -70,7 +70,6 @@ interface VoiceStoreState {
 
   // Screen sharing
   screenSharing: boolean;
-  screenShareInfo: ScreenShareInfo | null;
   screenShares: ScreenShareInfo[]; // All active screen shares in channel
 
   // Webcam
@@ -96,7 +95,6 @@ const [voiceState, setVoiceState] = createStore<VoiceStoreState>({
   participants: {},
   error: null,
   screenSharing: false,
-  screenShareInfo: null,
   screenShares: [],
   webcamActive: false,
   webcams: [],
@@ -461,7 +459,7 @@ export async function joinVoice(channelId: string): Promise<void> {
         console.log("[Voice] Screen share stopped:", reason);
         // Sync local state only when no more streams remain
         if (!adapter.isScreenSharing()) {
-          setVoiceState({ screenSharing: false, screenShareInfo: null });
+          setVoiceState({ screenSharing: false });
         }
       },
       onWebcamTrack: (userId, track) => {
@@ -528,7 +526,6 @@ export async function leaveVoice(): Promise<void> {
     participants: {},
     speaking: false,
     screenSharing: false,
-    screenShareInfo: null,
     screenShares: [],
     webcamActive: false,
     webcams: [],
@@ -695,7 +692,7 @@ export async function stopScreenShare(streamId?: string): Promise<void> {
 
     // If no more streams are active, clear sharing state
     if (!adapter.isScreenSharing()) {
-      setVoiceState({ screenSharing: false, screenShareInfo: null });
+      setVoiceState({ screenSharing: false });
     }
   } else {
     // Stop all streams
@@ -716,7 +713,7 @@ export async function stopScreenShare(streamId?: string): Promise<void> {
       }
     }
 
-    setVoiceState({ screenSharing: false, screenShareInfo: null });
+    setVoiceState({ screenSharing: false });
   }
 }
 

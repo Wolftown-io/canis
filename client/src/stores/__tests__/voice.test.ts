@@ -75,7 +75,6 @@ describe("voice store", () => {
       participants: {},
       error: null,
       screenSharing: false,
-      screenShareInfo: null,
       screenShares: [],
       webcamActive: false,
       webcams: [],

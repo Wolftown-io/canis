@@ -18,7 +18,6 @@ function resetVoiceState() {
     channelId: "test-channel-1",
     screenShares: [],
     screenSharing: false,
-    screenShareInfo: null,
     participants: {},
   });
 }
