@@ -34,6 +34,8 @@ pub fn validate_source_label(label: &str) -> Result<(), ScreenShareError> {
 /// Information about an active screen share session.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ScreenShareInfo {
+    /// Unique identifier for this screen share stream
+    pub stream_id: Uuid,
     /// User who is sharing
     pub user_id: Uuid,
     /// Username for display
@@ -51,6 +53,7 @@ pub struct ScreenShareInfo {
 impl ScreenShareInfo {
     /// Create a new [`ScreenShareInfo`].
     pub fn new(
+        stream_id: Uuid,
         user_id: Uuid,
         username: String,
         source_label: String,
@@ -58,6 +61,7 @@ impl ScreenShareInfo {
         quality: Quality,
     ) -> Self {
         Self {
+            stream_id,
             user_id,
             username,
             source_label,
@@ -282,8 +286,10 @@ mod tests {
     #[test]
     fn test_screen_share_info_creation() {
         let before = chrono::Utc::now();
+        let stream_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
+            stream_id,
             user_id,
             "alice".to_string(),
             "Display 1".to_string(),
@@ -292,6 +298,7 @@ mod tests {
         );
         let after = chrono::Utc::now();
 
+        assert_eq!(info.stream_id, stream_id);
         assert_eq!(info.user_id, user_id);
         assert_eq!(info.username, "alice");
         assert_eq!(info.source_label, "Display 1");
@@ -305,6 +312,7 @@ mod tests {
         let before = chrono::Utc::now();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
+            Uuid::new_v4(),
             user_id,
             "bob".to_string(),
             "Firefox".to_string(),
@@ -320,8 +328,10 @@ mod tests {
 
     #[test]
     fn test_screen_share_info_serialization() {
+        let stream_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let info = ScreenShareInfo::new(
+            stream_id,
             user_id,
             "alice".to_string(),
             "Display 1".to_string(),
@@ -330,6 +340,7 @@ mod tests {
         );
 
         let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"stream_id\""));
         assert!(json.contains("\"username\":\"alice\""));
         assert!(json.contains("\"source_label\":\"Display 1\""));
         assert!(json.contains("\"has_audio\":true"));
@@ -337,6 +348,7 @@ mod tests {
 
         // Roundtrip
         let deserialized: ScreenShareInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.stream_id, stream_id);
         assert_eq!(deserialized.user_id, user_id);
         assert_eq!(deserialized.username, "alice");
     }

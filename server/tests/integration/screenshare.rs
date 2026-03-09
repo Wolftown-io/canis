@@ -69,6 +69,7 @@ fn test_screen_share_start_request_deserialization() {
 fn test_screen_share_info_roundtrip() {
     let user_id = Uuid::new_v4();
     let info = ScreenShareInfo::new(
+        Uuid::new_v4(),
         user_id,
         "testuser".to_string(),
         "Display 1".to_string(),

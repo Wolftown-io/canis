@@ -206,6 +206,7 @@ fn test_screen_share_info_fields() {
 
     let info = ScreenShareInfo::new(
         Uuid::new_v4(),
+        Uuid::new_v4(),
         "testuser".to_string(),
         "Display 1".to_string(),
         true,
@@ -228,6 +229,7 @@ async fn test_room_screen_share_add_and_remove() {
 
     // Add screen share
     let share_info = ScreenShareInfo::new(
+        Uuid::new_v4(),
         user_id,
         "testuser".to_string(),
         "Display 1".to_string(),
@@ -265,6 +267,7 @@ async fn test_room_multiple_screen_shares() {
     for (i, quality) in qualities.iter().enumerate() {
         let share_info = ScreenShareInfo::new(
             Uuid::new_v4(),
+            Uuid::new_v4(),
             format!("user{i}"),
             format!("Display {i}"),
             false,
@@ -288,6 +291,7 @@ async fn test_room_screen_share_duplicate_user_replaces() {
 
     // Add first screen share
     let share1 = ScreenShareInfo::new(
+        Uuid::new_v4(),
         user_id,
         "testuser".to_string(),
         "Display 1".to_string(),
@@ -298,6 +302,7 @@ async fn test_room_screen_share_duplicate_user_replaces() {
 
     // Add second screen share from same user (should replace)
     let share2 = ScreenShareInfo::new(
+        Uuid::new_v4(),
         user_id,
         "testuser".to_string(),
         "Display 2".to_string(),
@@ -426,6 +431,7 @@ async fn test_screen_share_limit_per_channel() {
 
     for i in 0..max_screen_shares {
         let share = ScreenShareInfo::new(
+            Uuid::new_v4(),
             Uuid::new_v4(),
             format!("user{i}"),
             format!("Display {i}"),

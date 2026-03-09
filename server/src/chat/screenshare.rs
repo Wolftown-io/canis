@@ -210,6 +210,7 @@ pub async fn start(
 
     // Update room & broadcast
     let info = ScreenShareInfo::new(
+        Uuid::new_v4(),
         user.id,
         user.username.clone(),
         req.source_label.clone(),

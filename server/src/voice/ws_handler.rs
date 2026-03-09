@@ -651,6 +651,7 @@ async fn handle_screen_share_start(
 
     // Create screen share info
     let info = ScreenShareInfo::new(
+        stream_id,
         params.user_id,
         username.clone(),
         params.source_label.to_string(),
