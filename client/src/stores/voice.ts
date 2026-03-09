@@ -459,8 +459,10 @@ export async function joinVoice(channelId: string): Promise<void> {
       },
       onScreenShareStopped: (_userId, _streamId, reason) => {
         console.log("[Voice] Screen share stopped:", reason);
-        // Sync local state when screen share is stopped (e.g., via system UI)
-        setVoiceState({ screenSharing: false });
+        // Sync local state only when no more streams remain
+        if (!adapter.isScreenSharing()) {
+          setVoiceState({ screenSharing: false, screenShareInfo: null });
+        }
       },
       onWebcamTrack: (userId, track) => {
         console.log("[Voice] Webcam track received:", userId);

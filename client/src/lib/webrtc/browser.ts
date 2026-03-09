@@ -1147,8 +1147,9 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       const track = event.track;
       const stream = event.streams[0];
 
-      // Parse stream ID format: "{userId}:{sourceType}" (e.g. "uuid:Webcam", "uuid:ScreenVideo(stream_id)")
-      // Use indexOf to safely split on first colon only
+      // Parse stream ID format: "{userId}:{sourceType}" using Display format
+      // (e.g. "uuid:webcam", "uuid:screen_video:stream_uuid", "uuid:microphone")
+      // Split on first colon only to get [userId, sourceType]
       const colonIdx = stream.id.indexOf(":");
       const userId = colonIdx > 0 ? stream.id.slice(0, colonIdx) : stream.id;
       const sourceType = colonIdx > 0 ? stream.id.slice(colonIdx + 1) : "";
@@ -1158,7 +1159,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
       );
 
       if (track.kind === "video") {
-        if (sourceType === "Webcam") {
+        if (sourceType === "webcam") {
           // Webcam video track
           console.log("[BrowserVoiceAdapter] Webcam video track from:", userId);
           this.eventHandlers.onWebcamTrack?.(userId, track);
@@ -1171,7 +1172,7 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
             this.eventHandlers.onWebcamTrackRemoved?.(userId);
           };
         } else {
-          // Screen share video track — parse stream_id from "ScreenVideo(uuid)"
+          // Screen share video track — parse stream_id from "screen_video:uuid"
           const streamId = this.parseScreenShareStreamId(sourceType);
           console.log(
             "[BrowserVoiceAdapter] Screen share video track from:",
@@ -1296,12 +1297,12 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
   }
 
   /**
-   * Parse stream_id from a TrackSource debug string like "ScreenVideo(uuid)".
+   * Parse stream_id from a TrackSource Display string like "screen_video:uuid".
    * Falls back to "unknown" if the format doesn't match.
    */
   private parseScreenShareStreamId(sourceType: string): string {
-    // Format: "ScreenVideo(01234567-89ab-cdef-0123-456789abcdef)"
-    const match = sourceType.match(/^Screen(?:Video|Audio)\((.+)\)$/);
+    // Format: "screen_video:01234567-89ab-cdef-0123-456789abcdef"
+    const match = sourceType.match(/^screen_(?:video|audio):(.+)$/);
     return match?.[1] ?? "unknown";
   }
 

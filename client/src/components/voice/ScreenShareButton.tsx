@@ -1,8 +1,7 @@
-import { Component, createSignal, createMemo } from "solid-js";
+import { Component, createMemo } from "solid-js";
 import { MonitorUp, MonitorOff } from "lucide-solid";
-import { voiceState, stopScreenShare } from "@/stores/voice";
+import { voiceState } from "@/stores/voice";
 import { currentUser } from "@/stores/auth";
-import { showToast } from "@/components/ui/Toast";
 
 /** Maximum concurrent screen shares per user. */
 const MAX_SCREEN_SHARES = 3;
@@ -21,8 +20,6 @@ interface ScreenShareButtonProps {
  * streams is handled via the viewer UI.
  */
 const ScreenShareButton: Component<ScreenShareButtonProps> = (props) => {
-  const [loading, setLoading] = createSignal(false);
-
   /** Number of screen shares the local user currently owns. */
   const ownShareCount = createMemo(() => {
     const userId = currentUser()?.id;
@@ -32,34 +29,17 @@ const ScreenShareButton: Component<ScreenShareButtonProps> = (props) => {
 
   const atLimit = createMemo(() => ownShareCount() >= MAX_SCREEN_SHARES);
 
-  const handleClick = async () => {
-    if (atLimit()) {
-      // At the stream limit — stop all shares
-      setLoading(true);
-      try {
-        await stopScreenShare();
-      } catch (err) {
-        console.error("Failed to stop screen share:", err);
-        showToast({
-          type: "error",
-          title: "Could not stop screen share.",
-          duration: 8000,
-        });
-      } finally {
-        setLoading(false);
-      }
+  const handleClick = () => {
+    if (atLimit()) return; // Disabled at limit — stop individual streams via viewer UI
+    if (props.onShowSourcePicker) {
+      props.onShowSourcePicker();
     } else {
-      // Open picker to start a new share
-      if (props.onShowSourcePicker) {
-        props.onShowSourcePicker();
-      } else {
-        props.onShowQualityPicker?.();
-      }
+      props.onShowQualityPicker?.();
     }
   };
 
   const buttonTitle = () => {
-    if (atLimit()) return "Stop All Shares";
+    if (atLimit()) return `Limit reached (${MAX_SCREEN_SHARES}/${MAX_SCREEN_SHARES})`;
     if (voiceState.screenSharing) return `Share Another Screen (${ownShareCount()}/${MAX_SCREEN_SHARES})`;
     return "Share Screen";
   };
@@ -67,14 +47,12 @@ const ScreenShareButton: Component<ScreenShareButtonProps> = (props) => {
   return (
     <button
       onClick={handleClick}
-      disabled={voiceState.state !== "connected" || loading()}
+      disabled={voiceState.state !== "connected" || atLimit()}
       class={`p-2 rounded-full transition-colors ${
         voiceState.screenSharing
-          ? atLimit()
-            ? "bg-warning/20 text-warning hover:bg-danger/20 hover:text-danger"
-            : "bg-success/20 text-success hover:bg-success/30 hover:text-success"
+          ? "bg-success/20 text-success hover:bg-success/30 hover:text-success"
           : "bg-background-secondary text-text-secondary hover:bg-background-primary hover:text-text-primary"
-      } ${loading() ? "opacity-50 cursor-wait" : ""}`}
+      } ${atLimit() ? "opacity-50 cursor-not-allowed" : ""}`}
       title={buttonTitle()}
     >
       {atLimit() ? (
