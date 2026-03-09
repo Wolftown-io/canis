@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, onCleanup } from "solid-js";
+import { Component, Show, createSignal } from "solid-js";
 import { appSettings, updateAudioSetting, updateVoiceSetting, isSettingsLoading } from "@/stores/settings";
 import { keyCodeToLabel } from "@/lib/pttManager";
 
