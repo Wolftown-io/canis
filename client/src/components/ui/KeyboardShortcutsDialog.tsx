@@ -13,6 +13,8 @@
 
 import { Component, For, onCleanup, onMount } from "solid-js";
 import { X } from "lucide-solid";
+import { appSettings } from "@/stores/settings";
+import { keyCodeToLabel } from "@/lib/pttManager";
 
 interface ShortcutEntry {
   keys: string[];
@@ -24,34 +26,50 @@ interface ShortcutCategory {
   shortcuts: ShortcutEntry[];
 }
 
-const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
-  {
-    title: "General",
-    shortcuts: [
-      { keys: ["Ctrl", "K"], description: "Open command palette" },
-      { keys: ["Ctrl", "Shift", "F"], description: "Toggle global search" },
-      { keys: ["Ctrl", "/"], description: "Toggle this dialog" },
-    ],
-  },
-  {
-    title: "Voice",
-    shortcuts: [
-      { keys: ["Ctrl", "Shift", "M"], description: "Toggle microphone mute" },
-      { keys: ["Ctrl", "Shift", "D"], description: "Toggle deafen" },
-    ],
-  },
-  {
-    title: "Chat",
-    shortcuts: [
-      { keys: ["Ctrl", "F"], description: "Search in channel" },
-      { keys: ["Enter"], description: "Send message" },
-      { keys: ["Shift", "Enter"], description: "New line" },
-      { keys: ["Ctrl", "B"], description: "Bold text" },
-      { keys: ["Ctrl", "I"], description: "Italic text" },
-      { keys: ["Ctrl", "E"], description: "Inline code" },
-    ],
-  },
-];
+function getShortcutCategories(): ShortcutCategory[] {
+  const settings = appSettings();
+  const voiceShortcuts: ShortcutEntry[] = [
+    { keys: ["Ctrl", "Shift", "M"], description: "Toggle microphone mute" },
+    { keys: ["Ctrl", "Shift", "D"], description: "Toggle deafen" },
+  ];
+
+  if (settings?.voice.push_to_talk && settings.voice.push_to_talk_key) {
+    voiceShortcuts.push({
+      keys: [keyCodeToLabel(settings.voice.push_to_talk_key)],
+      description: "Push to Talk (hold)",
+    });
+  }
+
+  if (settings?.voice.push_to_mute && settings.voice.push_to_mute_key) {
+    voiceShortcuts.push({
+      keys: [keyCodeToLabel(settings.voice.push_to_mute_key)],
+      description: "Push to Mute (hold)",
+    });
+  }
+
+  return [
+    {
+      title: "General",
+      shortcuts: [
+        { keys: ["Ctrl", "K"], description: "Open command palette" },
+        { keys: ["Ctrl", "Shift", "F"], description: "Toggle global search" },
+        { keys: ["Ctrl", "/"], description: "Toggle this dialog" },
+      ],
+    },
+    { title: "Voice", shortcuts: voiceShortcuts },
+    {
+      title: "Chat",
+      shortcuts: [
+        { keys: ["Ctrl", "F"], description: "Search in channel" },
+        { keys: ["Enter"], description: "Send message" },
+        { keys: ["Shift", "Enter"], description: "New line" },
+        { keys: ["Ctrl", "B"], description: "Bold text" },
+        { keys: ["Ctrl", "I"], description: "Italic text" },
+        { keys: ["Ctrl", "E"], description: "Inline code" },
+      ],
+    },
+  ];
+}
 
 interface KeyboardShortcutsDialogProps {
   onClose: () => void;
@@ -103,7 +121,7 @@ const KeyboardShortcutsDialog: Component<KeyboardShortcutsDialogProps> = (props)
 
         {/* Content */}
         <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-          <For each={SHORTCUT_CATEGORIES}>
+          <For each={getShortcutCategories()}>
             {(category) => (
               <div>
                 <h3 class="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">
