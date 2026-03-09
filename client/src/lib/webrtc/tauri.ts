@@ -278,18 +278,28 @@ export class TauriVoiceAdapter implements VoiceAdapter {
   }
 
   /**
-   * Get information about the current screen share.
+   * Get information about a screen share.
    * Returns null if not sharing.
    */
-  getScreenShareInfo(): { hasAudio: boolean; sourceLabel: string } | null {
+  getScreenShareInfo(streamId?: string): { streamId: string; hasAudio: boolean; sourceLabel: string } | null {
     if (!this.screenSharing) {
       return null;
     }
 
+    // Single-stream for now (multi-stream Tauri support in Tasks 15-16)
     return {
+      streamId: streamId ?? "default",
       hasAudio: this.screenShareWithAudio,
       sourceLabel: this.screenShareSourceName || "Screen",
     };
+  }
+
+  /**
+   * Get info for all active screen shares.
+   */
+  getAllScreenShareInfo(): { streamId: string; hasAudio: boolean; sourceLabel: string }[] {
+    const info = this.getScreenShareInfo();
+    return info ? [info] : [];
   }
 
   /**
@@ -353,7 +363,7 @@ export class TauriVoiceAdapter implements VoiceAdapter {
     }
   }
 
-  async stopScreenShare(): Promise<VoiceResult<void>> {
+  async stopScreenShare(_streamId?: string): Promise<VoiceResult<void>> {
     console.log("[TauriVoiceAdapter] Stopping native screen share");
 
     if (!this.screenSharing) {
@@ -376,6 +386,10 @@ export class TauriVoiceAdapter implements VoiceAdapter {
       console.error("[TauriVoiceAdapter] Failed to stop screen share:", err);
       return { ok: false, error: this.mapTauriError(err) };
     }
+  }
+
+  async stopAllScreenShares(): Promise<VoiceResult<void>> {
+    return this.stopScreenShare();
   }
 
   // Webcam (delegates to Tauri Rust backend)

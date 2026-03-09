@@ -2768,6 +2768,7 @@ export async function wsAdminUnsubscribe(): Promise<void> {
  */
 export async function wsScreenShareStart(
   channelId: string,
+  streamId: string,
   quality: "low" | "medium" | "high" | "premium",
   hasAudio: boolean,
   sourceLabel: string,
@@ -2775,6 +2776,7 @@ export async function wsScreenShareStart(
   await wsSend({
     type: "voice_screen_share_start",
     channel_id: channelId,
+    stream_id: streamId,
     quality,
     has_audio: hasAudio,
     source_label: sourceLabel,
@@ -2784,10 +2786,14 @@ export async function wsScreenShareStart(
 /**
  * Stop screen sharing in a voice channel (notifies server).
  */
-export async function wsScreenShareStop(channelId: string): Promise<void> {
+export async function wsScreenShareStop(
+  channelId: string,
+  streamId: string,
+): Promise<void> {
   await wsSend({
     type: "voice_screen_share_stop",
     channel_id: channelId,
+    stream_id: streamId,
   });
 }
 

@@ -66,9 +66,9 @@ export interface VoiceAdapterEvents {
 
   // Screen share events
   onScreenShareStarted?: (info: ScreenShareInfo) => void;
-  onScreenShareStopped?: (userId: string, reason: string) => void;
-  onScreenShareTrack?: (userId: string, track: MediaStreamTrack) => void;
-  onScreenShareTrackRemoved?: (userId: string) => void;
+  onScreenShareStopped?: (userId: string, streamId: string, reason: string) => void;
+  onScreenShareTrack?: (userId: string, streamId: string, track: MediaStreamTrack) => void;
+  onScreenShareTrackRemoved?: (userId: string, streamId: string) => void;
 
   // Webcam events
   onWebcamTrack?: (userId: string, track: MediaStreamTrack) => void;
@@ -105,6 +105,8 @@ export interface ScreenShareOptions {
   sourceId?: string;
   quality?: ScreenShareQuality;
   withAudio?: boolean;
+  /** Unique stream identifier. Auto-generated if not provided. */
+  streamId?: string;
 }
 
 /**
@@ -133,6 +135,7 @@ export type ScreenShareResult =
  * Information about an active screen share
  */
 export interface ScreenShareInfo {
+  stream_id: string;
   user_id: string;
   username: string;
   source_label: string;
@@ -231,10 +234,13 @@ export interface VoiceAdapter {
 
   // Screen sharing
   startScreenShare(options?: ScreenShareOptions): Promise<VoiceResult<void>>;
-  stopScreenShare(): Promise<VoiceResult<void>>;
+  stopScreenShare(streamId?: string): Promise<VoiceResult<void>>;
+  stopAllScreenShares(): Promise<VoiceResult<void>>;
   isScreenSharing(): boolean;
-  /** Get info about current screen share (hasAudio, sourceLabel). Returns null if not sharing. */
-  getScreenShareInfo(): { hasAudio: boolean; sourceLabel: string } | null;
+  /** Get info about current screen share(s). Returns null if not sharing. */
+  getScreenShareInfo(streamId?: string): { streamId: string; hasAudio: boolean; sourceLabel: string } | null;
+  /** Get info for all active screen shares. */
+  getAllScreenShareInfo(): { streamId: string; hasAudio: boolean; sourceLabel: string }[];
   /** Enumerate native capture sources (Tauri only). Returns null if not supported. */
   enumerateCaptureSources?(): Promise<CaptureSource[] | null>;
 

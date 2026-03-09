@@ -432,22 +432,22 @@ export async function joinVoice(channelId: string): Promise<void> {
       onSpeakingChange: (speaking) => {
         setVoiceState({ speaking });
       },
-      onScreenShareTrack: (userId, track) => {
-        console.log("[Voice] Screen share track received:", userId);
+      onScreenShareTrack: (userId, streamId, track) => {
+        console.log("[Voice] Screen share track received:", userId, streamId);
         // Import and call viewer store
         import("@/stores/screenShareViewer").then(({ startViewing }) => {
           startViewing(userId, track);
         });
       },
-      onScreenShareTrackRemoved: (userId) => {
-        console.log("[Voice] Screen share track removed:", userId);
+      onScreenShareTrackRemoved: (userId, streamId) => {
+        console.log("[Voice] Screen share track removed:", userId, streamId);
         import("@/stores/screenShareViewer").then(
           ({ removeAvailableTrack }) => {
             removeAvailableTrack(userId);
           },
         );
       },
-      onScreenShareStopped: (_userId, reason) => {
+      onScreenShareStopped: (_userId, _streamId, reason) => {
         console.log("[Voice] Screen share stopped:", reason);
         // Sync local state when screen share is stopped (e.g., via system UI)
         setVoiceState({ screenSharing: false });
@@ -611,14 +611,13 @@ export async function startScreenShare(
     return { ok: false, error: "Not connected to voice channel" };
   }
 
-  if (voiceState.screenSharing) {
-    return { ok: false, error: "Already sharing screen" };
-  }
+  // Generate a stream ID for this screen share
+  const streamId = crypto.randomUUID();
 
   const adapter = await createVoiceAdapter();
 
   // Start the capture (native source for Tauri, browser getDisplayMedia for web)
-  const result = await adapter.startScreenShare({ quality, sourceId });
+  const result = await adapter.startScreenShare({ quality, sourceId, streamId });
 
   if (!result.ok) {
     console.error("Failed to start screen share:", result.error);
@@ -626,7 +625,7 @@ export async function startScreenShare(
   }
 
   // Get actual screen share info from the adapter
-  const shareInfo = adapter.getScreenShareInfo();
+  const shareInfo = adapter.getScreenShareInfo(streamId);
   const hasAudio = shareInfo?.hasAudio ?? false;
   const sourceLabel = shareInfo?.sourceLabel ?? "Screen";
 
@@ -634,6 +633,7 @@ export async function startScreenShare(
   try {
     await tauri.wsScreenShareStart(
       voiceState.channelId,
+      streamId,
       quality || "medium",
       hasAudio,
       sourceLabel,
@@ -641,7 +641,7 @@ export async function startScreenShare(
   } catch (err) {
     console.error("Failed to notify server of screen share start:", err);
     // Stop capture since server notification failed
-    await adapter.stopScreenShare();
+    await adapter.stopScreenShare(streamId);
     return { ok: false, error: "Failed to notify server" };
   }
 
@@ -650,41 +650,62 @@ export async function startScreenShare(
 }
 
 /**
- * Stop screen sharing.
+ * Stop a specific screen share stream, or all streams if no streamId given.
  */
-export async function stopScreenShare(): Promise<void> {
+export async function stopScreenShare(streamId?: string): Promise<void> {
   if (!voiceState.screenSharing) return;
 
   const channelId = voiceState.channelId;
-
   const adapter = await createVoiceAdapter();
-  const result = await adapter.stopScreenShare();
 
-  if (!result.ok) {
-    console.error("Failed to stop screen share:", result.error);
-  }
-
-  // Notify server about screen share stop
-  if (channelId) {
-    try {
-      await tauri.wsScreenShareStop(channelId);
-    } catch (err) {
-      console.error("Failed to notify server of screen share stop:", err);
-      // Show toast so user knows server wasn't notified (screen share stopped locally)
-      showToast({
-        type: "warning",
-        title: "Screen share stopped locally",
-        message: "Server may still show you as sharing. Reconnect if needed.",
-        duration: 5000,
-        id: "screen-share-stop-warning",
-      });
+  if (streamId) {
+    // Stop a specific stream
+    const result = await adapter.stopScreenShare(streamId);
+    if (!result.ok) {
+      console.error("Failed to stop screen share:", result.error);
     }
-  }
 
-  setVoiceState({
-    screenSharing: false,
-    screenShareInfo: null,
-  });
+    // Notify server about this specific stream stop
+    if (channelId) {
+      try {
+        await tauri.wsScreenShareStop(channelId, streamId);
+      } catch (err) {
+        console.error("Failed to notify server of screen share stop:", err);
+        showToast({
+          type: "warning",
+          title: "Screen share stopped locally",
+          message: "Server may still show you as sharing. Reconnect if needed.",
+          duration: 5000,
+          id: "screen-share-stop-warning",
+        });
+      }
+    }
+
+    // If no more streams are active, clear sharing state
+    if (!adapter.isScreenSharing()) {
+      setVoiceState({ screenSharing: false, screenShareInfo: null });
+    }
+  } else {
+    // Stop all streams
+    const allInfo = adapter.getAllScreenShareInfo();
+    const result = await adapter.stopAllScreenShares();
+    if (!result.ok) {
+      console.error("Failed to stop all screen shares:", result.error);
+    }
+
+    // Notify server about each stream stop
+    if (channelId) {
+      for (const info of allInfo) {
+        try {
+          await tauri.wsScreenShareStop(channelId, info.streamId);
+        } catch (err) {
+          console.error("Failed to notify server of screen share stop:", err);
+        }
+      }
+    }
+
+    setVoiceState({ screenSharing: false, screenShareInfo: null });
+  }
 }
 
 /**
