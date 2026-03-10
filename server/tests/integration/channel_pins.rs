@@ -208,13 +208,13 @@ async fn test_pin_limit_50() {
         );
     }
 
-    // 51st pin should fail with 400 (PIN_LIMIT_REACHED)
+    // 51st pin should fail with 409 (PIN_LIMIT_REACHED)
     let msg_id = insert_message(&app.pool, channel_id, user_id, "Message 51").await;
     let resp = pin_message(&app, channel_id, msg_id, &token).await;
     assert_eq!(
         resp.status(),
-        400,
-        "51st pin should return 400 (PIN_LIMIT_REACHED)"
+        409,
+        "51st pin should return 409 (PIN_LIMIT_REACHED)"
     );
 
     let body = body_to_json(resp).await;

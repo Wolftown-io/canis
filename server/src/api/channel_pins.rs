@@ -88,9 +88,9 @@ impl IntoResponse for ChannelPinsError {
                 "Pins are only supported in guild channels",
             ),
             Self::PinLimitReached => (
-                StatusCode::BAD_REQUEST,
+                StatusCode::CONFLICT,
                 "PIN_LIMIT_REACHED",
-                "Maximum number of pins reached for this channel",
+                "This channel has reached the maximum of 50 pins",
             ),
             Self::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", "Forbidden"),
             Self::Database(err) => {
