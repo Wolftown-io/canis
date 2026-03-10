@@ -282,6 +282,14 @@ export interface Message {
   mention_type: "direct" | "everyone" | "here" | null;
   reactions?: Reaction[];
   thread_info?: ThreadInfo;
+  pinned: boolean;
+  message_type: string; // "user" | "system"
+}
+
+export interface ChannelPin {
+  message: Message;
+  pinned_by: string;
+  pinned_at: string;
 }
 
 export interface ThreadInfo {
