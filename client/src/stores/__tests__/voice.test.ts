@@ -41,9 +41,31 @@ vi.mock("@/stores/channels", () => ({
   },
 }));
 
+vi.mock("@/stores/settings", () => ({
+  appSettings: vi.fn(() => ({
+    voice: {
+      push_to_talk: false,
+      push_to_talk_key: null,
+      push_to_talk_release_delay: 200,
+      push_to_mute: false,
+      push_to_mute_key: null,
+      push_to_mute_release_delay: 200,
+    },
+  })),
+}));
+
 vi.mock("@/components/ui/Toast", () => ({
   showToast: vi.fn(),
   dismissToast: vi.fn(),
+}));
+
+vi.mock("@/lib/pttManager", () => ({
+  PttController: vi.fn().mockImplementation(() => ({
+    activate: vi.fn(),
+    deactivate: vi.fn(),
+    isPttOrPtmEnabled: vi.fn().mockReturnValue(false),
+  })),
+  createTauriPttListeners: vi.fn().mockResolvedValue(vi.fn()),
 }));
 
 import {

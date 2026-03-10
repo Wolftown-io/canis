@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Volume mute toggle now remembers pre-mute level and restores it on unmute
 
 ### Added
+- Push-to-Talk and Push-to-Mute hotkeys — configurable key bindings with system-wide support (Tauri global shortcuts) and browser fallback, release delay (0–1000ms), coexistence of PTT+PTM with mute-wins priority, mute button auto-disabled when PTT/PTM active, dynamic keyboard shortcuts dialog entries (#357)
 - Multi-stream screen sharing — up to 3 simultaneous screen shares per user and 6 per channel (configurable), with stream-specific start/stop, viewer UI with focus mode + thumbnail strip, 2x2 grid mode for up to 4 streams, keyboard shortcuts (G for grid, F for focus), and full Tauri + browser parity (#356)
 - Session management — view active sessions with device and location info, revoke individual sessions or all other devices, with optional prompt after password change
 - Discovery setup step in guild creation flow — new servers can be made discoverable with tags and banner during creation, with a mini preview card showing how the guild will appear in the server browser

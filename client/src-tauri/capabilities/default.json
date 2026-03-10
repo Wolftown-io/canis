@@ -10,6 +10,9 @@
     "core:window:allow-start-dragging",
     "core:webview:default",
     "shell:allow-open",
-    "notification:default"
+    "notification:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered"
   ]
 }

@@ -685,6 +685,10 @@ export interface AudioSettings {
 export interface VoiceSettings {
   push_to_talk: boolean;
   push_to_talk_key: string | null;
+  push_to_talk_release_delay: number;
+  push_to_mute: boolean;
+  push_to_mute_key: string | null;
+  push_to_mute_release_delay: number;
   voice_activity_detection: boolean;
   vad_threshold: number;
 }

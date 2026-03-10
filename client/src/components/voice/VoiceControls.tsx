@@ -1,6 +1,6 @@
 import { Component, createSignal, Show, onMount, onCleanup } from "solid-js";
 import { Mic, MicOff, Headphones, VolumeX, Settings } from "lucide-solid";
-import { voiceState, toggleMute, toggleDeafen } from "@/stores/voice";
+import { voiceState, toggleMute, toggleDeafen, isPttActive } from "@/stores/voice";
 import MicrophoneTest from "./MicrophoneTest";
 import ScreenShareButton from "./ScreenShareButton";
 import ScreenShareQualityPicker from "./ScreenShareQualityPicker";
@@ -26,7 +26,7 @@ const VoiceControls: Component = () => {
     if (voiceState.state !== "connected") return;
     if (e.ctrlKey && e.shiftKey && e.key === "M") {
       e.preventDefault();
-      toggleMute();
+      if (!isPttActive()) toggleMute();
     } else if (e.ctrlKey && e.shiftKey && e.key === "D") {
       e.preventDefault();
       toggleDeafen();
@@ -50,14 +50,20 @@ const VoiceControls: Component = () => {
         {/* Mute button */}
         <button
           data-testid="voice-mute"
-          onClick={() => toggleMute()}
+          onClick={() => { if (!isPttActive()) toggleMute(); }}
           class={`p-2 rounded-full transition-colors ${
             voiceState.muted
               ? "bg-accent-danger/20 text-accent-danger hover:bg-accent-danger/30"
               : "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-text-primary"
-          }`}
-          title={voiceState.muted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"}
-          disabled={voiceState.state !== "connected"}
+          } ${isPttActive() ? "opacity-50 cursor-not-allowed" : ""}`}
+          title={
+            isPttActive()
+              ? "Controlled by Push-to-Talk / Push-to-Mute"
+              : voiceState.muted
+                ? "Unmute (Ctrl+Shift+M)"
+                : "Mute (Ctrl+Shift+M)"
+          }
+          disabled={voiceState.state !== "connected" || isPttActive()}
         >
           {voiceState.muted ? (
             <MicOff class="w-5 h-5" />

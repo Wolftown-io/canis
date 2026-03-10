@@ -16,8 +16,10 @@ import {
 import type { ScreenShareInfo, ScreenShareQuality } from "@/lib/webrtc/types";
 import type { VoiceParticipant, WebcamServerInfo } from "@/lib/types";
 import { channelsState } from "@/stores/channels";
+import { appSettings } from "@/stores/settings";
 import * as tauri from "@/lib/tauri";
 import { showToast, dismissToast } from "@/components/ui/Toast";
+import { PttController, createTauriPttListeners, type PttFullConfig } from "@/lib/pttManager";
 
 // Detect if running in Tauri
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
@@ -103,6 +105,10 @@ const [voiceState, setVoiceState] = createStore<VoiceStoreState>({
   localMetrics: null,
   participantMetrics: new Map(),
 });
+
+// PTT/PTM controller instance
+let pttController: PttController | null = null;
+let pttCleanup: (() => void) | null = null;
 
 // Event listeners
 let unlisteners: UnlistenFn[] = [];
@@ -490,6 +496,9 @@ export async function joinVoice(channelId: string): Promise<void> {
     setVoiceState("sessionId", crypto.randomUUID());
     setVoiceState("connectedAt", Date.now());
     startMetricsLoop();
+
+    // Activate PTT/PTM if configured
+    await activatePtt();
   } finally {
     isJoining = false;
   }
@@ -503,6 +512,9 @@ export async function leaveVoice(): Promise<void> {
 
   // Stop metrics collection first
   stopMetricsLoop();
+
+  // Deactivate PTT/PTM
+  await deactivatePtt();
 
   // Reset notification state and dismiss any active connection toasts
   currentIncidentStart = null;
@@ -534,6 +546,72 @@ export async function leaveVoice(): Promise<void> {
     localMetrics: null,
     participantMetrics: new Map(),
   });
+}
+
+function getPttConfig(): PttFullConfig | null {
+  const settings = appSettings();
+  if (!settings) return null;
+
+  const { voice } = settings;
+  if (!voice.push_to_talk && !voice.push_to_mute) return null;
+
+  return {
+    pttEnabled: voice.push_to_talk,
+    pttKey: voice.push_to_talk_key,
+    pttReleaseDelay: voice.push_to_talk_release_delay,
+    ptmEnabled: voice.push_to_mute,
+    ptmKey: voice.push_to_mute_key,
+    ptmReleaseDelay: voice.push_to_mute_release_delay,
+  };
+}
+
+let pttActivating = false;
+
+async function activatePtt(): Promise<void> {
+  // Guard against concurrent activation from rapid setting changes
+  if (pttActivating) return;
+  pttActivating = true;
+  try {
+    await deactivatePtt();
+
+    const config = getPttConfig();
+    if (!config) return;
+
+    pttController = new PttController(setMute);
+    pttController.activate(config);
+    pttCleanup = await createTauriPttListeners(pttController, config);
+  } finally {
+    pttActivating = false;
+  }
+}
+
+async function deactivatePtt(): Promise<void> {
+  const wasActive = pttController !== null && pttController.isPttOrPtmEnabled();
+  if (pttCleanup) {
+    const fn = pttCleanup;
+    pttCleanup = null;
+    await Promise.resolve(fn());
+  }
+  if (pttController) {
+    pttController.deactivate();
+    pttController = null;
+  }
+  // Restore open-mic when PTT/PTM is deactivated so the user isn't left
+  // silently muted (PTT rest state is muted).
+  if (wasActive) {
+    await setMute(false);
+  }
+}
+
+/** Re-sync PTT state when settings change mid-call. */
+export async function updatePttFromSettings(): Promise<void> {
+  if (voiceState.state !== "connected") return;
+  await activatePtt();
+}
+
+/** Whether PTT or PTM is currently controlling the mute state. */
+export function isPttActive(): boolean {
+  return pttController !== null && pttController.isPttOrPtmEnabled();
 }
 
 /**

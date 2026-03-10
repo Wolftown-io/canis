@@ -58,4 +58,8 @@ export async function updateVoiceSetting<K extends keyof AppSettings["voice"]>(
 
   const nextVoice = { ...current.voice, [key]: value };
   await setAppSetting("voice", nextVoice);
+
+  // Re-sync PTT controller if voice is connected
+  const { updatePttFromSettings } = await import("@/stores/voice");
+  await updatePttFromSettings();
 }

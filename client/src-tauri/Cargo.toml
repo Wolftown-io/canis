@@ -23,6 +23,7 @@ vc-crypto = { workspace = true, features = ["megolm"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-global-shortcut = "2"
 
 # Async
 tokio.workspace = true
