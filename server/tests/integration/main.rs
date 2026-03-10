@@ -7,6 +7,7 @@ mod blocking;
 mod bot_ecosystem;
 mod bot_intents;
 mod channel_permissions;
+mod channel_pins;
 mod channels_http;
 mod connectivity_http;
 mod custom_status;
