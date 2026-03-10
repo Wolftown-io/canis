@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-03-08
+**Last Updated:** 2026-03-10
 
 ## Quick Status Overview
 
@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 65% (11/17) | Personal workspaces, digital library, focus engine, custom status, session management, QA polish (edit messages, emoji composer, session expiry, shortcuts, formatting, friends empty state). Remaining: mobile, guild discovery prompt, channel search, guild bans, channel pins, PTT hotkey, simulcast |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 80% (16/20) | Personal workspaces, digital library, focus engine, custom status, session management, QA polish (edit messages, emoji composer, session expiry, shortcuts, formatting, friends empty state), multi-stream screen sharing, guild bans, channel search & guild discovery prompt, PTT/PTM hotkeys. Remaining: mobile, live session toolkits, channel pins, simulcast |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
@@ -621,12 +621,21 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [x] **[UX] Friends Tab Empty State Improvement** `Priority: Low` ✅
   - **Context:** When there are pending friend requests but no accepted friends, the "All" friends tab shows "You don't have any friends yet" with no mention of pending requests.
   - **Strategy:** Add a contextual hint like "You have N pending request(s)" with a link to the Pending tab when the All tab is empty but pending requests exist.
-- [ ] **[UX] Guild Discovery Default Prompt** `Priority: Low`
+- [x] **[UX] Guild Discovery Default Prompt** `Priority: Low` ✅ (PR #351)
   - **Context:** After creating a guild, the Discover Servers page is empty because discoverability is off by default. New guild owners may not know about the feature.
   - **Strategy:** Add a prompt during guild creation or in the post-creation flow: "Make this server visible in the server browser?" Alternatively, add a dismissible banner in guild settings suggesting to enable discoverability.
-- [ ] **[Chat] Channel Message Search** `Priority: Low`
+- [x] **[Chat] Channel Search Scope Selector** `Priority: Low` ✅ (PR #351)
   - **Context:** The guild sidebar has a "Search messages..." input. Full-text search exists server-side but the in-channel search UX could be improved with result highlighting and contextual navigation.
   - **Strategy:** Ensure the search input in the channel sidebar is wired to the existing search API with proper result rendering, message highlighting, and click-to-navigate within the channel context.
+- [x] **[Voice] Push-to-Talk & Push-to-Mute Hotkeys** ✅ (PR #357)
+  - Configurable PTT and PTM hotkeys with system-wide support (Tauri global shortcuts) and browser fallback.
+  - Release delay (0–1000ms), coexistence of PTT+PTM with mute-wins priority, mute button auto-disabled when active, dynamic keyboard shortcuts dialog entries.
+  - **Design:** `docs/developer-guide/plans/2026-03-10-ptt-hotkey-design.md`
+  - **Plan:** `docs/developer-guide/plans/2026-03-10-ptt-hotkey-implementation.md`
+- [x] **[Voice] Multi-Stream Screen Sharing** ✅ (PR #356)
+  - Up to 3 simultaneous screen shares per user and 6 per channel (configurable), with stream-specific start/stop, viewer UI with focus mode + thumbnail strip, 2x2 grid mode, keyboard shortcuts (G for grid, F for focus), and full Tauri + browser parity.
+- [x] **[Auth] Guild Bans** ✅ (PR #317, #272)
+  - Per-guild ban enforcement via `guild_bans` table; banned users blocked from joining via discovery or invite codes, with support for temporary bans via `expires_at`.
 
 ---
 
