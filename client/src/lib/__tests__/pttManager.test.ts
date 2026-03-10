@@ -87,6 +87,23 @@ describe("PttController", () => {
     expect(mockSetMute).toHaveBeenCalledWith(true);
   });
 
+  it("ignores duplicate keyUp (e.g. browser + Tauri both fire)", () => {
+    controller.activate({
+      pttEnabled: true, pttKey: "Space", pttReleaseDelay: 200,
+      ptmEnabled: false, ptmKey: null, ptmReleaseDelay: 200,
+    });
+    controller.handleKeyDown("Space");
+    mockSetMute.mockClear();
+    controller.handleKeyUp("Space");
+    // Second keyUp should be ignored — timer should NOT restart
+    vi.advanceTimersByTime(100);
+    controller.handleKeyUp("Space");
+    // Original timer fires at 200ms from first keyUp, not reset
+    vi.advanceTimersByTime(100);
+    expect(mockSetMute).toHaveBeenCalledTimes(1);
+    expect(mockSetMute).toHaveBeenCalledWith(true);
+  });
+
   it("cancels release timer if key pressed again", () => {
     controller.activate({
       pttEnabled: true, pttKey: "Space", pttReleaseDelay: 200,

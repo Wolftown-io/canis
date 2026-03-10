@@ -1,4 +1,4 @@
-import { Component, Show, createSignal } from "solid-js";
+import { Component, Show, createSignal, onCleanup } from "solid-js";
 import { appSettings, updateAudioSetting, updateVoiceSetting, isSettingsLoading } from "@/stores/settings";
 import { keyCodeToLabel } from "@/lib/pttManager";
 
@@ -170,8 +170,18 @@ const KeyBindInput: Component<{
 }> = (props) => {
     const [capturing, setCapturing] = createSignal(props.autoCapture ?? false);
     const [error, setError] = createSignal<string | null>(null);
+    let activeHandler: ((e: KeyboardEvent) => void) | null = null;
+
+    const stopCapture = () => {
+        if (activeHandler) {
+            window.removeEventListener("keydown", activeHandler, true);
+            activeHandler = null;
+        }
+        setCapturing(false);
+    };
 
     const startCapture = () => {
+        stopCapture(); // clean up any prior listener
         setCapturing(true);
         setError(null);
 
@@ -183,27 +193,28 @@ const KeyBindInput: Component<{
             if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
 
             if (e.code === "Escape") {
-                setCapturing(false);
-                window.removeEventListener("keydown", handler, true);
+                stopCapture();
                 return;
             }
 
             // Check for conflict with other key
             if (props.otherKey && e.code === props.otherKey) {
                 setError("PTT and PTM keys must be different");
-                window.removeEventListener("keydown", handler, true);
-                setCapturing(false);
+                stopCapture();
                 return;
             }
 
             setError(null);
-            setCapturing(false);
+            stopCapture();
             props.onBind(e.code);
-            window.removeEventListener("keydown", handler, true);
         };
 
+        activeHandler = handler;
         window.addEventListener("keydown", handler, true);
     };
+
+    // Clean up listener on component unmount
+    onCleanup(() => stopCapture());
 
     // Auto-capture on mount if needed
     if (props.autoCapture) {

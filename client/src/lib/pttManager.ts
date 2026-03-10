@@ -167,6 +167,10 @@ export class PttController {
     const role = this.roleForKey(code);
     if (role === null) return;
 
+    // Ignore duplicate release (e.g. both browser and Tauri fire keyup)
+    if (role === "ptt" && !this.pttHeld) return;
+    if (role === "ptm" && !this.ptmHeld) return;
+
     const delay =
       role === "ptt"
         ? this.config.pttReleaseDelay

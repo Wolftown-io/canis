@@ -565,18 +565,28 @@ function getPttConfig(): PttFullConfig | null {
   };
 }
 
+let pttActivating = false;
+
 async function activatePtt(): Promise<void> {
-  await deactivatePtt();
+  // Guard against concurrent activation from rapid setting changes
+  if (pttActivating) return;
+  pttActivating = true;
+  try {
+    await deactivatePtt();
 
-  const config = getPttConfig();
-  if (!config) return;
+    const config = getPttConfig();
+    if (!config) return;
 
-  pttController = new PttController(setMute);
-  pttController.activate(config);
-  pttCleanup = await createTauriPttListeners(pttController, config);
+    pttController = new PttController(setMute);
+    pttController.activate(config);
+    pttCleanup = await createTauriPttListeners(pttController, config);
+  } finally {
+    pttActivating = false;
+  }
 }
 
 async function deactivatePtt(): Promise<void> {
+  const wasActive = pttController !== null && pttController.isPttOrPtmEnabled();
   if (pttCleanup) {
     const fn = pttCleanup;
     pttCleanup = null;
@@ -585,6 +595,11 @@ async function deactivatePtt(): Promise<void> {
   if (pttController) {
     pttController.deactivate();
     pttController = null;
+  }
+  // Restore open-mic when PTT/PTM is deactivated so the user isn't left
+  // silently muted (PTT rest state is muted).
+  if (wasActive) {
+    await setMute(false);
   }
 }
 
