@@ -353,6 +353,24 @@ pub enum ServerEvent {
         /// Emoji that was removed.
         emoji: String,
     },
+    /// Message pinned in channel
+    ChannelPinAdded {
+        /// Channel containing the pinned message.
+        channel_id: Uuid,
+        /// Message that was pinned.
+        message_id: Uuid,
+        /// User who pinned the message.
+        pinned_by: Uuid,
+        /// When the message was pinned (RFC3339).
+        pinned_at: String,
+    },
+    /// Message unpinned from channel
+    ChannelPinRemoved {
+        /// Channel the message was unpinned from.
+        channel_id: Uuid,
+        /// Message that was unpinned.
+        message_id: Uuid,
+    },
     /// Guild custom emojis updated
     GuildEmojiUpdated {
         /// Guild ID.
@@ -1896,11 +1914,10 @@ pub fn spawn_custom_status_sweep(
             debug!(count = user_ids.len(), "Clearing expired custom statuses");
 
             // Clear in database
-            if let Err(e) =
-                sqlx::query("UPDATE users SET custom_status = NULL WHERE id = ANY($1)")
-                    .bind(&user_ids)
-                    .execute(&db)
-                    .await
+            if let Err(e) = sqlx::query("UPDATE users SET custom_status = NULL WHERE id = ANY($1)")
+                .bind(&user_ids)
+                .execute(&db)
+                .await
             {
                 warn!(error = %e, "Custom status sweep: clear failed");
                 continue;

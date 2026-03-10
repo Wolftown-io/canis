@@ -142,8 +142,15 @@ pub struct Message {
     pub edited_at: Option<DateTime<Utc>>,
     /// When the message was deleted (soft delete).
     pub deleted_at: Option<DateTime<Utc>>,
+    /// Message type: "user" for regular, "system" for system events.
+    #[serde(default = "default_message_type")]
+    pub message_type: String,
     /// When the message was created.
     pub created_at: DateTime<Utc>,
+}
+
+fn default_message_type() -> String {
+    "user".to_string()
 }
 
 /// Role model.

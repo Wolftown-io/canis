@@ -187,7 +187,7 @@ pub struct ThreadInfoResponse {
 }
 
 /// Full message response with author info (matches client Message type).
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct MessageResponse {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -211,6 +211,11 @@ pub struct MessageResponse {
     /// Thread info (only present for messages with thread replies).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_info: Option<ThreadInfoResponse>,
+    /// Whether this message is pinned in its channel.
+    #[serde(default)]
+    pub pinned: bool,
+    /// Message type: "user" for normal messages, "system" for system events.
+    pub message_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -669,6 +674,8 @@ pub async fn create(
                         mention_type: None,
                         reactions: None,
                         thread_info: None,
+                        pinned: false,
+                        message_type: "user".to_string(),
                     };
 
                     let message_json = serde_json::to_value(&response).unwrap_or_default();
@@ -919,6 +926,8 @@ pub async fn create(
                             mention_type: None,
                             reactions: None,
                             thread_info: None,
+                            pinned: false,
+                            message_type: "user".to_string(),
                         };
 
                         return Ok((StatusCode::ACCEPTED, Json(accepted)));
@@ -1028,6 +1037,8 @@ pub async fn create(
         mention_type,
         reactions: None,
         thread_info: None,
+        pinned: false,
+        message_type: message.message_type,
     };
 
     // Broadcast via Redis pub-sub
@@ -1235,6 +1246,8 @@ pub async fn update(
         mention_type: None, // Edits don't trigger new notifications
         reactions: None,
         thread_info: None,
+        pinned: false,
+        message_type: message.message_type.clone(),
     };
 
     // Broadcast edit via Redis pub-sub
@@ -1351,7 +1364,7 @@ pub async fn delete(
 /// Bulk-fetch users, attachments, and reactions for a set of messages, then
 /// map them into `MessageResponse` objects. Used by both `list` and
 /// `list_thread_replies` to avoid duplicating the N+1 avoidance logic.
-async fn build_message_responses(
+pub async fn build_message_responses(
     pool: &sqlx::PgPool,
     requesting_user_id: Uuid,
     messages: Vec<db::Message>,
@@ -1410,6 +1423,17 @@ async fn build_message_responses(
             });
     }
 
+    // Bulk fetch pin status
+    let pinned_ids: std::collections::HashSet<Uuid> = sqlx::query_scalar::<_, Uuid>(
+        "SELECT message_id FROM channel_pins WHERE message_id = ANY($1)",
+    )
+    .bind(&message_ids)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .collect();
+
     // Batch-fetch thread info for parent messages with replies
     let parent_ids_with_threads: Vec<Uuid> = messages
         .iter()
@@ -1467,6 +1491,8 @@ async fn build_message_responses(
                 mention_type,
                 reactions,
                 thread_info,
+                pinned: pinned_ids.contains(&msg.id),
+                message_type: msg.message_type.clone(),
             }
         })
         .collect();
