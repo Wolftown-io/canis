@@ -8,6 +8,7 @@
 //! - Invites (bits 19-20): Invite-related permissions
 //! - Pages (bit 21): Information page management
 //! - Screen Sharing (bit 22): Screen sharing in voice channels
+//! - Pins (bit 25): Pin and unpin messages in channels
 
 use bitflags::bitflags;
 
@@ -85,6 +86,10 @@ bitflags! {
         // === Channel Visibility (bit 24) ===
         /// Permission to view a channel and read its message history
         const VIEW_CHANNEL       = 1 << 24;
+
+        // === Pins (bit 25) ===
+        /// Permission to pin and unpin messages in channels
+        const PIN_MESSAGES       = 1 << 25;
     }
 }
 
@@ -117,7 +122,8 @@ impl GuildPermissions {
         .union(Self::VIEW_AUDIT_LOG)
         .union(Self::MANAGE_INVITES)
         .union(Self::SCREEN_SHARE)
-        .union(Self::MENTION_EVERYONE);
+        .union(Self::MENTION_EVERYONE)
+        .union(Self::PIN_MESSAGES);
 
     /// Default permissions for officers (senior moderators).
     ///
@@ -146,7 +152,8 @@ impl GuildPermissions {
         .union(Self::MANAGE_INVITES)
         .union(Self::MANAGE_PAGES)
         .union(Self::SCREEN_SHARE)
-        .union(Self::MENTION_EVERYONE);
+        .union(Self::MENTION_EVERYONE)
+        .union(Self::PIN_MESSAGES);
 
     // === Database Conversion ===
 
@@ -280,6 +287,11 @@ mod tests {
     #[test]
     fn test_view_channel_permission_bits() {
         assert_eq!(GuildPermissions::VIEW_CHANNEL.bits(), 1 << 24);
+    }
+
+    #[test]
+    fn test_pin_messages_permission_bits() {
+        assert_eq!(GuildPermissions::PIN_MESSAGES.bits(), 1 << 25);
     }
 
     // === Preset Tests ===
@@ -477,6 +489,7 @@ mod tests {
             GuildPermissions::MANAGE_PAGES,
             GuildPermissions::SCREEN_SHARE,
             GuildPermissions::MENTION_EVERYONE,
+            GuildPermissions::PIN_MESSAGES,
         ];
 
         for forbidden in forbidden_perms {
@@ -606,6 +619,7 @@ mod tests {
             GuildPermissions::SCREEN_SHARE,
             GuildPermissions::MENTION_EVERYONE,
             GuildPermissions::VIEW_CHANNEL,
+            GuildPermissions::PIN_MESSAGES,
         ];
 
         // Check that combining all equals the sum of individual bits

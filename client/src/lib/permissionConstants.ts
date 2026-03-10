@@ -47,6 +47,9 @@ export const PermissionBits = {
 
   // Channel access (bit 24)
   VIEW_CHANNEL: 1 << 24,
+
+  // Pins (bit 25)
+  PIN_MESSAGES: 1 << 25,
 } as const;
 
 export type PermissionBit =
@@ -301,6 +304,16 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: "content",
     forbiddenForEveryone: true,
   },
+
+  // Pin permissions
+  {
+    key: "PIN_MESSAGES",
+    bit: PermissionBits.PIN_MESSAGES,
+    name: "Pin Messages",
+    description: "Allows pinning and unpinning messages in channels",
+    category: "moderation",
+    forbiddenForEveryone: true,
+  },
 ];
 
 const CHANNEL_OVERRIDE_PERMISSION_KEY_SET = new Set<string>(
@@ -366,7 +379,8 @@ export const MODERATOR_DEFAULT =
   PermissionBits.KICK_MEMBERS |
   PermissionBits.VIEW_AUDIT_LOG |
   PermissionBits.MANAGE_INVITES |
-  PermissionBits.MENTION_EVERYONE;
+  PermissionBits.MENTION_EVERYONE |
+  PermissionBits.PIN_MESSAGES;
 
 export const OFFICER_DEFAULT =
   MODERATOR_DEFAULT |
@@ -390,7 +404,8 @@ export const EVERYONE_FORBIDDEN =
   PermissionBits.TRANSFER_OWNERSHIP |
   PermissionBits.MANAGE_INVITES |
   PermissionBits.MANAGE_PAGES |
-  PermissionBits.MENTION_EVERYONE;
+  PermissionBits.MENTION_EVERYONE |
+  PermissionBits.PIN_MESSAGES;
 
 // Check if a permission is valid for @everyone role
 export function isValidForEveryone(permissions: number): boolean {
