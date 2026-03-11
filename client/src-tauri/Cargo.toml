@@ -31,6 +31,7 @@ futures.workspace = true
 
 # WebRTC
 webrtc.workspace = true
+smol_str = "0.2"
 
 # Audio
 cpal = "0.17"
