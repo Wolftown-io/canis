@@ -4,7 +4,7 @@ This roadmap outlines the development path from the current prototype to a produ
 
 **Current Phase:** Phase 6 (Competitive Differentiators & Mastery) - In Progress
 
-**Last Updated:** 2026-03-10
+**Last Updated:** 2026-03-11
 
 ## Quick Status Overview
 
@@ -16,7 +16,7 @@ This roadmap outlines the development path from the current prototype to a produ
 | **Foundation** | **Phase 3** | ✅ Complete | 100% | Guild system, Friends, DMs, Home View, Rate Limiting, Permission System + UI, Information Pages, DM Voice Calls |
 | **Foundation** | **Phase 4** | ✅ Complete | 100% | E2EE DM Messaging, User Connectivity Monitor, Rich Presence, First User Setup, Context Menus, Emoji Picker Polish, Unread Aggregator, Content Spoilers, Forgot Password, SSO/OIDC, User Blocking & Reports |
 | **Expansion** | **Phase 5** | ✅ Complete | 100% (17/17) | E2E suite, CI hardening, bot platform, search upgrades, threads, multi-stream partial, slash command reliability, production-scale polish, content filters, webhooks, bulk read management, guild discovery & onboarding, guild resource limits, progressive image loading, data governance |
-| **Expansion** | **Phase 6** | 🔄 In Progress | 80% (16/20) | Personal workspaces, digital library, focus engine, custom status, session management, QA polish (edit messages, emoji composer, session expiry, shortcuts, formatting, friends empty state), multi-stream screen sharing, guild bans, channel search & guild discovery prompt, PTT/PTM hotkeys. Remaining: mobile, live session toolkits, channel pins, simulcast |
+| **Expansion** | **Phase 6** | 🔄 In Progress | 85% (17/20) | Personal workspaces, digital library, focus engine, custom status, session management, QA polish (edit messages, emoji composer, session expiry, shortcuts, formatting, friends empty state), multi-stream screen sharing, guild bans, channel search & guild discovery prompt, PTT/PTM hotkeys, channel pins. Remaining: mobile, live session toolkits, simulcast |
 | **Scale and Trust** | **Phase 7** | 📋 Planned | 0% | Billing, accessibility, identity trust, observability |
 | **Scale and Trust** | **Phase 8** | 📋 Planned | 0% | Performance budgets, chaos drills, upgrade safety, FinOps, isolation testing |
 | **Scale and Trust** | **Phase 10** | 📋 Planned | 0% | SaaS scaling architecture |
