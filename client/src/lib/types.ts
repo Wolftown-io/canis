@@ -451,6 +451,14 @@ export type ClientEvent =
   // Webcam events
   | { type: "voice_webcam_start"; channel_id: string; quality: string }
   | { type: "voice_webcam_stop"; channel_id: string }
+  // Simulcast layer preference
+  | {
+      type: "voice_set_layer_preference";
+      channel_id: string;
+      target_user_id: string;
+      track_source: string;
+      preferred_layer: "auto" | "high" | "medium" | "low";
+    }
   // Custom status events
   | { type: "set_custom_status"; custom_status: CustomStatus | null }
   // Admin events
@@ -565,6 +573,14 @@ export type ServerEvent =
       packet_loss: number;
       jitter: number;
       quality: number;
+    }
+  // Simulcast layer events
+  | {
+      type: "voice_layer_changed";
+      channel_id: string;
+      source_user_id: string;
+      track_source: string;
+      active_layer: "high" | "medium" | "low";
     }
   // Admin events
   | { type: "admin_user_banned"; user_id: string; username: string }

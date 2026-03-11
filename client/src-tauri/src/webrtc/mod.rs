@@ -21,10 +21,39 @@ use webrtc::rtp_transceiver::rtp_codec::{
     RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType,
 };
 use webrtc::rtp_transceiver::rtp_sender::RTCRtpSender;
-use webrtc::rtp_transceiver::RTCPFeedback;
+use webrtc::rtp_transceiver::rtp_transceiver_direction::RTCRtpTransceiverDirection;
+use webrtc::rtp_transceiver::{RTCPFeedback, RTCRtpEncodingParameters, RTCRtpTransceiverInit};
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_remote::TrackRemote;
+
+/// Build 3-layer simulcast encoding parameters (high / medium / low).
+///
+/// **Limitation:** webrtc-rs 0.11 `add_transceiver_from_track` accepts
+/// `send_encodings` but only uses the `rid` field to annotate the SDP.
+/// It does **not** actually produce multiple encoded streams at different
+/// resolutions/bitrates — the Tauri client sends a single RTP stream from
+/// its capture + VP9-encode pipeline. True simulcast requires feeding
+/// three separately encoded streams, which is tracked as future work.
+///
+/// The RID values ("h", "m", "l") are set so the SDP matches the browser
+/// simulcast offer, allowing the SFU to parse the layers correctly.
+fn simulcast_encodings() -> Vec<RTCRtpEncodingParameters> {
+    vec![
+        RTCRtpEncodingParameters {
+            rid: smol_str::SmolStr::new("h"),
+            ..Default::default()
+        },
+        RTCRtpEncodingParameters {
+            rid: smol_str::SmolStr::new("m"),
+            ..Default::default()
+        },
+        RTCRtpEncodingParameters {
+            rid: smol_str::SmolStr::new("l"),
+            ..Default::default()
+        },
+    ]
+}
 
 /// WebRTC errors
 #[derive(Error, Debug)]
@@ -332,6 +361,12 @@ impl WebRtcClient {
             .map_err(|e| WebRtcError::TrackError(e.to_string()))?;
 
         // Create video track for screen sharing (always added to avoid SDP renegotiation)
+        // Uses add_transceiver_from_track with simulcast RID encodings (h/m/l)
+        // so the SDP advertises simulcast layers matching the browser path.
+        // TODO(simulcast): webrtc-rs 0.11 only uses the RID from send_encodings
+        // for SDP generation — it does not produce multiple encoded streams.
+        // True 3-layer simulcast requires feeding 3 separately encoded RTP
+        // streams from the capture pipeline (future work).
         let video_track = Arc::new(TrackLocalStaticRTP::new(
             RTCRtpCodecCapability {
                 mime_type: "video/VP9".to_string(),
@@ -344,12 +379,20 @@ impl WebRtcClient {
             "screen-share-stream".to_string(),
         ));
 
-        let video_sender = pc
-            .add_track(video_track.clone() as Arc<dyn TrackLocal + Send + Sync>)
+        let video_transceiver = pc
+            .add_transceiver_from_track(
+                video_track.clone() as Arc<dyn TrackLocal + Send + Sync>,
+                Some(RTCRtpTransceiverInit {
+                    direction: RTCRtpTransceiverDirection::Sendonly,
+                    send_encodings: simulcast_encodings(),
+                }),
+            )
             .await
             .map_err(|e| WebRtcError::TrackError(e.to_string()))?;
+        let video_sender = video_transceiver.sender().await;
 
         // Create webcam video track (separate from screen share, both can be active)
+        // Same simulcast RID setup as screen share — see TODO above.
         let webcam_track = Arc::new(TrackLocalStaticRTP::new(
             RTCRtpCodecCapability {
                 mime_type: "video/VP9".to_string(),
@@ -362,10 +405,17 @@ impl WebRtcClient {
             "webcam-stream".to_string(),
         ));
 
-        let webcam_sender = pc
-            .add_track(webcam_track.clone() as Arc<dyn TrackLocal + Send + Sync>)
+        let webcam_transceiver = pc
+            .add_transceiver_from_track(
+                webcam_track.clone() as Arc<dyn TrackLocal + Send + Sync>,
+                Some(RTCRtpTransceiverInit {
+                    direction: RTCRtpTransceiverDirection::Sendonly,
+                    send_encodings: simulcast_encodings(),
+                }),
+            )
             .await
             .map_err(|e| WebRtcError::TrackError(e.to_string()))?;
+        let webcam_sender = webcam_transceiver.sender().await;
 
         // Store references
         *self.peer_connection.write().await = Some(pc);

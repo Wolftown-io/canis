@@ -36,6 +36,9 @@ tokio-tungstenite = "0.28"
 # WebRTC
 webrtc = "0.11"
 
+# String
+smol_str = "0.2"
+
 # Database
 sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "runtime-tokio", "uuid", "chrono", "json", "macros", "migrate"] }
 

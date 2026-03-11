@@ -10119,6 +10119,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "smol_str",
  "sysinfo 0.34.2",
  "tauri",
  "tauri-build",

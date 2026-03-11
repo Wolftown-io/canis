@@ -650,6 +650,18 @@ export async function initWebSocket(): Promise<void> {
       }),
     );
 
+    // Simulcast layer events
+    pending.push(
+      listen<{
+        channel_id: string;
+        source_user_id: string;
+        track_source: string;
+        active_layer: "high" | "medium" | "low";
+      }>("ws:voice_layer_changed", async (event) => {
+        await handleVoiceLayerChanged(event.payload);
+      }),
+    );
+
     // Admin events
     pending.push(
       listen<{ user_id: string; username: string }>("ws:admin_user_banned", async (event) => {
@@ -1171,6 +1183,10 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
 
     case "voice_user_stats":
       await handleVoiceUserStatsEvent(event);
+      break;
+
+    case "voice_layer_changed":
+      await handleVoiceLayerChanged(event);
       break;
 
     // Admin events
@@ -1913,6 +1929,19 @@ async function handleVoiceUserStatsEvent(event: {
 }): Promise<void> {
   const { handleVoiceUserStats } = await import("@/stores/voice");
   handleVoiceUserStats(event);
+}
+
+async function handleVoiceLayerChanged(event: {
+  source_user_id: string;
+  track_source: string;
+  active_layer: "high" | "medium" | "low";
+}): Promise<void> {
+  const { handleLayerChanged } = await import("@/stores/simulcastLayers");
+  handleLayerChanged(
+    event.source_user_id,
+    event.track_source,
+    event.active_layer,
+  );
 }
 
 // Admin event handlers

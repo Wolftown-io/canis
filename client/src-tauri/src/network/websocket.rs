@@ -200,6 +200,12 @@ pub enum ServerEvent {
         new_quality: String,
         reason: String,
     },
+    VoiceLayerChanged {
+        channel_id: String,
+        source_user_id: String,
+        track_source: String,
+        active_layer: String,
+    },
     // Reaction events
     ReactionAdd {
         channel_id: String,
@@ -580,6 +586,7 @@ fn handle_server_message(app: &AppHandle, text: &str) {
                 ServerEvent::ScreenShareStarted { .. } => "ws:screen_share_started",
                 ServerEvent::ScreenShareStopped { .. } => "ws:screen_share_stopped",
                 ServerEvent::ScreenShareQualityChanged { .. } => "ws:screen_share_quality_changed",
+                ServerEvent::VoiceLayerChanged { .. } => "ws:voice_layer_changed",
                 // Reaction events
                 ServerEvent::ReactionAdd { .. } => "ws:reaction_add",
                 ServerEvent::ReactionRemove { .. } => "ws:reaction_remove",

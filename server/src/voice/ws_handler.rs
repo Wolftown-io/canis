@@ -18,7 +18,7 @@ use super::screen_share::{
 };
 use super::sfu::SfuServer;
 use super::stats::VoiceStats;
-use super::track_types::TrackSource;
+use super::track_types::{LayerPreference, TrackSource};
 use super::webcam::WebcamInfo;
 use super::Quality;
 use crate::ws::{ClientEvent, ServerEvent, VoiceParticipant};
@@ -106,6 +106,14 @@ pub async fn handle_voice_event(
         } => handle_webcam_start(sfu, pool, user_id, channel_id, quality).await,
         ClientEvent::VoiceWebcamStop { channel_id } => {
             handle_webcam_stop(sfu, user_id, channel_id).await
+        }
+        ClientEvent::VoiceSetLayerPreference {
+            channel_id,
+            target_user_id,
+            track_source,
+            preferred_layer,
+        } => {
+            handle_set_layer_preference(sfu, user_id, channel_id, target_user_id, track_source, preferred_layer, tx).await
         }
         _ => Ok(()), // Non-voice events handled elsewhere
     }
@@ -949,6 +957,55 @@ async fn handle_webcam_stop(
         channel_id = %channel_id,
         "Webcam stopped"
     );
+
+    Ok(())
+}
+
+/// Handle setting a layer preference for a simulcast track subscription.
+async fn handle_set_layer_preference(
+    sfu: &Arc<SfuServer>,
+    user_id: Uuid,
+    channel_id: Uuid,
+    target_user_id: Uuid,
+    track_source: TrackSource,
+    preferred_layer: LayerPreference,
+    tx: &mpsc::Sender<ServerEvent>,
+) -> Result<(), VoiceError> {
+    debug!(
+        user_id = %user_id,
+        channel_id = %channel_id,
+        target_user_id = %target_user_id,
+        track_source = %track_source,
+        preferred_layer = ?preferred_layer,
+        "Setting layer preference"
+    );
+
+    let room = sfu
+        .get_room(channel_id)
+        .await
+        .ok_or(VoiceError::RoomNotFound(channel_id))?;
+
+    // Verify the requesting user is in the room
+    room.get_peer(user_id)
+        .await
+        .ok_or(VoiceError::ParticipantNotFound(user_id))?;
+
+    if let Some(new_layer) = room.track_router.set_layer_preference(
+        user_id,
+        target_user_id,
+        track_source,
+        preferred_layer,
+    ) {
+        // Notify the viewer of the layer change
+        tx.send(ServerEvent::VoiceLayerChanged {
+            channel_id,
+            source_user_id: target_user_id,
+            track_source,
+            active_layer: new_layer,
+        })
+        .await
+        .map_err(|e| VoiceError::Signaling(e.to_string()))?;
+    }
 
     Ok(())
 }

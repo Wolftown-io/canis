@@ -216,6 +216,18 @@ pub enum ClientEvent {
         channel_id: Uuid,
     },
 
+    /// Set layer preference for a simulcast track
+    VoiceSetLayerPreference {
+        /// Voice channel.
+        channel_id: Uuid,
+        /// User whose track to adjust.
+        target_user_id: Uuid,
+        /// Track source identifier (e.g., `webcam`, `screen_video:<uuid>`).
+        track_source: crate::voice::TrackSource,
+        /// Desired layer preference.
+        preferred_layer: crate::voice::LayerPreference,
+    },
+
     /// Set rich presence activity (game, music, etc).
     SetActivity {
         activity: Option<crate::presence::Activity>,
@@ -255,6 +267,7 @@ impl ClientEvent {
             Self::VoiceScreenShareStop { .. } => "voice_screen_share_stop",
             Self::VoiceWebcamStart { .. } => "voice_webcam_start",
             Self::VoiceWebcamStop { .. } => "voice_webcam_stop",
+            Self::VoiceSetLayerPreference { .. } => "voice_set_layer_preference",
             Self::SetActivity { .. } => "set_activity",
             Self::SetStatus { .. } => "set_status",
             Self::SetCustomStatus { .. } => "set_custom_status",
@@ -553,6 +566,18 @@ pub enum ServerEvent {
         new_quality: Quality,
         /// Reason for change (e.g. "bandwidth").
         reason: String,
+    },
+
+    /// Active simulcast layer changed for a track subscription
+    VoiceLayerChanged {
+        /// Voice channel.
+        channel_id: Uuid,
+        /// User who owns the track.
+        source_user_id: Uuid,
+        /// Track source identifier.
+        track_source: crate::voice::TrackSource,
+        /// New active layer.
+        active_layer: crate::voice::Layer,
     },
 
     // Call events (DM voice calls)
@@ -1500,7 +1525,8 @@ pub async fn handle_client_message(
         | ClientEvent::VoiceScreenShareStart { .. }
         | ClientEvent::VoiceScreenShareStop { .. }
         | ClientEvent::VoiceWebcamStart { .. }
-        | ClientEvent::VoiceWebcamStop { .. } => {
+        | ClientEvent::VoiceWebcamStop { .. }
+        | ClientEvent::VoiceSetLayerPreference { .. } => {
             if let Err(e) = crate::voice::ws_handler::handle_voice_event(
                 &state.sfu,
                 &state.db,

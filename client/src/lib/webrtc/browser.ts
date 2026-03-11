@@ -20,6 +20,34 @@ import type {
 } from "./types";
 import * as Sentry from "@sentry/browser";
 
+/** Bitrate for the highest simulcast layer, keyed by screen-share quality. */
+const QUALITY_BITRATES: Record<ScreenShareQuality, number> = {
+  low: 1_000_000, // 480p
+  medium: 2_500_000, // 720p
+  high: 4_000_000, // 1080p30
+  premium: 6_000_000, // 1080p60
+};
+
+/** Max framerate for the highest simulcast layer, keyed by quality. */
+const QUALITY_FRAMERATES: Record<ScreenShareQuality, number> = {
+  low: 15,
+  medium: 30,
+  high: 30,
+  premium: 60,
+};
+
+/** Build 3-layer simulcast encodings (high / medium / low). */
+function simulcastEncodings(
+  highBitrate: number,
+  highFramerate: number = 30,
+): RTCRtpEncodingParameters[] {
+  return [
+    { rid: "h", maxBitrate: highBitrate, scaleResolutionDownBy: 1.0, maxFramerate: highFramerate },
+    { rid: "m", maxBitrate: 800_000, scaleResolutionDownBy: 2.0, maxFramerate: Math.min(24, highFramerate) },
+    { rid: "l", maxBitrate: 200_000, scaleResolutionDownBy: 4.0, maxFramerate: 15 },
+  ];
+}
+
 /** HTMLAudioElement extended with the non-standard setSinkId API (Chrome/Edge). */
 type AudioElementWithSinkId = HTMLAudioElement & {
   setSinkId(id: string): Promise<void>;
@@ -748,8 +776,16 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
         this.handleScreenShareEnded(streamId);
       };
 
-      // Add video track to peer connection
-      const videoSender = this.peerConnection.addTrack(videoTrack, stream);
+      // Add video track to peer connection with simulcast encodings
+      const quality = options?.quality ?? "medium";
+      const qualityBitrate = QUALITY_BITRATES[quality];
+      const qualityFramerate = QUALITY_FRAMERATES[quality];
+      const transceiver = this.peerConnection.addTransceiver(videoTrack, {
+        direction: "sendonly",
+        streams: [stream],
+        sendEncodings: simulcastEncodings(qualityBitrate, qualityFramerate),
+      });
+      const videoSender = transceiver.sender;
 
       // If audio track present, add it too
       const audioTrack = stream.getAudioTracks()[0];
@@ -959,8 +995,14 @@ export class BrowserVoiceAdapter implements VoiceAdapter {
         this.cleanupWebcamState();
       };
 
-      // Add video track to peer connection
-      this.webcamSender = this.peerConnection.addTrack(videoTrack, stream);
+      // Add video track to peer connection with simulcast encodings
+      const webcamBitrate = QUALITY_BITRATES[options?.quality ?? "medium"];
+      const webcamTransceiver = this.peerConnection.addTransceiver(videoTrack, {
+        direction: "sendonly",
+        streams: [stream],
+        sendEncodings: simulcastEncodings(webcamBitrate),
+      });
+      this.webcamSender = webcamTransceiver.sender;
       this.webcamStream = stream;
 
       console.log("[BrowserVoiceAdapter] Webcam started");

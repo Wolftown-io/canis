@@ -37,7 +37,7 @@ pub use screen_share::{
 };
 pub use sfu::{ParticipantInfo, Room, SfuServer};
 pub use stats::{UserStats, VoiceStats};
-pub use track_types::{TrackInfo, TrackKind, TrackSource};
+pub use track_types::{Layer, LayerPreference, TrackInfo, TrackKind, TrackSource};
 pub use webcam::WebcamInfo;
 
 use crate::api::AppState;
