@@ -25,8 +25,8 @@ use super::error::VoiceError;
 use super::peer::Peer;
 use super::rate_limit::VoiceStatsLimiter;
 use super::screen_share::ScreenShareInfo;
-use super::track::{spawn_rtp_forwarder, TrackRouter};
-use super::track_types::TrackSource;
+use super::track::{spawn_rtcp_reader, spawn_rtp_forwarder, TrackRouter};
+use super::track_types::{Layer, TrackSource};
 use super::webcam::WebcamInfo;
 use crate::config::Config;
 use crate::ratelimit::{RateLimitCategory, RateLimiter};
@@ -566,18 +566,24 @@ impl SfuServer {
         let channel_id = peer.channel_id;
 
         peer.peer_connection
-            .on_track(Box::new(move |track, _receiver, _transceiver| {
+            .on_track(Box::new(move |track, receiver, _transceiver| {
                 let pw = peer_weak.clone();
                 let rw = room_weak.clone();
                 let uid = user_id;
                 let cid = channel_id;
 
                 Box::pin(async move {
+                    // Parse simulcast RID — empty string means non-simulcast.
+                    let rid = track.rid().to_string();
+                    let layer = Layer::from_rid(&rid).unwrap_or(Layer::High);
+
                     info!(
                         user_id = %uid,
                         channel_id = %cid,
                         track_id = %track.id(),
                         kind = ?track.kind(),
+                        rid = %rid,
+                        layer = ?layer,
                         "Received track from peer"
                     );
 
@@ -587,31 +593,82 @@ impl SfuServer {
                         _ => return,
                     };
 
-                    // Determine source type: check pending queue first, fall back to defaults
-                    let source_type = match track.kind() {
-                        RTPCodecType::Audio => peer
-                            .pop_pending_audio_source()
-                            .await
-                            .unwrap_or(TrackSource::Microphone),
-                        RTPCodecType::Video => peer
-                            .pop_pending_video_source()
-                            .await
-                            // Fallback: if no pending source was queued, assume
-                            // it is a screen-video track with a nil stream_id.
-                            // This keeps backwards compatibility for the initial
-                            // mic+screen two-track setup.
-                            .unwrap_or(TrackSource::ScreenVideo(Uuid::nil())),
-                        RTPCodecType::Unspecified => {
-                            warn!("Unspecified track kind: {:?}", track.kind());
-                            return;
+                    // Determine source type: check pending queue first, fall back to defaults.
+                    //
+                    // For simulcast video: the browser sends 3 on_track calls (one per
+                    // RID layer) for the same logical source. We only pop from the
+                    // pending queue for the primary layer (High) or non-simulcast
+                    // tracks. Secondary layers (Medium, Low) look up the source type
+                    // from the already-registered High-layer entry in simulcast_tracks.
+                    let is_secondary_simulcast = !rid.is_empty()
+                        && layer != Layer::High
+                        && track.kind() == RTPCodecType::Video;
+
+                    let source_type = if is_secondary_simulcast {
+                        // Find the source type from the High layer already stored.
+                        room.track_router
+                            .find_source_type_for_user(uid, Layer::High)
+                            .unwrap_or(TrackSource::ScreenVideo(Uuid::nil()))
+                    } else {
+                        match track.kind() {
+                            RTPCodecType::Audio => peer
+                                .pop_pending_audio_source()
+                                .await
+                                .unwrap_or(TrackSource::Microphone),
+                            RTPCodecType::Video => peer
+                                .pop_pending_video_source()
+                                .await
+                                // Fallback: if no pending source was queued, assume
+                                // it is a screen-video track with a nil stream_id.
+                                // This keeps backwards compatibility for the initial
+                                // mic+screen two-track setup.
+                                .unwrap_or(TrackSource::ScreenVideo(Uuid::nil())),
+                            RTPCodecType::Unspecified => {
+                                warn!("Unspecified track kind: {:?}", track.kind());
+                                return;
+                            }
                         }
                     };
 
-                    // Store incoming track
-                    peer.set_incoming_track(source_type, track.clone()).await;
+                    // For video tracks with a valid RID, store in simulcast_tracks.
+                    let is_simulcast = !rid.is_empty() && source_type.is_video();
+                    if is_simulcast {
+                        room.track_router
+                            .simulcast_tracks
+                            .insert((uid, source_type, layer), track.clone());
+                        debug!(
+                            source = %uid,
+                            source_type = ?source_type,
+                            layer = ?layer,
+                            "Stored simulcast track"
+                        );
+                    }
 
-                    // Start RTP forwarder
-                    spawn_rtp_forwarder(uid, source_type, track.clone(), room.track_router.clone());
+                    // Start RTP forwarder for every layer (each sends packets
+                    // tagged with its layer so forward_rtp can filter by active_layer).
+                    spawn_rtp_forwarder(
+                        uid,
+                        source_type,
+                        layer,
+                        track.clone(),
+                        room.track_router.clone(),
+                    );
+
+                    // Spawn RTCP reader for REMB processing on video tracks.
+                    if source_type.is_video() {
+                        spawn_rtcp_reader(uid, source_type, layer, receiver.clone());
+                    }
+
+                    // Only create subscriber tracks for the primary layer (High)
+                    // or non-simulcast tracks. Secondary simulcast layers (Medium,
+                    // Low) share the same subscriber local track — they are just
+                    // forwarded when the subscriber's active_layer matches.
+                    if is_simulcast && layer != Layer::High {
+                        return;
+                    }
+
+                    // Store incoming track (only for the primary / non-simulcast track)
+                    peer.set_incoming_track(source_type, track.clone()).await;
 
                     // Create subscriber tracks for all existing peers
                     let other_peers = room.get_other_peers(uid).await;

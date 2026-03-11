@@ -11,6 +11,7 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 use webrtc::rtp::packet::Packet as RtpPacket;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::rtp_transceiver::rtp_receiver::RTCRtpReceiver;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::track::track_remote::TrackRemote;
@@ -101,9 +102,8 @@ pub struct TrackRouter {
     /// Using `DashMap` to avoid lock contention in the RTP forwarding hot path.
     subscriptions: DashMap<(Uuid, TrackSource), Vec<Subscription>>,
     /// Simulcast layers: `(source_user_id, source_type, layer)` -> remote track.
-    /// Populated by Task 3 (SFU `on_track` RID parsing).
-    #[allow(dead_code)]
-    simulcast_tracks: DashMap<(Uuid, TrackSource, Layer), Arc<TrackRemote>>,
+    /// Populated when the SFU receives tracks with an RID (simulcast layers).
+    pub simulcast_tracks: DashMap<(Uuid, TrackSource, Layer), Arc<TrackRemote>>,
 }
 
 impl TrackRouter {
@@ -259,6 +259,22 @@ impl TrackRouter {
         debug!(subscriber = %subscriber_id, "Removed subscriber from all sources");
     }
 
+    /// Look up the `TrackSource` for a user from a specific simulcast layer.
+    ///
+    /// Used by the SFU `on_track` callback: when a secondary simulcast layer
+    /// (Medium/Low) arrives, we need the source type that the primary (High)
+    /// layer already registered, so we don't pop from the pending queue twice.
+    pub fn find_source_type_for_user(&self, user_id: Uuid, layer: Layer) -> Option<TrackSource> {
+        self.simulcast_tracks.iter().find_map(|entry| {
+            let (uid, src, l) = entry.key();
+            if *uid == user_id && *l == layer {
+                Some(*src)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Get the number of subscribers for a source.
     pub async fn subscriber_count(&self, source_user_id: Uuid, source_type: TrackSource) -> usize {
         self.subscriptions
@@ -340,9 +356,13 @@ impl Default for TrackRouter {
 }
 
 /// Spawn a task to read RTP packets from a track and forward them.
+///
+/// The `layer` parameter identifies which simulcast layer this track carries.
+/// Non-simulcast tracks should pass [`Layer::High`].
 pub fn spawn_rtp_forwarder(
     source_user_id: Uuid,
     source_type: TrackSource,
+    layer: Layer,
     track: Arc<TrackRemote>,
     router: Arc<TrackRouter>,
 ) {
@@ -352,16 +372,16 @@ pub fn spawn_rtp_forwarder(
         loop {
             match track.read(&mut buf).await {
                 Ok((packet, _attributes)) => {
-                    // Forward the RTP packet to all subscribers.
-                    // Default to Layer::High until RID-based layer detection is added (Task 3).
+                    // Forward the RTP packet to all subscribers whose active layer matches.
                     router
-                        .forward_rtp(source_user_id, source_type, Layer::High, &packet)
+                        .forward_rtp(source_user_id, source_type, layer, &packet)
                         .await;
                 }
                 Err(e) => {
                     debug!(
                         source = %source_user_id,
                         source_type = ?source_type,
+                        layer = ?layer,
                         error = %e,
                         "Track read ended"
                     );
@@ -380,7 +400,51 @@ pub fn spawn_rtp_forwarder(
         debug!(
              source = %source_user_id,
              source_type = ?source_type,
+             layer = ?layer,
              "RTP forwarder stopped"
+        );
+    });
+}
+
+/// Spawn a task to read RTCP packets (e.g. REMB) from an `RTCRtpReceiver`.
+///
+/// REMB (Receiver Estimated Maximum Bitrate) packets are sent by viewers to
+/// indicate their available bandwidth. For now we log these values for
+/// observability. Full per-subscriber REMB routing (mapping REMB SSRCs back
+/// to specific subscriptions) will be refined once we have real traffic.
+pub fn spawn_rtcp_reader(
+    source_user_id: Uuid,
+    source_type: TrackSource,
+    layer: Layer,
+    receiver: Arc<RTCRtpReceiver>,
+) {
+    tokio::spawn(async move {
+        use webrtc::rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
+
+        while let Ok((packets, _)) = receiver.read_rtcp().await {
+            for pkt in &packets {
+                if let Some(remb) = pkt
+                    .as_any()
+                    .downcast_ref::<ReceiverEstimatedMaximumBitrate>()
+                {
+                    // REMB bitrate is f32 bps; convert to u64 for logging.
+                    let bitrate = remb.bitrate as u64;
+                    tracing::trace!(
+                        source = %source_user_id,
+                        source_type = ?source_type,
+                        layer = ?layer,
+                        bitrate,
+                        "REMB received"
+                    );
+                }
+            }
+        }
+
+        debug!(
+            source = %source_user_id,
+            source_type = ?source_type,
+            layer = ?layer,
+            "RTCP reader stopped"
         );
     });
 }
