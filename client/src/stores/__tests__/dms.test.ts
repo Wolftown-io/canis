@@ -83,6 +83,8 @@ function createMessage(overrides: Partial<Message> = {}): Message {
     edited_at: null,
     created_at: "2025-01-01T12:00:00Z",
     mention_type: null,
+    pinned: false,
+    message_type: "user",
     reactions: [],
     ...overrides,
   };

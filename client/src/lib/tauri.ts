@@ -58,6 +58,7 @@ import type {
   Pin,
   CreatePinRequest,
   UpdatePinRequest,
+  ChannelPin,
   ServerSettings,
   OidcProvider,
   OidcLoginResult,
@@ -139,6 +140,7 @@ export type {
   Pin,
   CreatePinRequest,
   UpdatePinRequest,
+  ChannelPin,
   ServerSettings,
   OidcProvider,
   OidcLoginResult,
@@ -4142,6 +4144,46 @@ export async function uploadKeys(
       public_key: pk.public_key,
     })),
   });
+}
+
+// ============================================================================
+// Channel Pins Commands
+// ============================================================================
+
+/**
+ * List pinned messages for a channel.
+ */
+export async function listChannelPins(channelId: string): Promise<ChannelPin[]> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<ChannelPin[]>("list_channel_pins", { channelId });
+  }
+
+  return httpRequest<ChannelPin[]>("GET", `/api/channels/${channelId}/pins`);
+}
+
+/**
+ * Pin a message to a channel.
+ */
+export async function pinMessage(channelId: string, messageId: string): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("pin_message", { channelId, messageId });
+  }
+
+  await httpRequest<void>("PUT", `/api/channels/${channelId}/messages/${messageId}/pin`);
+}
+
+/**
+ * Unpin a message from a channel.
+ */
+export async function unpinMessage(channelId: string, messageId: string): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("unpin_message", { channelId, messageId });
+  }
+
+  await httpRequest<void>("DELETE", `/api/channels/${channelId}/messages/${messageId}/pin`);
 }
 
 // ============================================================================

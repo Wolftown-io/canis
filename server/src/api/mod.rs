@@ -3,6 +3,7 @@
 //! Central routing configuration and shared state.
 
 pub mod bots;
+pub mod channel_pins;
 pub mod commands;
 pub mod favorites;
 pub mod global_search;
@@ -304,6 +305,15 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
             delete(reactions::remove_reaction),
+        )
+        // Channel pins
+        .route(
+            "/api/channels/{channel_id}/pins",
+            get(channel_pins::list_channel_pins),
+        )
+        .route(
+            "/api/channels/{channel_id}/messages/{message_id}/pin",
+            put(channel_pins::pin_message).delete(channel_pins::unpin_message),
         )
         .layer(from_fn_with_state(state.clone(), rate_limit_by_user))
         .layer(from_fn(with_category(RateLimitCategory::Write)));

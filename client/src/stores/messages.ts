@@ -300,6 +300,8 @@ export async function sendMessage(
     edited_at: null,
     created_at: new Date().toISOString(),
     mention_type: null,
+    pinned: false,
+    message_type: "user",
   };
 
   // Show immediately

@@ -282,6 +282,14 @@ export interface Message {
   mention_type: "direct" | "everyone" | "here" | null;
   reactions?: Reaction[];
   thread_info?: ThreadInfo;
+  pinned: boolean;
+  message_type: string; // "user" | "system"
+}
+
+export interface ChannelPin {
+  message: Message;
+  pinned_by: string;
+  pinned_at: string;
 }
 
 export interface ThreadInfo {
@@ -590,6 +598,15 @@ export type ServerEvent =
       user_id: string;
       emoji: string;
     }
+  // Channel pin events
+  | {
+      type: "channel_pin_added";
+      channel_id: string;
+      message_id: string;
+      pinned_by: string;
+      pinned_at: string;
+    }
+  | { type: "channel_pin_removed"; channel_id: string; message_id: string }
   // Guild emoji events
   | { type: "guild_emoji_updated"; guild_id: string; emojis: GuildEmoji[] }
   // Friend events
