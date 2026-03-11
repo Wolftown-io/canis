@@ -347,7 +347,7 @@ const QualityContextMenu: Component<{
   };
 
   // Close menu on outside click
-  const handleClickOutside = (e: MouseEvent) => {
+  const handleClickOutside = (_e: MouseEvent) => {
     props.onClose();
   };
 
