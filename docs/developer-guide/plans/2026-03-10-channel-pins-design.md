@@ -39,7 +39,7 @@ System messages are inserted by the server when a message is pinned. They render
 const PIN_MESSAGES = 1 << 25; // Next available after VIEW_CHANNEL (bit 24)
 ```
 
-Granted to `@everyone` by default. Admins can restrict via role overrides.
+Restricted from `@everyone` by default (in `EVERYONE_FORBIDDEN`). Granted to moderators and above via `MODERATOR_DEFAULT`. Admins can grant to other roles via role settings.
 
 ### Limits
 

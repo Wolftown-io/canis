@@ -757,6 +757,8 @@ pub async fn upload_message_with_file(
         created_at: message.created_at,
         mention_type,
         reactions: None,
+        pinned: false,
+        message_type: message.message_type,
     };
 
     // Broadcast new message via Redis pub-sub
@@ -1056,17 +1058,14 @@ pub async fn get_signed_url(
     };
 
     // Generate presigned URL
-    let presigned_url = s3
-        .presign_get(s3_key)
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                attachment_id = %id,
-                s3_key = %s3_key,
-                "Failed to generate presigned URL: {e}"
-            );
-            UploadError::Storage(e.to_string())
-        })?;
+    let presigned_url = s3.presign_get(s3_key).await.map_err(|e| {
+        tracing::error!(
+            attachment_id = %id,
+            s3_key = %s3_key,
+            "Failed to generate presigned URL: {e}"
+        );
+        UploadError::Storage(e.to_string())
+    })?;
 
     Ok(Json(SignedUrlResponse {
         url: presigned_url,

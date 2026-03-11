@@ -72,6 +72,7 @@ import {
   handleDMNameUpdated,
   updateDMLastMessage,
 } from "./dms";
+import { handlePinAdded, handlePinRemoved } from "./channelPins";
 
 import * as Sentry from "@sentry/browser";
 // Detect if running in Tauri
@@ -509,6 +510,34 @@ export async function initWebSocket(): Promise<void> {
       }),
     );
 
+    // Channel pin events (Tauri → frontend parity with browser mode)
+    pending.push(
+      listen<{
+        channel_id: string;
+        message_id: string;
+        pinned_by: string;
+        pinned_at: string;
+      }>("ws:channel_pin_added", (event) => {
+        handlePinAdded(
+          event.payload.channel_id,
+          event.payload.message_id,
+          event.payload.pinned_by,
+          event.payload.pinned_at,
+        );
+        updateMessagePinStatus(event.payload.channel_id, event.payload.message_id, true);
+      }),
+    );
+
+    pending.push(
+      listen<{
+        channel_id: string;
+        message_id: string;
+      }>("ws:channel_pin_removed", (event) => {
+        handlePinRemoved(event.payload.channel_id, event.payload.message_id);
+        updateMessagePinStatus(event.payload.channel_id, event.payload.message_id, false);
+      }),
+    );
+
     // Guild emoji events
     pending.push(
       listen<{ guild_id: string; emojis: any[] }>("ws:guild_emoji_updated", (event) => {
@@ -825,6 +854,8 @@ export async function initWebSocket(): Promise<void> {
             edited_at: null,
             created_at: new Date().toISOString(),
             mention_type: null,
+            pinned: false,
+            message_type: "user",
           };
           await addMessage(syntheticMessage);
         } else {
@@ -1206,6 +1237,24 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
       );
       break;
 
+    // Channel pin events
+    case "channel_pin_added":
+      handlePinAdded(
+        event.channel_id,
+        event.message_id,
+        event.pinned_by,
+        event.pinned_at,
+      );
+      // Update message pinned status in messages store
+      updateMessagePinStatus(event.channel_id, event.message_id, true);
+      break;
+
+    case "channel_pin_removed":
+      handlePinRemoved(event.channel_id, event.message_id);
+      // Update message pinned status in messages store
+      updateMessagePinStatus(event.channel_id, event.message_id, false);
+      break;
+
     // Guild emoji events
     case "guild_emoji_updated":
       handleGuildEmojiUpdated(event.guild_id, event.emojis);
@@ -1301,6 +1350,8 @@ async function handleServerEvent(event: ServerEvent): Promise<void> {
           edited_at: null,
           created_at: new Date().toISOString(),
           mention_type: null,
+          pinned: false,
+          message_type: "user",
         };
         await addMessage(syntheticMessage);
       } else {
@@ -2116,6 +2167,24 @@ function handleReactionRemove(
       reactions.length > 0 ? reactions : undefined,
     );
   }
+}
+
+// Channel pin event handler
+
+function updateMessagePinStatus(channelId: string, messageId: string, pinned: boolean): void {
+  const messages = messagesState.byChannel[channelId];
+  if (!messages) return;
+
+  const messageIndex = messages.findIndex((m) => m.id === messageId);
+  if (messageIndex === -1) return;
+
+  setMessagesState(
+    "byChannel",
+    channelId,
+    messageIndex,
+    "pinned",
+    pinned,
+  );
 }
 
 // State sync event handler

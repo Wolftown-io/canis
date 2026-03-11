@@ -213,6 +213,17 @@ pub enum ServerEvent {
         user_id: String,
         emoji: String,
     },
+    // Channel pin events
+    ChannelPinAdded {
+        channel_id: String,
+        message_id: String,
+        pinned_by: String,
+        pinned_at: String,
+    },
+    ChannelPinRemoved {
+        channel_id: String,
+        message_id: String,
+    },
     // Voice stats
     VoiceUserStats {
         channel_id: String,
@@ -572,6 +583,9 @@ fn handle_server_message(app: &AppHandle, text: &str) {
                 // Reaction events
                 ServerEvent::ReactionAdd { .. } => "ws:reaction_add",
                 ServerEvent::ReactionRemove { .. } => "ws:reaction_remove",
+                // Channel pin events
+                ServerEvent::ChannelPinAdded { .. } => "ws:channel_pin_added",
+                ServerEvent::ChannelPinRemoved { .. } => "ws:channel_pin_removed",
                 // Voice stats
                 ServerEvent::VoiceUserStats { .. } => "ws:voice_user_stats",
                 // Guild emoji events

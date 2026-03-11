@@ -241,6 +241,10 @@ pub fn run() {
             // Preferences commands
             commands::preferences::fetch_preferences,
             commands::preferences::update_preferences,
+            // Channel Pins commands
+            commands::channel_pins::list_channel_pins,
+            commands::channel_pins::pin_message,
+            commands::channel_pins::unpin_message,
             // Pins commands
             commands::pins::fetch_pins,
             commands::pins::create_pin,
