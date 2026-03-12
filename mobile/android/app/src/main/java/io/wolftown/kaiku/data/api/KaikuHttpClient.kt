@@ -19,6 +19,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import java.util.logging.Level
+import java.util.logging.Logger
 import javax.inject.Inject
 
 /** Request body for the token refresh endpoint. */
@@ -39,6 +41,10 @@ class KaikuHttpClient @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val authState: AuthState
 ) {
+    companion object {
+        private val logger = Logger.getLogger("KaikuHttpClient")
+    }
+
     private val refreshMutex = Mutex()
 
     val httpClient: HttpClient = createConfiguredClient(OkHttp.create())
@@ -172,7 +178,10 @@ class KaikuHttpClient @Inject constructor(
                 userId = userId
             )
             true
-        } catch (_: Exception) {
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "Token refresh failed", e)
             false
         }
     }

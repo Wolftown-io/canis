@@ -109,12 +109,13 @@ class KaikuWebSocket @Inject constructor(
         _connectionState.value = ConnectionState.Disconnected
     }
 
-    fun send(event: ClientEvent) {
+    fun send(event: ClientEvent): Boolean {
         val text = json.encodeToString<ClientEvent>(event)
         val sent = webSocket?.send(text) ?: false
         if (!sent) {
-            logger.warning("Failed to send event (not connected): $text")
+            logger.warning("Failed to send event (not connected): ${event::class.simpleName}")
         }
+        return sent
     }
 
     // -- Internal -------------------------------------------------------------
@@ -152,7 +153,10 @@ class KaikuWebSocket @Inject constructor(
         override fun onMessage(webSocket: WebSocket, text: String) {
             try {
                 val event = json.decodeFromString<ServerEvent>(text)
-                _events.tryEmit(event)
+                val emitted = _events.tryEmit(event)
+                if (!emitted) {
+                    logger.warning("Event buffer full, dropped: ${event::class.simpleName}")
+                }
             } catch (e: Exception) {
                 logger.log(Level.WARNING, "Failed to parse server event: $text", e)
             }

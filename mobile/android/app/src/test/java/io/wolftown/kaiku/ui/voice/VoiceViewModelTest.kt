@@ -6,8 +6,11 @@ import io.mockk.*
 import io.wolftown.kaiku.data.repository.VoiceRepository
 import io.wolftown.kaiku.data.voice.AudioRoute
 import io.wolftown.kaiku.data.voice.AudioRouteManager
+import io.wolftown.kaiku.data.voice.WebRtcManager
 import io.wolftown.kaiku.data.ws.ScreenShareInfo
 import io.wolftown.kaiku.data.ws.VoiceParticipant
+import org.webrtc.EglBase
+import org.webrtc.VideoTrack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +25,7 @@ class VoiceViewModelTest {
 
     private lateinit var voiceRepository: VoiceRepository
     private lateinit var audioRouteManager: AudioRouteManager
+    private lateinit var webRtcManager: WebRtcManager
     private lateinit var savedStateHandle: SavedStateHandle
     private lateinit var viewModel: VoiceViewModel
 
@@ -32,6 +36,9 @@ class VoiceViewModelTest {
     private val isMutedFlow = MutableStateFlow(false)
     private val isConnectedFlow = MutableStateFlow(false)
     private val screenSharesFlow = MutableStateFlow<List<ScreenShareInfo>>(emptyList())
+    private val layerPreferencesFlow = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val errorFlow = MutableStateFlow<String?>(null)
+    private val remoteVideoTracksFlow = MutableStateFlow<Map<String, VideoTrack>>(emptyMap())
     private val currentRouteFlow = MutableStateFlow(AudioRoute.Speaker)
     private val availableRoutesFlow = MutableStateFlow(setOf(AudioRoute.Speaker, AudioRoute.Earpiece))
 
@@ -55,6 +62,7 @@ class VoiceViewModelTest {
         Dispatchers.setMain(testDispatcher)
         voiceRepository = mockk(relaxed = true)
         audioRouteManager = mockk(relaxed = true)
+        webRtcManager = mockk(relaxed = true)
         savedStateHandle = SavedStateHandle(mapOf("channelId" to "voice-ch-1"))
 
         every { voiceRepository.currentChannelId } returns currentChannelIdFlow
@@ -62,8 +70,14 @@ class VoiceViewModelTest {
         every { voiceRepository.isMuted } returns isMutedFlow
         every { voiceRepository.isConnected } returns isConnectedFlow
         every { voiceRepository.screenShares } returns screenSharesFlow
+        every { voiceRepository.layerPreferences } returns layerPreferencesFlow
+        every { voiceRepository.error } returns errorFlow
         every { audioRouteManager.currentRoute } returns currentRouteFlow
         every { audioRouteManager.availableRoutes } returns availableRoutesFlow
+        every { webRtcManager.remoteVideoTracks } returns remoteVideoTracksFlow
+
+        val mockEglBase = mockk<EglBase>(relaxed = true)
+        every { webRtcManager.eglBase } returns mockEglBase
     }
 
     @After
@@ -72,7 +86,7 @@ class VoiceViewModelTest {
     }
 
     private fun createViewModel(): VoiceViewModel {
-        return VoiceViewModel(voiceRepository, audioRouteManager, savedStateHandle)
+        return VoiceViewModel(voiceRepository, audioRouteManager, webRtcManager, savedStateHandle)
     }
 
     // ========================================================================

@@ -25,15 +25,26 @@ class AuthState @Inject constructor() {
         _currentUserId.value = null
     }
 
+    /**
+     * Restores auth state from persisted tokens on app start.
+     *
+     * If the access token is expired but a refresh token exists, we still
+     * consider the user logged in — the HTTP interceptor will refresh the
+     * token transparently on the first API call.
+     */
     fun initialize(tokenStorage: TokenStorage) {
         val token = tokenStorage.getAccessToken()
         val userId = tokenStorage.getUserId()
-        val expired = tokenStorage.isAccessTokenExpired()
+        val refreshToken = tokenStorage.getRefreshToken()
 
-        if (token != null && userId != null && !expired) {
-            setLoggedIn(userId)
-        } else {
-            setLoggedOut()
+        if (token != null && userId != null) {
+            // Valid token or expired-but-refreshable — let the HTTP interceptor handle refresh
+            if (!tokenStorage.isAccessTokenExpired() || refreshToken != null) {
+                setLoggedIn(userId)
+                return
+            }
         }
+
+        setLoggedOut()
     }
 }

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -17,6 +20,10 @@ class TextChannelViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    companion object {
+        private val logger = Logger.getLogger("TextChannelViewModel")
+    }
 
     private val channelId: String = savedStateHandle["channelId"]!!
 
@@ -28,6 +35,9 @@ class TextChannelViewModel @Inject constructor(
 
     private val _messageInput = MutableStateFlow("")
     val messageInput: StateFlow<String> = _messageInput.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
 
     init {
         chatRepository.subscribeToChannel(channelId)
@@ -49,9 +59,13 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.sendMessage(channelId, content)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Restore input on failure so the user can retry
                 _messageInput.value = content
+                _error.value = "Failed to send message"
+                logger.log(Level.WARNING, "Failed to send message", e)
             }
         }
     }
@@ -60,8 +74,11 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.editMessage(messageId, content)
-            } catch (_: Exception) {
-                // Edit failed silently — message retains original content
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to edit message"
+                logger.log(Level.WARNING, "Failed to edit message $messageId", e)
             }
         }
     }
@@ -70,8 +87,11 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.deleteMessage(channelId, messageId)
-            } catch (_: Exception) {
-                // Delete failed silently
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to delete message"
+                logger.log(Level.WARNING, "Failed to delete message $messageId", e)
             }
         }
     }
@@ -80,8 +100,11 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.addReaction(channelId, messageId, emoji)
-            } catch (_: Exception) {
-                // Reaction failed silently
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to add reaction"
+                logger.log(Level.WARNING, "Failed to add reaction on $messageId", e)
             }
         }
     }
@@ -90,8 +113,11 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.removeReaction(channelId, messageId, emoji)
-            } catch (_: Exception) {
-                // Reaction removal failed silently
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to remove reaction"
+                logger.log(Level.WARNING, "Failed to remove reaction on $messageId", e)
             }
         }
     }
@@ -101,10 +127,17 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.loadMessages(channelId, before = oldestMessage.id)
-            } catch (_: Exception) {
-                // Pagination failed silently
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to load more messages"
+                logger.log(Level.WARNING, "Failed to load more messages", e)
             }
         }
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 
     public override fun onCleared() {
@@ -117,8 +150,11 @@ class TextChannelViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 chatRepository.loadMessages(channelId)
-            } catch (_: Exception) {
-                // Initial load failed — messages flow stays empty
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to load messages"
+                logger.log(Level.WARNING, "Failed to load initial messages", e)
             } finally {
                 _isLoading.value = false
             }

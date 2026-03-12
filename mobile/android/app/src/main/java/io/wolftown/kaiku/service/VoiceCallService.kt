@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -23,6 +22,9 @@ import java.util.logging.Logger
  * - "Mute" toggle action
  * - "Disconnect" action
  * - Tap to open the app
+ *
+ * Notification actions are delivered as service intents (not broadcasts) so they
+ * are handled directly in [onStartCommand].
  */
 class VoiceCallService : Service() {
 
@@ -34,8 +36,13 @@ class VoiceCallService : Service() {
 
         private const val EXTRA_CHANNEL_ID = "channel_id"
         private const val EXTRA_CHANNEL_NAME = "channel_name"
+        private const val EXTRA_ACTION = "extra_action"
         const val ACTION_MUTE_TOGGLE = "io.wolftown.kaiku.MUTE_TOGGLE"
         const val ACTION_DISCONNECT = "io.wolftown.kaiku.DISCONNECT"
+
+        /** Callback for notification actions. Set by VoiceRepository when starting the service. */
+        var onMuteToggle: (() -> Unit)? = null
+        var onDisconnect: (() -> Unit)? = null
 
         /**
          * Starts the foreground voice call service.
@@ -63,6 +70,20 @@ class VoiceCallService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle notification action intents
+        when (intent?.getStringExtra(EXTRA_ACTION)) {
+            ACTION_MUTE_TOGGLE -> {
+                logger.info("Mute toggle from notification")
+                onMuteToggle?.invoke()
+                return START_NOT_STICKY
+            }
+            ACTION_DISCONNECT -> {
+                logger.info("Disconnect from notification")
+                onDisconnect?.invoke()
+                return START_NOT_STICKY
+            }
+        }
+
         val channelName = intent?.getStringExtra(EXTRA_CHANNEL_NAME) ?: "Voice Channel"
 
         createNotificationChannel()
@@ -92,7 +113,7 @@ class VoiceCallService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_HIGH
+            NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "Active voice call notifications"
             setShowBadge(false)
@@ -114,18 +135,22 @@ class VoiceCallService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Mute toggle action
-        val muteIntent = Intent(ACTION_MUTE_TOGGLE).setPackage(packageName)
-        val mutePendingIntent = PendingIntent.getBroadcast(
+        // Mute toggle action — delivered as a service intent
+        val muteIntent = Intent(this, VoiceCallService::class.java).apply {
+            putExtra(EXTRA_ACTION, ACTION_MUTE_TOGGLE)
+        }
+        val mutePendingIntent = PendingIntent.getService(
             this,
             1,
             muteIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Disconnect action
-        val disconnectIntent = Intent(ACTION_DISCONNECT).setPackage(packageName)
-        val disconnectPendingIntent = PendingIntent.getBroadcast(
+        // Disconnect action — delivered as a service intent
+        val disconnectIntent = Intent(this, VoiceCallService::class.java).apply {
+            putExtra(EXTRA_ACTION, ACTION_DISCONNECT)
+        }
+        val disconnectPendingIntent = PendingIntent.getService(
             this,
             2,
             disconnectIntent,
@@ -150,30 +175,5 @@ class VoiceCallService : Service() {
                 disconnectPendingIntent
             )
             .build()
-    }
-
-    /**
-     * BroadcastReceiver for notification action buttons.
-     *
-     * Handles mute toggle and disconnect actions from the notification.
-     * Must be registered in the AndroidManifest.
-     */
-    class ActionReceiver : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                ACTION_MUTE_TOGGLE -> {
-                    logger.info("Mute toggle from notification")
-                    // Mute toggle is handled by VoiceRepository via the ViewModel.
-                    // This broadcasts an intent that the app can listen for.
-                    val toggleIntent = Intent(ACTION_MUTE_TOGGLE).setPackage(context.packageName)
-                    context.sendBroadcast(toggleIntent)
-                }
-                ACTION_DISCONNECT -> {
-                    logger.info("Disconnect from notification")
-                    val disconnectIntent = Intent(ACTION_DISCONNECT).setPackage(context.packageName)
-                    context.sendBroadcast(disconnectIntent)
-                }
-            }
-        }
     }
 }

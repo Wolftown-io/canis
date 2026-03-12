@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        authState.initialize(tokenStorage)
         handleIntent(intent)
 
         val startDestination = resolveStartDestination()

@@ -10,11 +10,15 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.wolftown.kaiku.data.local.TokenStorage
+import java.util.logging.Level
+import java.util.logging.Logger
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object StorageModule {
+
+    private val logger = Logger.getLogger("StorageModule")
 
     @Provides
     @Singleton
@@ -25,13 +29,27 @@ object StorageModule {
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-        return EncryptedSharedPreferences.create(
-            context,
-            "kaiku_secure_prefs",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        return try {
+            EncryptedSharedPreferences.create(
+                context,
+                "kaiku_secure_prefs",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            // Encrypted prefs can be corrupted after OS upgrades or backup restores.
+            // Delete the corrupted file and recreate.
+            logger.log(Level.WARNING, "EncryptedSharedPreferences corrupted, recreating", e)
+            context.deleteSharedPreferences("kaiku_secure_prefs")
+            EncryptedSharedPreferences.create(
+                context,
+                "kaiku_secure_prefs",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }
     }
 
     @Provides

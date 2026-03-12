@@ -10,12 +10,17 @@ import io.wolftown.kaiku.data.voice.AudioRouteManager
 import io.wolftown.kaiku.data.voice.WebRtcManager
 import io.wolftown.kaiku.data.ws.ScreenShareInfo
 import io.wolftown.kaiku.data.ws.VoiceParticipant
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.webrtc.EglBase
 import org.webrtc.VideoTrack
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -47,6 +52,9 @@ class VoiceViewModel @Inject constructor(
     val currentRoute: StateFlow<AudioRoute> = audioRouteManager.currentRoute
     val availableRoutes: StateFlow<Set<AudioRoute>> = audioRouteManager.availableRoutes
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     /** Shared EGL context for video rendering. */
     val eglContext: EglBase.Context = webRtcManager.eglBase.eglBaseContext
 
@@ -59,8 +67,11 @@ class VoiceViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 voiceRepository.joinChannel(channelId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.log(Level.WARNING, "Failed to join voice channel: $channelId", e)
+                _error.value = "Failed to join voice channel: ${e.message}"
             }
         }
     }
@@ -70,6 +81,8 @@ class VoiceViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 voiceRepository.leaveChannel()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.log(Level.WARNING, "Failed to leave voice channel", e)
             }
@@ -91,9 +104,13 @@ class VoiceViewModel @Inject constructor(
         audioRouteManager.switchRoute(route)
     }
 
+    fun clearError() {
+        _error.value = null
+    }
+
     public override fun onCleared() {
-        // Leave the channel when the ViewModel is destroyed
-        viewModelScope.launch {
+        // Use NonCancellable since viewModelScope is already cancelled at this point
+        viewModelScope.launch(NonCancellable) {
             try {
                 voiceRepository.leaveChannel()
             } catch (e: Exception) {

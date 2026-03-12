@@ -89,6 +89,9 @@ class WebRtcManager @Inject constructor(
     /** Called when a remote track is received. */
     var onTrackAdded: ((MediaStreamTrack) -> Unit)? = null
 
+    /** Called when an SDP or ICE error occurs that prevents voice connection. */
+    var onError: ((String) -> Unit)? = null
+
     // -- Lifecycle ------------------------------------------------------------
 
     /**
@@ -131,9 +134,12 @@ class WebRtcManager @Inject constructor(
         // Fetch ICE servers from the Kaiku server
         val iceConfig = try {
             voiceApi.getIceServers()
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.log(Level.WARNING, "Failed to fetch ICE servers, using empty config", e)
-            io.wolftown.kaiku.data.api.IceServerConfig(iceServers = emptyList())
+            logger.log(Level.WARNING, "Failed to fetch ICE servers", e)
+            onError?.invoke("Failed to fetch ICE servers: ${e.message}")
+            throw e
         }
 
         val rtcIceServers = iceConfig.iceServers.map { server ->
@@ -181,8 +187,10 @@ class WebRtcManager @Inject constructor(
         factory = null
         try {
             eglBase.release()
-        } catch (_: Exception) {
+        } catch (_: IllegalStateException) {
             // EglBase may already be released
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "Unexpected error releasing EglBase", e)
         }
         logger.info("WebRtcManager disposed")
     }
@@ -203,13 +211,13 @@ class WebRtcManager @Inject constructor(
 
         val offer = SessionDescription(SessionDescription.Type.OFFER, sdp)
 
-        pc.setRemoteDescription(object : SdpObserverAdapter("setRemoteDescription") {
+        pc.setRemoteDescription(object : SdpObserverAdapter("setRemoteDescription", onError) {
             override fun onSetSuccess() {
                 logger.info("Remote description set successfully")
-                pc.createAnswer(object : SdpObserverAdapter("createAnswer") {
+                pc.createAnswer(object : SdpObserverAdapter("createAnswer", onError) {
                     override fun onCreateSuccess(desc: SessionDescription) {
                         pc.setLocalDescription(
-                            SdpObserverAdapter("setLocalDescription"),
+                            SdpObserverAdapter("setLocalDescription", onError),
                             desc
                         )
                         onLocalDescription?.invoke(desc.description)
@@ -323,6 +331,13 @@ class WebRtcManager @Inject constructor(
 
         override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
             logger.info("ICE connection state: $state")
+            when (state) {
+                PeerConnection.IceConnectionState.FAILED ->
+                    onError?.invoke("Voice connection failed (ICE)")
+                PeerConnection.IceConnectionState.DISCONNECTED ->
+                    logger.warning("ICE connection disconnected, may recover")
+                else -> {}
+            }
         }
 
         override fun onIceConnectionReceivingChange(receiving: Boolean) {
@@ -368,11 +383,14 @@ class WebRtcManager @Inject constructor(
 }
 
 /**
- * Base [SdpObserver] adapter that logs failures and provides no-op defaults.
+ * Base [SdpObserver] adapter that logs failures and propagates them via [onError].
  *
  * Override the specific success callback you need.
  */
-private open class SdpObserverAdapter(private val label: String) : SdpObserver {
+private open class SdpObserverAdapter(
+    private val label: String,
+    private val onError: ((String) -> Unit)? = null
+) : SdpObserver {
     private val logger = Logger.getLogger("SdpObserver")
 
     override fun onCreateSuccess(desc: SessionDescription) {}
@@ -381,9 +399,11 @@ private open class SdpObserverAdapter(private val label: String) : SdpObserver {
 
     override fun onCreateFailure(error: String?) {
         logger.warning("$label onCreateFailure: $error")
+        onError?.invoke("SDP $label failed: $error")
     }
 
     override fun onSetFailure(error: String?) {
         logger.warning("$label onSetFailure: $error")
+        onError?.invoke("SDP $label failed: $error")
     }
 }

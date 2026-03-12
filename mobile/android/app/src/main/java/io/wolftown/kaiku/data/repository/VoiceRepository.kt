@@ -64,6 +64,10 @@ class VoiceRepository @Inject constructor(
     /** Whether the WebRTC connection is established. */
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    /** Error message from voice subsystem (SDP failure, ICE failure, etc.). */
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private val _screenShares = MutableStateFlow<List<ScreenShareInfo>>(emptyList())
     /** Active screen shares in the current voice channel. */
     val screenShares: StateFlow<List<ScreenShareInfo>> = _screenShares.asStateFlow()
@@ -109,6 +113,10 @@ class VoiceRepository @Inject constructor(
             webRtcManager.onIceCandidate = { candidateJson ->
                 webSocket.send(ClientEvent.VoiceIceCandidate(channelId, candidateJson))
             }
+            webRtcManager.onError = { errorMsg ->
+                _error.value = errorMsg
+                logger.warning("WebRTC error: $errorMsg")
+            }
 
             // Start collecting WebSocket events
             startCollectingEvents(channelId)
@@ -119,7 +127,11 @@ class VoiceRepository @Inject constructor(
             // 5. Request audio focus
             audioRouteManager.requestAudioFocus()
 
-            // 6. Start foreground service
+            // 6. Start foreground service with notification action callbacks
+            VoiceCallService.onMuteToggle = { toggleMute() }
+            VoiceCallService.onDisconnect = {
+                scope.launch { leaveChannel() }
+            }
             VoiceCallService.start(context, channelId, channelId)
 
             _isConnected.value = true
@@ -229,11 +241,14 @@ class VoiceRepository @Inject constructor(
         webRtcManager.closePeerConnection()
         webRtcManager.onLocalDescription = null
         webRtcManager.onIceCandidate = null
+        webRtcManager.onError = null
 
         // Abandon audio focus
         audioRouteManager.abandonAudioFocus()
 
-        // Stop foreground service
+        // Clear notification callbacks and stop foreground service
+        VoiceCallService.onMuteToggle = null
+        VoiceCallService.onDisconnect = null
         VoiceCallService.stop(context)
 
         // Clear state
@@ -243,6 +258,7 @@ class VoiceRepository @Inject constructor(
         _layerPreferences.value = emptyMap()
         _isConnected.value = false
         _isMuted.value = false
+        _error.value = null
     }
 
     private fun startCollectingEvents(channelId: String) {

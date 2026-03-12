@@ -6,6 +6,9 @@ import io.wolftown.kaiku.data.local.AuthState
 import io.wolftown.kaiku.data.local.TokenStorage
 import io.wolftown.kaiku.domain.model.User
 import io.wolftown.kaiku.ui.auth.MfaRequiredException
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 class AuthRepository @Inject constructor(
@@ -13,6 +16,9 @@ class AuthRepository @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val authState: AuthState
 ) {
+    companion object {
+        private val logger = Logger.getLogger("AuthRepository")
+    }
 
     suspend fun login(
         username: String,
@@ -43,6 +49,8 @@ class AuthRepository @Inject constructor(
             Result.success(user)
         } catch (_: MfaRequiredApiException) {
             Result.failure(MfaRequiredException())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -75,6 +83,8 @@ class AuthRepository @Inject constructor(
 
             authState.setLoggedIn(user.id)
             Result.success(user)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -83,8 +93,10 @@ class AuthRepository @Inject constructor(
     suspend fun logout() {
         try {
             authApi.logout()
-        } catch (_: Exception) {
-            // Best-effort server-side logout; always clear local state
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "Server-side logout failed (best-effort)", e)
         }
         tokenStorage.clear()
         authState.setLoggedOut()
@@ -94,6 +106,8 @@ class AuthRepository @Inject constructor(
         return try {
             val user = authApi.getMe()
             Result.success(user)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -130,6 +144,8 @@ class AuthRepository @Inject constructor(
 
             authState.setLoggedIn(user.id)
             Result.success(user)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -163,6 +179,8 @@ class AuthRepository @Inject constructor(
 
             authState.setLoggedIn(user.id)
             Result.success(user)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

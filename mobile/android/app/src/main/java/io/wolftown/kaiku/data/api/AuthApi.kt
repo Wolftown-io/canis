@@ -7,6 +7,8 @@ import io.ktor.http.*
 import io.wolftown.kaiku.domain.model.AuthResponse
 import io.wolftown.kaiku.domain.model.User
 import kotlinx.serialization.Serializable
+import java.util.logging.Level
+import java.util.logging.Logger
 import javax.inject.Inject
 
 @Serializable
@@ -61,6 +63,9 @@ private data class OidcCallbackRequest(
 class AuthApiImpl @Inject constructor(
     private val httpClient: HttpClient
 ) : AuthApi {
+    companion object {
+        private val logger = Logger.getLogger("AuthApi")
+    }
 
     override suspend fun login(
         username: String,
@@ -136,6 +141,7 @@ class AuthApiImpl @Inject constructor(
         val response = httpClient.get("/auth/oidc/providers")
 
         if (!response.status.isSuccess()) {
+            logger.log(Level.WARNING, "Failed to load OIDC providers: ${response.status}")
             return emptyList()
         }
 

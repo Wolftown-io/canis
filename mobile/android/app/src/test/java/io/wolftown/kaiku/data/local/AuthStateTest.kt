@@ -89,6 +89,7 @@ class AuthStateTest {
         every { tokenStorage.getAccessToken() } returns "valid-token"
         every { tokenStorage.getUserId() } returns "user-789"
         every { tokenStorage.isAccessTokenExpired() } returns false
+        every { tokenStorage.getRefreshToken() } returns "refresh-token"
 
         authState.initialize(tokenStorage)
 
@@ -106,6 +107,7 @@ class AuthStateTest {
         every { tokenStorage.getAccessToken() } returns null
         every { tokenStorage.getUserId() } returns null
         every { tokenStorage.isAccessTokenExpired() } returns true
+        every { tokenStorage.getRefreshToken() } returns null
 
         authState.initialize(tokenStorage)
 
@@ -114,11 +116,26 @@ class AuthStateTest {
     }
 
     @Test
-    fun `initialize with expired token sets logged out state`() = runTest {
+    fun `initialize with expired token but valid refresh token stays logged in`() = runTest {
         val tokenStorage = mockk<TokenStorage>()
         every { tokenStorage.getAccessToken() } returns "expired-token"
         every { tokenStorage.getUserId() } returns "user-789"
         every { tokenStorage.isAccessTokenExpired() } returns true
+        every { tokenStorage.getRefreshToken() } returns "valid-refresh"
+
+        authState.initialize(tokenStorage)
+
+        assertTrue(authState.isLoggedIn.value)
+        assertEquals("user-789", authState.currentUserId.value)
+    }
+
+    @Test
+    fun `initialize with expired token and no refresh token sets logged out state`() = runTest {
+        val tokenStorage = mockk<TokenStorage>()
+        every { tokenStorage.getAccessToken() } returns "expired-token"
+        every { tokenStorage.getUserId() } returns "user-789"
+        every { tokenStorage.isAccessTokenExpired() } returns true
+        every { tokenStorage.getRefreshToken() } returns null
 
         authState.initialize(tokenStorage)
 
@@ -132,6 +149,7 @@ class AuthStateTest {
         every { tokenStorage.getAccessToken() } returns "valid-token"
         every { tokenStorage.getUserId() } returns null
         every { tokenStorage.isAccessTokenExpired() } returns false
+        every { tokenStorage.getRefreshToken() } returns "refresh-token"
 
         authState.initialize(tokenStorage)
 

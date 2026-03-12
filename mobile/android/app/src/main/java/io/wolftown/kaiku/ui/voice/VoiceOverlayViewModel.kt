@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -36,6 +37,8 @@ class VoiceOverlayViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 voiceRepository.leaveChannel()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.log(Level.WARNING, "Failed to disconnect from voice", e)
             }

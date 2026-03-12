@@ -50,6 +50,11 @@ class TokenStorage @Inject constructor(
     }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .remove(KEY_ACCESS_TOKEN)
+            .remove(KEY_REFRESH_TOKEN)
+            .remove(KEY_EXPIRES_AT)
+            .remove(KEY_USER_ID)
+            .apply()
     }
 }
