@@ -1,0 +1,361 @@
+package io.wolftown.kaiku.data.voice
+
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.wolftown.kaiku.data.api.IceServer
+import io.wolftown.kaiku.data.api.VoiceApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import org.webrtc.AudioSource
+import org.webrtc.AudioTrack
+import org.webrtc.DataChannel
+import org.webrtc.IceCandidate
+import org.webrtc.MediaConstraints
+import org.webrtc.MediaStream
+import org.webrtc.MediaStreamTrack
+import org.webrtc.PeerConnection
+import org.webrtc.PeerConnectionFactory
+import org.webrtc.RtpTransceiver
+import org.webrtc.SdpObserver
+import org.webrtc.SessionDescription
+import org.webrtc.VideoTrack
+import org.webrtc.audio.JavaAudioDeviceModule
+import java.util.logging.Level
+import java.util.logging.Logger
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Manages the WebRTC PeerConnection for voice chat.
+ *
+ * Uses `stream-webrtc-android` (package: `io.getstream.webrtc.android`)
+ * which re-exports Google WebRTC classes under the `org.webrtc` package.
+ *
+ * Signaling flow:
+ * 1. Server sends SDP offer via WebSocket (`VoiceOffer`)
+ * 2. [handleOffer] sets the remote description and creates an SDP answer
+ * 3. The answer is delivered via [onLocalDescription] callback
+ * 4. ICE candidates are exchanged bidirectionally
+ *
+ * Testable logic (ICE serialization, mute state) is kept in pure
+ * data classes ([IceCandidateData]) and simple boolean fields so that
+ * JVM unit tests can validate them without the Android WebRTC runtime.
+ */
+@Singleton
+class WebRtcManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val voiceApi: VoiceApi
+) {
+    companion object {
+        private val logger = Logger.getLogger("WebRtcManager")
+        private const val LOCAL_AUDIO_TRACK_ID = "kaiku-local-audio"
+    }
+
+    // -- State ----------------------------------------------------------------
+
+    private var factory: PeerConnectionFactory? = null
+    private var peerConnection: PeerConnection? = null
+    private var audioSource: AudioSource? = null
+
+    /** The local microphone audio track, null until [createPeerConnection] is called. */
+    var localAudioTrack: AudioTrack? = null
+        private set
+
+    private val _remoteAudioTracks = MutableStateFlow<Map<String, AudioTrack>>(emptyMap())
+    /** Remote audio tracks keyed by track ID. */
+    val remoteAudioTracks: StateFlow<Map<String, AudioTrack>> = _remoteAudioTracks.asStateFlow()
+
+    private val _remoteVideoTracks = MutableStateFlow<Map<String, VideoTrack>>(emptyMap())
+    /** Remote video tracks (screen shares) keyed by track ID. */
+    val remoteVideoTracks: StateFlow<Map<String, VideoTrack>> = _remoteVideoTracks.asStateFlow()
+
+    /** Whether the local audio track is muted. */
+    var isMuted: Boolean = false
+        private set
+
+    // -- Callbacks ------------------------------------------------------------
+
+    /** Called when an SDP answer has been created and is ready to send. */
+    var onLocalDescription: ((String) -> Unit)? = null
+
+    /** Called when a new local ICE candidate is available (JSON string). */
+    var onIceCandidate: ((String) -> Unit)? = null
+
+    /** Called when a remote track is received. */
+    var onTrackAdded: ((MediaStreamTrack) -> Unit)? = null
+
+    // -- Lifecycle ------------------------------------------------------------
+
+    /**
+     * Initializes the [PeerConnectionFactory].
+     *
+     * Must be called once before [createPeerConnection]. Safe to call multiple
+     * times — subsequent calls are no-ops if the factory already exists.
+     */
+    suspend fun initialize() {
+        if (factory != null) return
+
+        PeerConnectionFactory.initialize(
+            PeerConnectionFactory.InitializationOptions.builder(context)
+                .setEnableInternalTracer(false)
+                .createInitializationOptions()
+        )
+
+        val audioDeviceModule = JavaAudioDeviceModule.builder(context)
+            .createAudioDeviceModule()
+
+        factory = PeerConnectionFactory.builder()
+            .setAudioDeviceModule(audioDeviceModule)
+            .createPeerConnectionFactory()
+
+        logger.info("PeerConnectionFactory initialized")
+    }
+
+    /**
+     * Creates a new PeerConnection, fetching ICE server configuration from
+     * the server API.
+     *
+     * Also creates the local audio track and adds it to the connection.
+     * Call [initialize] first.
+     */
+    suspend fun createPeerConnection() {
+        val pcFactory = factory ?: throw IllegalStateException(
+            "PeerConnectionFactory not initialized. Call initialize() first."
+        )
+
+        // Fetch ICE servers from the Kaiku server
+        val iceConfig = try {
+            voiceApi.getIceServers()
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "Failed to fetch ICE servers, using empty config", e)
+            io.wolftown.kaiku.data.api.IceServerConfig(iceServers = emptyList())
+        }
+
+        val rtcIceServers = iceConfig.iceServers.map { server ->
+            server.toRtcIceServer()
+        }
+
+        val rtcConfig = PeerConnection.RTCConfiguration(rtcIceServers).apply {
+            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            continualGatheringPolicy =
+                PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+        }
+
+        peerConnection = pcFactory.createPeerConnection(rtcConfig, createPeerConnectionObserver())
+            ?: throw IllegalStateException("Failed to create PeerConnection")
+
+        // Create and add local audio track
+        audioSource = pcFactory.createAudioSource(MediaConstraints())
+        localAudioTrack = pcFactory.createAudioTrack(LOCAL_AUDIO_TRACK_ID, audioSource).also {
+            it.setEnabled(!isMuted)
+            peerConnection?.addTrack(it)
+        }
+
+        logger.info("PeerConnection created with ${rtcIceServers.size} ICE servers")
+    }
+
+    /** Closes the peer connection and releases audio resources. */
+    fun closePeerConnection() {
+        localAudioTrack?.dispose()
+        localAudioTrack = null
+        audioSource?.dispose()
+        audioSource = null
+        peerConnection?.close()
+        peerConnection = null
+
+        _remoteAudioTracks.value = emptyMap()
+        _remoteVideoTracks.value = emptyMap()
+
+        logger.info("PeerConnection closed")
+    }
+
+    /** Disposes of the factory and all resources. Call on application shutdown. */
+    fun dispose() {
+        closePeerConnection()
+        factory?.dispose()
+        factory = null
+        logger.info("WebRtcManager disposed")
+    }
+
+    // -- Signaling ------------------------------------------------------------
+
+    /**
+     * Handles an SDP offer from the server.
+     *
+     * Sets the remote description to the offer, then creates and sets a local
+     * SDP answer. When the answer is ready, [onLocalDescription] is invoked.
+     */
+    fun handleOffer(sdp: String) {
+        val pc = peerConnection ?: run {
+            logger.warning("handleOffer called but PeerConnection is null")
+            return
+        }
+
+        val offer = SessionDescription(SessionDescription.Type.OFFER, sdp)
+
+        pc.setRemoteDescription(object : SdpObserverAdapter("setRemoteDescription") {
+            override fun onSetSuccess() {
+                logger.info("Remote description set successfully")
+                pc.createAnswer(object : SdpObserverAdapter("createAnswer") {
+                    override fun onCreateSuccess(desc: SessionDescription) {
+                        pc.setLocalDescription(
+                            SdpObserverAdapter("setLocalDescription"),
+                            desc
+                        )
+                        onLocalDescription?.invoke(desc.description)
+                        logger.info("SDP answer created and set")
+                    }
+                }, MediaConstraints())
+            }
+        }, offer)
+    }
+
+    /** Returns the current local SDP description, or null if none is set. */
+    fun getLocalDescription(): String? =
+        peerConnection?.localDescription?.description
+
+    /**
+     * Adds a remote ICE candidate received from the server via WebSocket.
+     *
+     * @param candidateJson JSON string in the format:
+     *   `{"candidate":"...","sdpMLineIndex":0,"sdpMid":"..."}`
+     */
+    fun addIceCandidate(candidateJson: String) {
+        val pc = peerConnection ?: run {
+            logger.warning("addIceCandidate called but PeerConnection is null")
+            return
+        }
+
+        try {
+            val data = IceCandidateData.fromJson(candidateJson)
+            val candidate = IceCandidate(data.sdpMid, data.sdpMLineIndex, data.candidate)
+            pc.addIceCandidate(candidate)
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "Failed to parse ICE candidate: $candidateJson", e)
+        }
+    }
+
+    // -- Audio control --------------------------------------------------------
+
+    /**
+     * Mutes or unmutes the local audio track.
+     *
+     * When muted, the audio track is disabled (no audio is sent to peers).
+     */
+    fun setMuted(muted: Boolean) {
+        isMuted = muted
+        localAudioTrack?.setEnabled(!muted)
+    }
+
+    /**
+     * Enables or disables local audio.
+     *
+     * This is the inverse of [setMuted]: `setAudioEnabled(true)` is equivalent
+     * to `setMuted(false)`.
+     */
+    fun setAudioEnabled(enabled: Boolean) {
+        setMuted(!enabled)
+    }
+
+    // -- PeerConnection.Observer ----------------------------------------------
+
+    private fun createPeerConnectionObserver() = object : PeerConnection.Observer {
+        override fun onIceCandidate(candidate: IceCandidate) {
+            val data = IceCandidateData(
+                candidate = candidate.sdp,
+                sdpMLineIndex = candidate.sdpMLineIndex,
+                sdpMid = candidate.sdpMid
+            )
+            onIceCandidate?.invoke(data.toJson())
+        }
+
+        override fun onTrack(transceiver: RtpTransceiver) {
+            val track = transceiver.receiver.track() ?: return
+            when (track) {
+                is AudioTrack -> {
+                    val updated = _remoteAudioTracks.value.toMutableMap()
+                    updated[track.id()] = track
+                    _remoteAudioTracks.value = updated
+                    logger.info("Remote audio track added: ${track.id()}")
+                }
+                is VideoTrack -> {
+                    val updated = _remoteVideoTracks.value.toMutableMap()
+                    updated[track.id()] = track
+                    _remoteVideoTracks.value = updated
+                    logger.info("Remote video track added: ${track.id()}")
+                }
+            }
+            onTrackAdded?.invoke(track)
+        }
+
+        override fun onSignalingChange(state: PeerConnection.SignalingState?) {
+            logger.info("Signaling state: $state")
+        }
+
+        override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
+            logger.info("ICE connection state: $state")
+        }
+
+        override fun onIceConnectionReceivingChange(receiving: Boolean) {
+            logger.info("ICE connection receiving: $receiving")
+        }
+
+        override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {
+            logger.info("ICE gathering state: $state")
+        }
+
+        override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {
+            logger.info("ICE candidates removed: ${candidates?.size ?: 0}")
+        }
+
+        override fun onAddStream(stream: MediaStream?) {
+            // Deprecated, using onTrack instead
+        }
+
+        override fun onRemoveStream(stream: MediaStream?) {
+            // Deprecated
+        }
+
+        override fun onDataChannel(channel: DataChannel?) {
+            // Not used for voice
+        }
+
+        override fun onRenegotiationNeeded() {
+            logger.info("Renegotiation needed")
+        }
+    }
+
+    // -- Helpers --------------------------------------------------------------
+
+    /**
+     * Converts a Kaiku API [IceServer] to the WebRTC [PeerConnection.IceServer].
+     */
+    private fun IceServer.toRtcIceServer(): PeerConnection.IceServer {
+        val builder = PeerConnection.IceServer.builder(urls)
+        username?.let { builder.setUsername(it) }
+        credential?.let { builder.setPassword(it) }
+        return builder.createIceServer()
+    }
+}
+
+/**
+ * Base [SdpObserver] adapter that logs failures and provides no-op defaults.
+ *
+ * Override the specific success callback you need.
+ */
+private open class SdpObserverAdapter(private val label: String) : SdpObserver {
+    private val logger = Logger.getLogger("SdpObserver")
+
+    override fun onCreateSuccess(desc: SessionDescription) {}
+
+    override fun onSetSuccess() {}
+
+    override fun onCreateFailure(error: String?) {
+        logger.warning("$label onCreateFailure: $error")
+    }
+
+    override fun onSetFailure(error: String?) {
+        logger.warning("$label onSetFailure: $error")
+    }
+}
