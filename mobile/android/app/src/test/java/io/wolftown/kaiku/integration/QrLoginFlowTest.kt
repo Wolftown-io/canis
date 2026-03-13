@@ -66,9 +66,6 @@ class QrLoginFlowTest {
         assertTrue(result.isSuccess)
         assertEquals(testUser, result.getOrNull())
 
-        // Verify server URL was saved
-        verify { tokenStorage.saveServerUrl(testServerUrl) }
-
         // Verify tokens were saved (twice: once before getMe, once after with userId)
         verify(exactly = 2) {
             tokenStorage.saveTokens(
@@ -78,8 +75,16 @@ class QrLoginFlowTest {
                 userId = any()
             )
         }
-        // Second call should have the correct userId
-        verify {
+
+        // Server URL and final tokens must be saved AFTER getMe succeeds
+        verifyOrder {
+            tokenStorage.saveTokens(
+                accessToken = "qr-access-token-abc",
+                refreshToken = "qr-refresh-token-xyz",
+                expiresIn = 900,
+                userId = ""
+            )
+            tokenStorage.saveServerUrl(testServerUrl)
             tokenStorage.saveTokens(
                 accessToken = "qr-access-token-abc",
                 refreshToken = "qr-refresh-token-xyz",
