@@ -41,21 +41,15 @@ class KaikuHttpClient @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val authState: AuthState
 ) {
-    companion object {
-        private val logger = Logger.getLogger("KaikuHttpClient")
-    }
-
-    private val refreshMutex = Mutex()
-
-    val httpClient: HttpClient = createConfiguredClient(OkHttp.create())
-
-    /**
-     * Creates a [KaikuHttpClient] with a custom engine (for testing with MockEngine).
-     */
     internal companion object {
+        private val logger = Logger.getLogger("KaikuHttpClient")
+
         /** Attribute key to mark requests that should skip the auth interceptor. */
         private val SkipAuthInterceptor = AttributeKey<Boolean>("SkipAuthInterceptor")
 
+        /**
+         * Creates a [KaikuHttpClient] with a custom engine (for testing with MockEngine).
+         */
         fun forTesting(
             tokenStorage: TokenStorage,
             authState: AuthState,
@@ -66,6 +60,10 @@ class KaikuHttpClient @Inject constructor(
             }
         }
     }
+
+    private val refreshMutex = Mutex()
+
+    val httpClient: HttpClient = createConfiguredClient(OkHttp.create())
 
     @Volatile
     private var testClient: HttpClient? = null
