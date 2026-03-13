@@ -121,9 +121,15 @@ class KaikuWebSocket @Inject constructor(
     // -- Internal -------------------------------------------------------------
 
     private fun doConnect() {
-        val url = serverUrl ?: return
+        val url = serverUrl ?: run {
+            logger.warning("No server URL configured, stopping reconnect")
+            shouldReconnect = false
+            return
+        }
         val token = tokenStorage.getAccessToken() ?: run {
-            logger.warning("No access token available, cannot connect")
+            logger.warning("No access token available, stopping reconnect")
+            shouldReconnect = false
+            _connectionState.value = ConnectionState.Disconnected
             return
         }
 

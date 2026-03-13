@@ -130,7 +130,13 @@ class LoginViewModel @Inject constructor(
      * Launches the OIDC login flow for the given provider via Chrome Custom Tabs.
      */
     fun launchOidcLogin(context: Context, providerSlug: String) {
-        oidcHandler.launchOidcLogin(context, providerSlug)
+        try {
+            oidcHandler.launchOidcLogin(context, providerSlug)
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(error = e.message ?: "Failed to launch OIDC login")
+            }
+        }
     }
 
     fun clearError() {

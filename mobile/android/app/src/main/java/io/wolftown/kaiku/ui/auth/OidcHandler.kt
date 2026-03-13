@@ -41,14 +41,16 @@ class OidcHandler @Inject constructor(
      */
     fun launchOidcLogin(context: Context, providerSlug: String) {
         val serverUrl = tokenStorage.getServerUrl()
-        if (serverUrl == null) {
-            logger.log(Level.WARNING, "Cannot launch OIDC login: server URL not configured")
-            return
-        }
+            ?: throw IllegalStateException("Server URL not configured")
         val authUrl = "$serverUrl/auth/oidc/authorize/$providerSlug" +
             "?redirect_uri=${Uri.encode(REDIRECT_URI)}"
-        val customTabIntent = CustomTabsIntent.Builder().build()
-        customTabIntent.launchUrl(context, Uri.parse(authUrl))
+        try {
+            val customTabIntent = CustomTabsIntent.Builder().build()
+            customTabIntent.launchUrl(context, Uri.parse(authUrl))
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "Failed to launch OIDC login", e)
+            throw e
+        }
     }
 
     /**

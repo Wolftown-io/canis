@@ -199,8 +199,8 @@ class AudioRouteManager @Inject constructor(
             adapter != null &&
                 adapter.isEnabled &&
                 audioManager.isBluetoothScoAvailableOffCall
-        } catch (_: SecurityException) {
-            // Missing BLUETOOTH permission
+        } catch (e: SecurityException) {
+            logger.warning("Bluetooth permission missing, skipping Bluetooth audio route")
             false
         }
     }

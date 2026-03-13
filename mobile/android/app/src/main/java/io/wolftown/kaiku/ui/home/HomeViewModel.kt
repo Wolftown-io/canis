@@ -12,6 +12,7 @@ import io.wolftown.kaiku.domain.model.Guild
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.logging.Logger
 import javax.inject.Inject
 
 @HiltViewModel
@@ -20,6 +21,10 @@ class HomeViewModel @Inject constructor(
     private val webSocket: KaikuWebSocket,
     private val tokenStorage: TokenStorage
 ) : ViewModel() {
+
+    companion object {
+        private val logger = Logger.getLogger("HomeViewModel")
+    }
 
     val guilds: StateFlow<List<Guild>> = guildRepository.guilds
 
@@ -72,7 +77,10 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun connectWebSocket() {
-        val serverUrl = tokenStorage.getServerUrl() ?: return
+        val serverUrl = tokenStorage.getServerUrl() ?: run {
+            logger.warning("Server URL not configured, cannot connect WebSocket")
+            return
+        }
         webSocket.connect(serverUrl)
     }
 
