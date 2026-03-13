@@ -99,6 +99,26 @@ class QrLoginFlowTest {
     }
 
     // ========================================================================
+    // QR redeem partial success (redeem OK, getMe fails)
+    // ========================================================================
+
+    @Test
+    fun `QR redeem cleans up when getMe fails after successful redeem`() = runTest {
+        coEvery { authApi.redeemQrToken(testServerUrl, testToken) } returns testAuthResponse
+        coEvery { authApi.getMe() } throws RuntimeException("getMe failed")
+
+        val result = authRepository.redeemQrToken(testServerUrl, testToken)
+
+        assertTrue(result.isFailure)
+        // Server URL should NOT be saved (deferred to after getMe in Task 8)
+        verify(exactly = 0) { tokenStorage.saveServerUrl(any()) }
+        // Tokens should be cleared
+        verify { tokenStorage.clear() }
+        // Auth state should remain logged out
+        assertFalse(authState.isLoggedIn.value)
+    }
+
+    // ========================================================================
     // QR redeem with expired token
     // ========================================================================
 

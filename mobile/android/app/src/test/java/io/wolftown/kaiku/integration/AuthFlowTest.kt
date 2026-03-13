@@ -110,6 +110,19 @@ class AuthFlowTest {
         assertNull(authState.currentUserId.value)
     }
 
+    @Test
+    fun `register cleans up tokens when getMe fails`() = runTest {
+        coEvery {
+            authApi.register("newuser", "pass", null, null)
+        } returns testAuthResponse
+        coEvery { authApi.getMe() } throws RuntimeException("Network error")
+
+        val result = authRepository.register("newuser", "pass", null, null)
+
+        assertTrue(result.isFailure)
+        verify { tokenStorage.clear() }
+    }
+
     // ========================================================================
     // Logout → clear tokens → auth state
     // ========================================================================

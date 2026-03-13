@@ -16,6 +16,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.seconds
 
@@ -113,6 +115,7 @@ class KaikuWebSocketTest {
     @Test
     fun `send serializes ClientEvent and sends over WebSocket`() = runTest {
         val receivedMessages = mutableListOf<String>()
+        val messageLatch = CountDownLatch(1)
 
         mockServer.enqueue(
             MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
@@ -122,6 +125,7 @@ class KaikuWebSocketTest {
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     receivedMessages.add(text)
+                    messageLatch.countDown()
                 }
             })
         )
@@ -132,8 +136,8 @@ class KaikuWebSocketTest {
 
             ws.send(ClientEvent.Subscribe("chan-001"))
 
-            // Give the send time to propagate
-            Thread.sleep(500)
+            // Wait for the message to arrive at the mock server (max 5s)
+            assertTrue("Server did not receive message in time", messageLatch.await(5, TimeUnit.SECONDS))
 
             val sent = receivedMessages.firstOrNull { it.contains("subscribe") }
             assertTrue("Expected subscribe message to be sent", sent != null)

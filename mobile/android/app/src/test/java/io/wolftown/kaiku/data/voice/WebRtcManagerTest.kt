@@ -133,47 +133,11 @@ class WebRtcManagerTest {
     // ========================================================================
     // Mute state logic
     // ========================================================================
-
-    @Test
-    fun `MuteState tracks muted and unmuted correctly`() {
-        // Pure state tracking, no Android dependency
-        var isMuted = false
-
-        // Initial state
-        assertFalse(isMuted)
-
-        // Mute
-        isMuted = true
-        assertTrue(isMuted)
-
-        // Unmute
-        isMuted = false
-        assertFalse(isMuted)
-    }
-
-    @Test
-    fun `setAudioEnabled is inverse of setMuted`() {
-        // Verify the conceptual inverse relationship
-        // setAudioEnabled(true) -> muted = false
-        // setAudioEnabled(false) -> muted = true
-        var isMuted = false
-
-        // setAudioEnabled(false) -> muted = true
-        isMuted = !false.also { } // setMuted(!enabled) where enabled=false
-        isMuted = true // setMuted(true) — same as setAudioEnabled(false)
-        assertTrue(isMuted)
-
-        // setAudioEnabled(true) -> muted = false
-        isMuted = false // setMuted(false) — same as setAudioEnabled(true)
-        assertFalse(isMuted)
-    }
-
-    @Test
-    fun `muted state starts as false by default`() {
-        // WebRtcManager.isMuted defaults to false — user starts unmuted
-        val defaultMuted = false
-        assertFalse(defaultMuted)
-    }
+    // WebRtcManager requires android.content.Context (Hilt @ApplicationContext)
+    // and cannot be instantiated in pure JVM unit tests. The isMuted field and
+    // setMuted() method need Robolectric or instrumented tests.
+    //
+    // TODO: isMuted / setMuted tests require Robolectric (PeerConnection dependency)
 
     // ========================================================================
     // IceServer conversion (data mapping)
