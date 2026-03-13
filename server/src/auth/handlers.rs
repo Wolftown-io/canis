@@ -2659,6 +2659,11 @@ pub async fn qr_redeem(
         .parse()
         .map_err(|_| AuthError::Internal("Invalid user ID in QR token".to_string()))?;
 
+    // Verify user still exists (may have been deleted/banned during the token window)
+    let _user = find_user_by_id(&state.db, user_id)
+        .await?
+        .ok_or(AuthError::InvalidCredentials)?;
+
     // Issue tokens
     let tokens = generate_token_pair(
         user_id,
