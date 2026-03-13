@@ -1,5 +1,6 @@
 package io.wolftown.kaiku.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import io.wolftown.kaiku.data.local.AuthState
 import io.wolftown.kaiku.ui.auth.LoginScreen
+import io.wolftown.kaiku.ui.auth.QrRedeemScreen
+import io.wolftown.kaiku.ui.auth.QrScannerScreen
 import io.wolftown.kaiku.ui.auth.RegisterScreen
 import io.wolftown.kaiku.ui.auth.ServerUrlScreen
 import io.wolftown.kaiku.ui.channel.TextChannelScreen
@@ -39,7 +42,7 @@ fun KaikuNavGraph(
     val currentRoute = navBackStackEntry?.destination?.route
 
     // Auth guard: redirect to login when logged out from an authenticated screen
-    val authRoutes = setOf("server_url", "login", "register")
+    val authRoutes = setOf("server_url", "login", "register", "qr_scanner", "qr_redeem/{serverUrl}/{token}")
     LaunchedEffect(isLoggedIn) {
         if (!isLoggedIn && currentRoute != null && currentRoute !in authRoutes) {
             navController.navigate("login") {
@@ -63,6 +66,9 @@ fun KaikuNavGraph(
                             navController.navigate("login") {
                                 popUpTo("server_url") { inclusive = true }
                             }
+                        },
+                        onScanQrCode = {
+                            navController.navigate("qr_scanner")
                         }
                     )
                 }
@@ -132,7 +138,38 @@ fun KaikuNavGraph(
                             navController.navigate("login") {
                                 popUpTo(0) { inclusive = true }
                             }
+                        },
+                        onScanQrCode = {
+                            navController.navigate("qr_scanner")
                         }
+                    )
+                }
+
+                composable("qr_scanner") {
+                    QrScannerScreen(
+                        onQrScanned = { serverUrl, token ->
+                            navController.navigate(
+                                "qr_redeem/${Uri.encode(serverUrl)}/$token"
+                            )
+                        },
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("qr_redeem/{serverUrl}/{token}") { backStackEntry ->
+                    val serverUrl = Uri.decode(
+                        backStackEntry.arguments?.getString("serverUrl") ?: ""
+                    )
+                    val token = backStackEntry.arguments?.getString("token") ?: ""
+                    QrRedeemScreen(
+                        serverUrl = serverUrl,
+                        token = token,
+                        onSuccess = {
+                            navController.navigate("home") {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        },
+                        onError = { navController.popBackStack() }
                     )
                 }
             }

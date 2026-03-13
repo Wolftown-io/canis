@@ -61,6 +61,7 @@ class ServerUrlViewModel @Inject constructor(
 @Composable
 fun ServerUrlScreen(
     onConnectSuccess: () -> Unit,
+    onScanQrCode: () -> Unit = {},
     viewModel: ServerUrlViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -123,6 +124,17 @@ fun ServerUrlScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Connect")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedButton(
+            onClick = onScanQrCode,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Scan QR Code")
         }
     }
 }
