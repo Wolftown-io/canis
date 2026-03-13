@@ -29,6 +29,7 @@ class AuthState @Inject constructor() {
         .stateIn(CoroutineScope(Dispatchers.Default), SharingStarted.Eagerly, null)
 
     fun setLoggedIn(userId: String) {
+        require(userId.isNotBlank()) { "userId must not be blank" }
         _session.value = AuthSession.LoggedIn(userId)
     }
 
@@ -39,16 +40,16 @@ class AuthState @Inject constructor() {
     /**
      * Restores auth state from persisted tokens on app start.
      *
-     * If the access token is expired but a refresh token exists, we still
-     * consider the user logged in — the HTTP interceptor will refresh the
-     * token transparently on the first API call.
+     * If valid tokens exist (non-expired, or expired with a refresh token
+     * available), the user is considered logged in — the HTTP interceptor
+     * will refresh the token transparently on the first API call.
      */
     fun initialize(tokenStorage: TokenStorage) {
         val token = tokenStorage.getAccessToken()
         val userId = tokenStorage.getUserId()
         val refreshToken = tokenStorage.getRefreshToken()
 
-        if (token != null && userId != null) {
+        if (token != null && !userId.isNullOrBlank()) {
             // Valid token or expired-but-refreshable — let the HTTP interceptor handle refresh
             if (!tokenStorage.isAccessTokenExpired() || refreshToken != null) {
                 setLoggedIn(userId)

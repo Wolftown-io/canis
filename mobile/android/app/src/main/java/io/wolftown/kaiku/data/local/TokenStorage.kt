@@ -26,7 +26,10 @@ class TokenStorage @Inject constructor(
         val expiresAt = System.currentTimeMillis() + expiresIn * 1000L
         val success = prefs.edit()
             .putString(KEY_ACCESS_TOKEN, accessToken)
-            .putString(KEY_REFRESH_TOKEN, refreshToken ?: "")
+            .apply {
+                if (refreshToken != null) putString(KEY_REFRESH_TOKEN, refreshToken)
+                else remove(KEY_REFRESH_TOKEN)
+            }
             .putLong(KEY_EXPIRES_AT, expiresAt)
             .putString(KEY_USER_ID, userId)
             .commit()
@@ -37,7 +40,10 @@ class TokenStorage @Inject constructor(
 
     fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
 
-    fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
+    fun getRefreshToken(): String? {
+        val token = prefs.getString(KEY_REFRESH_TOKEN, null)
+        return if (token.isNullOrEmpty()) null else token
+    }
 
     fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
 
