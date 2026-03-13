@@ -108,11 +108,14 @@ class QrLoginFlowTest {
         assertTrue(result.isFailure)
         assertEquals("QR code expired or already used", result.exceptionOrNull()?.message)
 
-        // Server URL is saved before the API call, so it will have been called
-        verify { tokenStorage.saveServerUrl(testServerUrl) }
+        // Server URL should NOT be saved on failure (saved after API call)
+        verify(exactly = 0) { tokenStorage.saveServerUrl(any()) }
 
         // No tokens should be saved
         verify(exactly = 0) { tokenStorage.saveTokens(any(), any(), any(), any()) }
+
+        // Partial state should be cleaned up
+        verify { tokenStorage.clear() }
 
         // Auth state should remain logged out
         assertFalse(authState.isLoggedIn.value)
