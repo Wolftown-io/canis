@@ -6,8 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class UserStatus {
     @SerialName("online") ONLINE,
-    @SerialName("idle") IDLE,
-    @SerialName("dnd") DND,
+    @SerialName("away") IDLE,
+    @SerialName("busy") DND,
     @SerialName("offline") OFFLINE;
 }
 

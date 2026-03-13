@@ -84,7 +84,7 @@ class AuthApiImpl @Inject constructor(
 
         if (response.status == HttpStatusCode.Forbidden) {
             val errorBody = response.body<ApiErrorResponse>()
-            if (errorBody.error == "mfa_required") {
+            if (errorBody.error == "MFA_REQUIRED") {
                 throw MfaRequiredApiException(errorBody.message ?: "MFA required")
             }
             throw ApiException(response.status, errorBody.message ?: "Forbidden")

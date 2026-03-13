@@ -1,5 +1,6 @@
 package io.wolftown.kaiku.data.ws
 
+import io.wolftown.kaiku.domain.model.UserStatus
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -86,7 +87,7 @@ sealed class ServerEvent {
 
     @Serializable
     @SerialName("presence_update")
-    data class PresenceUpdate(val userId: String, val status: String) : ServerEvent()
+    data class PresenceUpdate(val userId: String, val status: UserStatus) : ServerEvent()
 
     // -- Voice ----------------------------------------------------------------
 

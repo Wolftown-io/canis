@@ -1,5 +1,6 @@
 package io.wolftown.kaiku.data.ws
 
+import io.wolftown.kaiku.domain.model.UserStatus
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
@@ -173,7 +174,7 @@ class ServerEventParsingTest {
         val event = WsJson.decodeFromString<ServerEvent>(json)
         assertIs<ServerEvent.PresenceUpdate>(event)
         assertEquals("usr-001", event.userId)
-        assertEquals("online", event.status)
+        assertEquals(UserStatus.ONLINE, event.status)
     }
 
     @Test
@@ -181,7 +182,7 @@ class ServerEventParsingTest {
         val json = """{"type":"presence_update","user_id":"usr-002","status":"away"}"""
         val event = WsJson.decodeFromString<ServerEvent>(json)
         assertIs<ServerEvent.PresenceUpdate>(event)
-        assertEquals("away", event.status)
+        assertEquals(UserStatus.IDLE, event.status)
     }
 
     // ========================================================================

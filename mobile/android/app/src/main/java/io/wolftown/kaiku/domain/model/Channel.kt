@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 enum class ChannelType {
     @SerialName("text") TEXT,
     @SerialName("voice") VOICE,
-    @SerialName("announcement") ANNOUNCEMENT;
+    @SerialName("dm") DM;
 }
 
 @Serializable
