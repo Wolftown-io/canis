@@ -12,6 +12,7 @@ import io.wolftown.kaiku.data.ws.ScreenShareInfo
 import io.wolftown.kaiku.data.ws.ServerEvent
 import io.wolftown.kaiku.data.ws.VoiceParticipant
 import io.wolftown.kaiku.service.VoiceCallService
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -135,9 +136,11 @@ class VoiceRepository @Inject constructor(
             VoiceCallService.start(context, channelId, channelId)
 
             logger.info("Joined voice channel: $channelId")
+        } catch (e: CancellationException) {
+            cleanUp()
+            throw e
         } catch (e: Exception) {
             logger.log(Level.SEVERE, "Failed to join voice channel: $channelId", e)
-            // Clean up on failure
             cleanUp()
             throw e
         }
