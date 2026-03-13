@@ -253,6 +253,7 @@ class WebRtcManager @Inject constructor(
             pc.addIceCandidate(candidate)
         } catch (e: Exception) {
             logger.log(Level.WARNING, "Failed to parse ICE candidate: $candidateJson", e)
+            onError?.invoke("Failed to process ICE candidate: ${e.message}")
         }
     }
 

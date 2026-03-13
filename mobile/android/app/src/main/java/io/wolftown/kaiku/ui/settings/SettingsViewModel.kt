@@ -31,6 +31,9 @@ class SettingsViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     val serverUrl: String? get() = tokenStorage.getServerUrl()
 
     init {
@@ -42,11 +45,17 @@ class SettingsViewModel @Inject constructor(
             _isLoading.value = true
             try {
                 val result = authRepository.getCurrentUser()
-                _user.value = result.getOrNull()
+                if (result.isSuccess) {
+                    _user.value = result.getOrNull()
+                } else {
+                    _error.value = result.exceptionOrNull()?.message
+                        ?: "Failed to load user profile"
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.log(Level.WARNING, "Failed to load user", e)
+                _error.value = e.message ?: "Failed to load user profile"
             } finally {
                 _isLoading.value = false
             }
