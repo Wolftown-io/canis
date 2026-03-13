@@ -121,6 +121,14 @@ dependencies {
     // WebRTC
     implementation("io.getstream:stream-webrtc-android:1.3.0")
 
+    // ML Kit Barcode Scanning (QR code login)
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
+    // CameraX (for QR scanner camera preview)
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.14")
