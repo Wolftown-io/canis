@@ -166,6 +166,9 @@ class ChatRepository @Inject constructor(
             is ServerEvent.ReactionRemove -> handleReactionRemove(event)
             is ServerEvent.TypingStart -> handleTypingStart(event)
             is ServerEvent.TypingStop -> handleTypingStop(event)
+            is ServerEvent.Error -> {
+                logger.warning("Server error: code=${event.code} message=${event.message}")
+            }
             else -> { /* Ignored — other events are handled elsewhere */ }
         }
     }

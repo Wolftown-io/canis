@@ -134,7 +134,6 @@ class VoiceRepository @Inject constructor(
             }
             VoiceCallService.start(context, channelId, channelId)
 
-            _isConnected.value = true
             logger.info("Joined voice channel: $channelId")
         } catch (e: Exception) {
             logger.log(Level.SEVERE, "Failed to join voice channel: $channelId", e)
@@ -276,6 +275,7 @@ class VoiceRepository @Inject constructor(
                 if (event.channelId == channelId) {
                     _participants.value = event.participants
                     _screenShares.value = event.screenShares
+                    _isConnected.value = true
                 }
             }
 
@@ -380,6 +380,15 @@ class VoiceRepository @Inject constructor(
                         webRtcManager.removeVideoTrack(trackId)
                     }
                 }
+            }
+
+            is ServerEvent.VoiceError -> {
+                _error.value = "Voice error: ${event.message}"
+                logger.warning("Voice error from server: code=${event.code} message=${event.message}")
+            }
+
+            is ServerEvent.Error -> {
+                logger.warning("Server error in voice context: code=${event.code} message=${event.message}")
             }
 
             else -> { /* Ignored — other events handled elsewhere */ }
