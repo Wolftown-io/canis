@@ -23,6 +23,7 @@ import {
   ShieldOff,
   RefreshCw,
   KeyRound,
+  Smartphone,
 } from "lucide-solid";
 import {
   getClipboardSettings,
@@ -42,6 +43,7 @@ import { showToast } from "@/components/ui/Toast";
 
 const MfaSetupModal = lazy(() => import("./MfaSetupModal"));
 const BackupCodesDisplay = lazy(() => import("./BackupCodesDisplay"));
+const QrLoginModal = lazy(() => import("./QrLoginModal"));
 
 // Type for backup status (matches Tauri command response)
 interface BackupStatus {
@@ -62,6 +64,9 @@ const SecuritySettings: Component<SecuritySettingsProps> = (props) => {
       return { has_backup: false, backup_created_at: null, version: null };
     }
   });
+
+  // QR login state
+  const [showQrLogin, setShowQrLogin] = createSignal(false);
 
   // MFA state
   const [showMfaSetup, setShowMfaSetup] = createSignal(false);
@@ -642,6 +647,36 @@ const SecuritySettings: Component<SecuritySettingsProps> = (props) => {
           </div>
         </div>
       </div>
+
+      {/* Mobile App Section */}
+      <div class="pt-6 border-t border-white/10">
+        <div class="flex items-center gap-3 mb-4">
+          <Smartphone class="w-5 h-5 text-text-secondary" />
+          <h3 class="text-lg font-semibold text-text-primary">Mobile App</h3>
+        </div>
+
+        <div class="bg-surface-base rounded-xl p-4">
+          <p class="text-sm text-text-secondary mb-3">
+            Sign in to the Kaiku mobile app by scanning a QR code. No need to
+            enter your server URL or credentials manually.
+          </p>
+          <button
+            onClick={() => setShowQrLogin(true)}
+            class="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/80 rounded-lg transition-colors text-white text-sm font-medium"
+          >
+            <Smartphone class="w-4 h-4" />
+            Link Mobile Device
+          </button>
+        </div>
+      </div>
+
+      {/* QR Login Modal */}
+      <Show when={showQrLogin()}>
+        <QrLoginModal
+          serverUrl={authState.serverUrl ?? ""}
+          onClose={() => setShowQrLogin(false)}
+        />
+      </Show>
     </div>
   );
 };
