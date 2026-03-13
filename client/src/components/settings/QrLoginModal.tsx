@@ -46,7 +46,6 @@ const QrLoginModal: Component<QrLoginModalProps> = (props) => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            setQrDataUrl(null);
             return 0;
           }
           return prev - 1;
