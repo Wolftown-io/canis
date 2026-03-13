@@ -52,6 +52,7 @@ class AuthRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            tokenStorage.clear()
             Result.failure(e)
         }
     }
@@ -86,6 +87,7 @@ class AuthRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            tokenStorage.clear()
             Result.failure(e)
         }
     }
@@ -147,6 +149,7 @@ class AuthRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            tokenStorage.clear()
             Result.failure(e)
         }
     }
@@ -182,6 +185,7 @@ class AuthRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            tokenStorage.clear()
             Result.failure(e)
         }
     }
@@ -221,6 +225,7 @@ class AuthRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            tokenStorage.clear()
             Result.failure(e)
         }
     }

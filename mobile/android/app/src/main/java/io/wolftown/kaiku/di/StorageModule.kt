@@ -42,6 +42,13 @@ object StorageModule {
             // Delete the corrupted file and recreate.
             logger.log(Level.WARNING, "EncryptedSharedPreferences corrupted, recreating", e)
             context.deleteSharedPreferences("kaiku_secure_prefs")
+
+            // Flag for the UI to show a notification on next launch
+            context.getSharedPreferences("kaiku_app_state", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("storage_was_reset", true)
+                .commit()
+
             EncryptedSharedPreferences.create(
                 context,
                 "kaiku_secure_prefs",

@@ -1,6 +1,7 @@
 package io.wolftown.kaiku.data.local
 
 import android.content.SharedPreferences
+import java.util.logging.Logger
 import javax.inject.Inject
 
 class TokenStorage @Inject constructor(
@@ -13,6 +14,7 @@ class TokenStorage @Inject constructor(
         private const val KEY_EXPIRES_AT = "expires_at"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_SERVER_URL = "server_url"
+        private val logger = Logger.getLogger("TokenStorage")
     }
 
     fun saveTokens(
@@ -22,12 +24,15 @@ class TokenStorage @Inject constructor(
         userId: String
     ) {
         val expiresAt = System.currentTimeMillis() + expiresIn * 1000L
-        prefs.edit()
+        val success = prefs.edit()
             .putString(KEY_ACCESS_TOKEN, accessToken)
             .putString(KEY_REFRESH_TOKEN, refreshToken)
             .putLong(KEY_EXPIRES_AT, expiresAt)
             .putString(KEY_USER_ID, userId)
-            .apply()
+            .commit()
+        if (!success) {
+            logger.warning("Failed to persist tokens to storage")
+        }
     }
 
     fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
@@ -39,9 +44,12 @@ class TokenStorage @Inject constructor(
     fun getServerUrl(): String? = prefs.getString(KEY_SERVER_URL, null)
 
     fun saveServerUrl(url: String) {
-        prefs.edit()
+        val success = prefs.edit()
             .putString(KEY_SERVER_URL, url)
-            .apply()
+            .commit()
+        if (!success) {
+            logger.warning("Failed to persist server URL to storage")
+        }
     }
 
     fun isAccessTokenExpired(): Boolean {
@@ -50,11 +58,14 @@ class TokenStorage @Inject constructor(
     }
 
     fun clear() {
-        prefs.edit()
+        val success = prefs.edit()
             .remove(KEY_ACCESS_TOKEN)
             .remove(KEY_REFRESH_TOKEN)
             .remove(KEY_EXPIRES_AT)
             .remove(KEY_USER_ID)
-            .apply()
+            .commit()
+        if (!success) {
+            logger.warning("Failed to clear tokens from storage")
+        }
     }
 }
