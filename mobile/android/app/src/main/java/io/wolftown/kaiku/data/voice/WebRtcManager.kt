@@ -84,16 +84,16 @@ class WebRtcManager @Inject constructor(
     // -- Callbacks ------------------------------------------------------------
 
     /** Called when an SDP answer has been created and is ready to send. */
-    var onLocalDescription: ((String) -> Unit)? = null
+    @Volatile var onLocalDescription: ((String) -> Unit)? = null
 
     /** Called when a new local ICE candidate is available (JSON string). */
-    var onIceCandidate: ((String) -> Unit)? = null
+    @Volatile var onIceCandidate: ((String) -> Unit)? = null
 
     /** Called when a remote track is received. */
-    var onTrackAdded: ((MediaStreamTrack) -> Unit)? = null
+    @Volatile var onTrackAdded: ((MediaStreamTrack) -> Unit)? = null
 
     /** Called when an SDP or ICE error occurs that prevents voice connection. */
-    var onError: ((String) -> Unit)? = null
+    @Volatile var onError: ((String) -> Unit)? = null
 
     // -- Lifecycle ------------------------------------------------------------
 
@@ -209,6 +209,7 @@ class WebRtcManager @Inject constructor(
     fun handleOffer(sdp: String) {
         val pc = peerConnection ?: run {
             logger.warning("handleOffer called but PeerConnection is null")
+            onError?.invoke("Voice connection error: not initialized")
             return
         }
 
@@ -244,6 +245,7 @@ class WebRtcManager @Inject constructor(
     fun addIceCandidate(candidateJson: String) {
         val pc = peerConnection ?: run {
             logger.warning("addIceCandidate called but PeerConnection is null")
+            onError?.invoke("Voice connection error: not initialized")
             return
         }
 
