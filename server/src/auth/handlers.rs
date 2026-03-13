@@ -291,6 +291,22 @@ pub struct RevokeAllResponse {
     pub revoked_count: i64,
 }
 
+/// QR login token redemption request.
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct QrRedeemRequest {
+    /// One-time QR login token.
+    pub token: String,
+}
+
+/// QR login token creation response.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct QrCreateResponse {
+    /// One-time QR login token.
+    pub token: String,
+    /// Token lifetime in seconds.
+    pub expires_in: u64,
+}
+
 // ============================================================================
 // Regex for validation
 // ============================================================================
@@ -2571,4 +2587,119 @@ pub async fn reset_password(
     Ok(Json(serde_json::json!({
         "message": "Password has been reset successfully. Please log in with your new password."
     })))
+}
+
+// ============================================================================
+// QR Login Handlers
+// ============================================================================
+
+/// Create a one-time QR login token for the authenticated user.
+///
+/// POST /auth/qr/create
+///
+/// The token is stored in Valkey with a 120-second TTL and can be redeemed
+/// exactly once by an unauthenticated device (e.g. mobile app scanning a QR code).
+#[tracing::instrument(skip(state))]
+pub async fn qr_create(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> AuthResult<Json<QrCreateResponse>> {
+    let token = Uuid::now_v7().to_string();
+    let redis_key = format!("qr_login:{token}");
+
+    state
+        .redis
+        .set::<(), _, _>(
+            &redis_key,
+            auth.id.to_string(),
+            Some(fred::types::Expiration::EX(120)),
+            Some(fred::types::SetOptions::NX),
+            false,
+        )
+        .await
+        .map_err(|e| AuthError::Internal(format!("Failed to store QR token: {e}")))?;
+
+    tracing::info!(user_id = %auth.id, "Created QR login token");
+
+    Ok(Json(QrCreateResponse {
+        token,
+        expires_in: 120,
+    }))
+}
+
+/// Redeem a one-time QR login token for a full auth session.
+///
+/// POST /auth/qr/redeem
+///
+/// The token is consumed atomically via `GETDEL` so it cannot be reused.
+/// Returns an access/refresh token pair identical to the login endpoint.
+#[tracing::instrument(skip(state, body))]
+pub async fn qr_redeem(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    jar: CookieJar,
+    Json(body): Json<QrRedeemRequest>,
+) -> AuthResult<(CookieJar, Json<AuthResponse>)> {
+    let redis_key = format!("qr_login:{}", body.token);
+
+    // Atomic get-and-delete (one-use)
+    let user_id_str: Option<String> = state
+        .redis
+        .getdel(&redis_key)
+        .await
+        .map_err(|e| AuthError::Internal(format!("Failed to read QR token: {e}")))?;
+
+    let user_id_str = user_id_str.ok_or(AuthError::InvalidCredentials)?;
+    let user_id: Uuid = user_id_str
+        .parse()
+        .map_err(|_| AuthError::Internal("Invalid user ID in QR token".to_string()))?;
+
+    // Issue tokens
+    let tokens = generate_token_pair(
+        user_id,
+        &state.config.jwt_private_key,
+        state.config.jwt_access_expiry,
+        state.config.jwt_refresh_expiry,
+    )?;
+
+    // Compute refresh token hash for session tracking
+    let token_hash = hash_token(&tokens.refresh_token);
+    let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
+
+    // Create session (no IP/UA/geo — mobile device info not available here)
+    create_session(
+        &state.db,
+        user_id,
+        &token_hash,
+        expires_at,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await?;
+
+    let setup_complete = is_setup_complete(&state.db).await?;
+
+    tracing::info!(user_id = %user_id, "QR login token redeemed");
+    crate::observability::metrics::record_auth_login_attempt(true);
+
+    let include_refresh_token = should_return_refresh_token(&headers);
+
+    let jar = jar.add(cookies::build_refresh_cookie(
+        &tokens.refresh_token,
+        state.config.jwt_refresh_expiry,
+        &state.config,
+    ));
+
+    Ok((
+        jar,
+        Json(AuthResponse {
+            access_token: tokens.access_token,
+            refresh_token: include_refresh_token.then_some(tokens.refresh_token),
+            expires_in: tokens.access_expires_in,
+            token_type: "Bearer".to_string(),
+            setup_required: !setup_complete,
+        }),
+    ))
 }

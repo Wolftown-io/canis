@@ -44,6 +44,7 @@ pub fn hash_token(token: &str) -> String {
 /// - POST /refresh - Refresh access token
 /// - POST /forgot-password - Request password reset email
 /// - POST /reset-password - Reset password with token
+/// - POST /qr/redeem - Redeem a one-time QR login token
 /// - GET /oidc/providers - List OIDC providers
 /// - GET /oidc/authorize/{provider} - Initiate OIDC flow
 /// - GET /oidc/callback - OIDC callback
@@ -61,6 +62,7 @@ pub fn hash_token(token: &str) -> String {
 /// - POST /mfa/verify - Verify MFA (TOTP or backup code)
 /// - POST /mfa/disable - Disable MFA
 /// - POST /mfa/backup-codes - Generate MFA backup codes
+/// - POST /qr/create - Create a one-time QR login token
 pub fn router(state: AppState) -> Router<AppState> {
     // Login route with IP block check and rate limiting
     let login_route = Router::new()
@@ -150,13 +152,25 @@ pub fn router(state: AppState) -> Router<AppState> {
             RateLimitCategory::AuthPasswordReset,
         )));
 
+    // QR login redeem route with rate limiting (public — mobile isn't authenticated yet)
+    let qr_redeem_route = Router::new()
+        .route("/qr/redeem", post(handlers::qr_redeem))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_by_ip,
+        ))
+        .layer(axum_middleware::from_fn(with_category(
+            RateLimitCategory::AuthOther,
+        )));
+
     // Merge all public routes
     let public_routes = login_route
         .merge(register_route)
         .merge(refresh_route)
         .merge(oidc_routes)
         .merge(forgot_password_route)
-        .merge(reset_password_route);
+        .merge(reset_password_route)
+        .merge(qr_redeem_route);
 
     // Protected routes (auth required)
     let protected_routes = Router::new()
@@ -185,6 +199,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/mfa/backup-codes/count",
             get(handlers::mfa_backup_code_count),
         )
+        .route("/qr/create", post(handlers::qr_create))
         .layer(axum_middleware::from_fn_with_state(state, require_auth));
 
     public_routes.merge(protected_routes)
