@@ -31,6 +31,7 @@ interface AuthApi {
     suspend fun getMe(): User
     suspend fun getOidcProviders(): List<OidcProvider>
     suspend fun exchangeOidcCode(code: String, state: String, redirectUri: String): AuthResponse
+    suspend fun redeemQrToken(serverUrl: String, token: String): AuthResponse
 }
 
 @Serializable
@@ -58,6 +59,11 @@ private data class OidcCallbackRequest(
     val code: String,
     val state: String,
     val redirectUri: String
+)
+
+@Serializable
+private data class QrRedeemRequest(
+    val token: String
 )
 
 class AuthApiImpl @Inject constructor(
@@ -169,6 +175,23 @@ class AuthApiImpl @Inject constructor(
             throw ApiException(
                 response.status,
                 errorBody?.message ?: "OIDC code exchange failed"
+            )
+        }
+
+        return response.body()
+    }
+
+    override suspend fun redeemQrToken(serverUrl: String, token: String): AuthResponse {
+        val url = serverUrl.trimEnd('/') + "/auth/qr/redeem"
+        val response = httpClient.post(url) {
+            setBody(QrRedeemRequest(token))
+        }
+
+        if (!response.status.isSuccess()) {
+            val errorBody = runCatching { response.body<ApiErrorResponse>() }.getOrNull()
+            throw ApiException(
+                response.status,
+                errorBody?.message ?: "QR code expired or already used"
             )
         }
 
