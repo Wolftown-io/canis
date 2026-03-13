@@ -37,7 +37,7 @@ enum class ConnectionState {
  * Provides:
  * - [events] SharedFlow of parsed [ServerEvent]s
  * - [connectionState] for observing connection lifecycle
- * - Automatic ping/pong heartbeat (30s interval)
+ * - Automatic application-level heartbeat (30s interval)
  * - Exponential backoff reconnection (1s -> 30s cap)
  * - Network-aware reconnection via [ConnectivityMonitor]
  */

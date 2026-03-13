@@ -27,7 +27,8 @@ import javax.inject.Singleton
  * Responsibilities:
  * - Exposes per-channel message lists as [StateFlow]s
  * - Loads message history from the REST API
- * - Processes real-time WebSocket events (new/edit/delete, reactions, typing)
+ * - Processes real-time WebSocket events (new/edit/delete, typing)
+ * - Reactions are received but not yet reflected in the UI
  * - Sends client events (subscribe, unsubscribe, typing) via WebSocket
  * - Typing indicator debouncing (max once per 3 seconds)
  */

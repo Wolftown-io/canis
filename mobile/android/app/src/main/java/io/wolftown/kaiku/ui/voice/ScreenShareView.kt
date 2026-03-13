@@ -33,14 +33,7 @@ import org.webrtc.VideoTrack
  * - An overlay with username, source label, and quality badge
  * - Layer quality selector chips (Auto, High, Medium, Low)
  *
- * Tapping the view triggers [onToggleFullscreen].
- *
- * Note: Instrumented tests would verify:
- * - SurfaceViewRenderer is initialized with correct EGL context
- * - Video track is added/removed as sink correctly
- * - Layer preference chips send correct values
- * - Fullscreen toggle callback fires on tap
- * - Overlay info displays correct username and source label
+ * Tapping the view toggles the overlay controls visibility.
  */
 @Composable
 fun ScreenShareView(
@@ -59,7 +52,7 @@ fun ScreenShareView(
             .clip(RoundedCornerShape(8.dp))
             .background(Color.Black)
             .clickable {
-                // Toggle controls visibility on tap, trigger fullscreen on double-tap area
+                // Toggle overlay controls visibility
                 showControls = !showControls
             }
     ) {

@@ -109,7 +109,7 @@ class VoiceViewModel @Inject constructor(
     }
 
     public override fun onCleared() {
-        // Use NonCancellable since viewModelScope is already cancelled at this point
+        // Use NonCancellable because viewModelScope is being cancelled during onCleared
         viewModelScope.launch(NonCancellable) {
             try {
                 voiceRepository.leaveChannel()

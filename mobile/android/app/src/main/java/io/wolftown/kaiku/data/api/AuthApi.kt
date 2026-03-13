@@ -162,10 +162,8 @@ class AuthApiImpl @Inject constructor(
         state: String,
         redirectUri: String
     ): AuthResponse {
-        // The server's OIDC callback is GET /auth/oidc/callback?code=...&state=...
-        // The server handles the code exchange internally and returns/redirects with tokens.
-        // For the mobile flow, the server redirects to kaiku://auth/callback with tokens
-        // in query params, so this method is used as a fallback POST exchange if needed.
+        // Fallback: call the server's OIDC callback directly via GET.
+        // The server exchanges the authorization code internally and returns tokens.
         val response = httpClient.get("/auth/oidc/callback") {
             url {
                 parameters.append("code", code)
