@@ -457,10 +457,10 @@ pub fn spawn_rtp_forwarder(
 
 /// Spawn a task to read RTCP packets (e.g. REMB) from an `RTCRtpReceiver`.
 ///
-/// REMB (Receiver Estimated Maximum Bitrate) packets are sent by viewers to
-/// indicate their available bandwidth. For now we log these values for
-/// observability. Full per-subscriber REMB routing (mapping REMB SSRCs back
-/// to specific subscriptions) will be refined once we have real traffic.
+/// Reads REMB from the **source** side for observability logging only.
+/// Actual per-subscriber REMB routing is handled by
+/// [`spawn_subscriber_remb_reader`], which reads from the subscriber's
+/// `RTCRtpSender` and drives automatic layer switching.
 pub fn spawn_rtcp_reader(
     source_user_id: Uuid,
     source_type: TrackSource,

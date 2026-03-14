@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust, webrtc-rs (`RTCRtpSender`, REMB RTCP), tokio, DashMap
 
-**Design doc:** `docs/plans/2026-03-14-simulcast-auto-switching-design.md`
+**Design doc:** `docs/developer-guide/plans/2026-03-14-simulcast-auto-switching-design.md`
 
 ---
 
