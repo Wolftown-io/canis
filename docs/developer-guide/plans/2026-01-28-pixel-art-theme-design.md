@@ -1,6 +1,5 @@
 # Pixel Art Theme System — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a cozy 8-bit pixel art theme with NES-inspired aesthetics, dithered textures, pixel fonts, and an extensible theme family architecture that enables community theme creation.
 

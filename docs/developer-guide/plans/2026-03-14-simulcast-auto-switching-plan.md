@@ -1,6 +1,5 @@
 # Simulcast Auto-Switching Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Wire up REMB-based automatic simulcast layer switching so the SFU downgrades/upgrades video quality per subscriber based on their bandwidth.
 

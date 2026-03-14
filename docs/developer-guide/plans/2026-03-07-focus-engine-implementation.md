@@ -1,6 +1,5 @@
 # Context-Aware Focus Engine — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Complete the Focus Engine by adding OS desktop notifications, wiring them through the existing focus policy pipeline, and enabling custom app detection rules.
 

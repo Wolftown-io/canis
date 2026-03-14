@@ -1,6 +1,5 @@
 # Unified UI Features Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement four unified UI features: voice quality indicators, user presence/status, message reactions with emoji picker, and channel categories.
 

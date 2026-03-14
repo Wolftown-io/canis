@@ -17,6 +17,18 @@ Canonical lifecycle registry for superseded/active plan relationships.
 | `2026-01-29-moderation-safety-implementation.md` | Superseded | `2026-01-29-moderation-safety-implementation-v2.md` | v2 includes corrected sequencing and expanded safeguards |
 | `2026-01-29-moderation-safety-implementation-v2.md` | Active | - | Current canonical moderation and safety implementation plan |
 
+## Implemented Plans
+
+| Plan | Implemented In | Date |
+|------|---------------|------|
+| `2026-03-11-simulcast-design.md` | #361 | 2026-03-11 |
+| `2026-03-11-simulcast-implementation.md` | #361 | 2026-03-11 |
+| `2026-03-14-simulcast-auto-switching-design.md` | #367 | 2026-03-14 |
+| `2026-03-14-simulcast-auto-switching-plan.md` | #367 | 2026-03-14 |
+| `2026-03-14-frontend-visual-polish-design.md` | #365 | 2026-03-14 |
+| `2026-03-14-frontend-visual-polish-plan.md` | #365 | 2026-03-14 |
+| `2026-03-14-project-audit-fixes-plan.md` | #368+ | 2026-03-14 |
+
 ## Maintenance Rules
 
 When a plan is replaced:

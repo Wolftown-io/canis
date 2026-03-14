@@ -1,6 +1,5 @@
 # DM Voice Calls Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add voice calling to DM and group DM conversations, reusing existing SFU infrastructure.
 
@@ -1375,7 +1374,6 @@ import { startDMCall } from "@/lib/tauri";
   disabled={isInCall()}
   class="p-2 rounded hover:bg-surface-layer2 disabled:opacity-50"
   title={isInCall() ? "Already in a call" : "Start call"}
->
   <Phone class="w-5 h-5" />
 </button>
 ```

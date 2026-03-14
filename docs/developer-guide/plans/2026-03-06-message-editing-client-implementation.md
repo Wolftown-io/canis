@@ -1,6 +1,5 @@
 # Message Editing Client Integration — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Wire up client-side message editing — API function, edit state signal, inline textarea UI, context menu entry, and hover pencil button.
 
@@ -491,7 +490,6 @@ Replace the content `<div>` block (lines 573-597) with a `<Show>` that switches 
       </div>
     </div>
   }
->
   <div
     ref={contentRef}
     class="text-text-primary break-words leading-relaxed prose prose-invert max-w-none"

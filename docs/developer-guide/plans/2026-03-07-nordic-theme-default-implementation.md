@@ -1,6 +1,5 @@
 # Nordic Default Theme Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Update the default client theme to use true Nord colors matching the landing page, and add solid border lines between major layout areas.
 

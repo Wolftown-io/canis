@@ -1,6 +1,5 @@
 # Channel Pins Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add per-channel message pinning with a PIN_MESSAGES permission, system messages, WebSocket events, and a pin drawer UI.
 
@@ -769,7 +768,6 @@ In `client/src/views/Main.tsx`, find the channel header (around line 186). Add a
   onClick={() => togglePinDrawer()}
   class="ml-auto p-1.5 rounded hover:bg-white/10 text-text-secondary hover:text-text-primary transition-colors relative"
   title="Pinned Messages"
->
   <Pin class="w-4 h-4" />
   <Show when={pinCount() > 0}>
     <span class="absolute -top-1 -right-1 bg-accent-primary text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
@@ -869,7 +867,6 @@ When `message.message_type === "system"`, render the message differently — cen
       </span>
     </div>
   }
->
   {/* Normal message rendering */}
 </Show>
 ```

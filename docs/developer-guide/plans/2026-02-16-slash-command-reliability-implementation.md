@@ -1,6 +1,5 @@
 # Slash Command Reliability & /ping — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix end-to-end slash command reliability — registration uniqueness, listing consistency, response delivery to users, gateway error contract, frontend fixes, and a built-in /ping reference command.
 

@@ -1,6 +1,5 @@
 # Android Milestone 1 Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** A native Android app that supports login, guild/channel navigation, text messaging, voice chat, and screen share viewing against the existing Kaiku v1 server.
 

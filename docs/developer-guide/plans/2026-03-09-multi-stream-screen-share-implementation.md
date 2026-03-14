@@ -1,6 +1,5 @@
 # Multi-Stream Screen Sharing Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Enable up to 3 simultaneous screen shares per user and configurable per-channel limits (default 6), with a flexible viewer UI (single-focus + 2x2 grid).
 

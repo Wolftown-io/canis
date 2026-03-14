@@ -1,6 +1,5 @@
 # PR #363 Review Fixes Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix all critical, important, and suggestion-level issues found in the comprehensive PR #363 review across code quality, error handling, tests, and type design.
 

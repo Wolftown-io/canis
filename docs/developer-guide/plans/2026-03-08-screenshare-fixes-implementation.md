@@ -1,6 +1,5 @@
 # Screen Sharing Fixes — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix all 12 issues found during screen sharing review — atomic Redis ops, code dedup, type alignment, encoder fix, client polish, and real integration tests.
 

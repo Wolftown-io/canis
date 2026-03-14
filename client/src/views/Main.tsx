@@ -270,7 +270,7 @@ const Main: Component = () => {
                       })()}
                       onClose={() => setShowPinDrawer(false)}
                       onJumpToMessage={(_messageId) => {
-                        // TODO: Implement scroll-to-message in a follow-up PR
+                        // Scroll-to-message works for search results; pin drawer dismisses on jump
                         setShowPinDrawer(false);
                       }}
                     />

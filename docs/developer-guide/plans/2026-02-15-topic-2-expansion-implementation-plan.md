@@ -1,6 +1,5 @@
 # Topic 2 Expansion and Trust Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Deliver Topic 2 as one coordinated program: backup/restore/DR, SaaS+compliance baseline, media infrastructure scale-out, and sovereign/BYO deployment capabilities.
 

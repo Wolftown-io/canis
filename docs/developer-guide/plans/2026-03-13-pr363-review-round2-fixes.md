@@ -1,6 +1,5 @@
 # PR #363 Review Round 2 Fixes — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix all critical, important, and suggestion-level issues from the comprehensive round-2 review of PR #363 (Android M1 + QR login).
 

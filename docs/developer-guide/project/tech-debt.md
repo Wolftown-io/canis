@@ -141,7 +141,7 @@ Transitive dependency vulnerability from `aws-sdk-s3 → lru`. Scheduled review 
 
 ### TD-13: Frontend/backend file size limit sync ✅ RESOLVED
 
-**Source:** `docs/plans/2026-01-29-unified-file-size-limits.md:884`
+**Source:** `docs/developer-guide/plans/2026-01-29-unified-file-size-limits.md:884`
 **Resolved:** 2026-02-19 — Investigation confirmed this was already implemented: client fetches limits from `GET /api/config/upload-limits` at startup and applies them client-side via `validateFileSize()` helper.
 
 ---
@@ -227,14 +227,14 @@ API tests exist (16 passing), but no `@solidjs/testing-library` component render
 
 ### TD-22: Spoiler reveal state not persistent ✅ RESOLVED
 
-**Source:** `docs/plans/2026-01-29-spoilers-mentions-implementation.md:798`
+**Source:** `docs/developer-guide/plans/2026-01-29-spoilers-mentions-implementation.md:798`
 **Resolved:** 2026-02-19 — Added module-level `revealedSpoilers` signal with `Set<string>` in `MessageItem.tsx`. Revealed spoilers persist across virtual scroll remounts (the Set lives outside the component lifecycle).
 
 ---
 
 ### TD-23: Home unread aggregator capped at 100 channels
 
-**Source:** `docs/plans/2026-01-29-home-unread-aggregator-implementation.md:1024`
+**Source:** `docs/developer-guide/plans/2026-01-29-home-unread-aggregator-implementation.md:1024`
 
 Users with >100 unread channels only see the first 100. No pagination or "Show More".
 
@@ -242,7 +242,7 @@ Users with >100 unread channels only see the first 100. No pagination or "Show M
 
 ### TD-24: Plain text emails only (forgot password)
 
-**Source:** `docs/plans/2026-01-29-forgot-password-implementation.md:1137`
+**Source:** `docs/developer-guide/plans/2026-01-29-forgot-password-implementation.md:1137`
 
 Password reset emails are plain text. HTML alternative with `lettre::message::MultiPart` planned.
 
@@ -258,7 +258,7 @@ Password reset emails are plain text. HTML alternative with `lettre::message::Mu
 
 ### TD-26: Moderation filter patterns are placeholders
 
-**Source:** `docs/plans/2026-01-29-moderation-safety-implementation-v2.md`
+**Source:** `docs/developer-guide/plans/2026-01-29-moderation-safety-implementation-v2.md`
 
 Multiple TODOs in moderation implementation doc:
 - "Replace with real patterns before production" (3 occurrences)
@@ -271,7 +271,7 @@ Note: Content filter feature itself is not yet implemented (Phase 5 open item). 
 
 ### TD-27: Connectivity monitor known gaps
 
-**Source:** `docs/plans/2026-01-19-user-connectivity-monitor-PR.md:139-144`
+**Source:** `docs/developer-guide/plans/2026-01-19-user-connectivity-monitor-PR.md:139-144`
 
 - No integration tests for REST API endpoints
 - Session ID is client-generated, not validated server-side

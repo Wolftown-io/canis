@@ -1,6 +1,5 @@
 # Simulcast Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add 3-layer simulcast (high/medium/low) to all video tracks so the SFU can forward per-viewer quality based on bandwidth.
 

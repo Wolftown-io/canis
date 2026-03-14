@@ -1,6 +1,5 @@
 # User Connectivity Monitor Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement real-time connection quality indicators during voice calls with historical tracking.
 
@@ -1695,7 +1694,6 @@ Add next to the timer display:
   class="relative"
   onMouseEnter={() => setShowTooltip(true)}
   onMouseLeave={() => setShowTooltip(false)}
->
   <QualityIndicator
     metrics={getLocalMetrics()}
     mode={getConnectionDisplayMode()}

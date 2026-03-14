@@ -1,6 +1,5 @@
 # Emoji Picker Polish — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix emoji picker UX regressions (transparent background, viewport clipping) and implement smart positioning that adapts to available screen space.
 
@@ -314,7 +313,6 @@ let reactionButtonRef: HTMLButtonElement | undefined;
   class="... existing classes ..."
   onClick={() => setShowReactionPicker(true)}
   title="Add reaction"
->
   <SmilePlus class="w-4 h-4" />
 </button>
 ```
@@ -390,7 +388,6 @@ let emojiButtonRef: HTMLButtonElement | undefined;
   onClick={() => setShowPicker(!showPicker())}
   class="... existing classes ..."
   title="Add reaction"
->
   {/* SVG content */}
 </button>
 ```

@@ -1,7 +1,6 @@
 # E2EE Messages Implementation Plan
 
 > **Status:** ✅ **COMPLETED** - 2026-01-23
->
 > **PR:** [#41](https://github.com/Wolftown-io/canis/pull/41)
 
 **Goal:** Integrate end-to-end encryption into DM messaging flow for 1:1 and Group DMs.

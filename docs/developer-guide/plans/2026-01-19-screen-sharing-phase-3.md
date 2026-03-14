@@ -1,6 +1,5 @@
 # Screen Sharing Phase 3: Client Implementation
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Enable users to start/stop screen sharing from the client with quality selection and permission checks.
 

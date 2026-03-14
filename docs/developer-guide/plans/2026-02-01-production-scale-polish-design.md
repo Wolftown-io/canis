@@ -168,7 +168,6 @@ The `estimateSize` doesn't need to be exact. It just needs to be close enough th
   class="flex-1 overflow-y-auto relative"
   role="list"
   aria-label="Messages"
->
   {/* Total height spacer */}
   <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
     <For each={virtualizer.getVirtualItems()}>

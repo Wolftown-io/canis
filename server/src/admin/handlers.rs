@@ -685,7 +685,8 @@ pub async fn elevate_session(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<ElevateRequest>,
 ) -> Result<Json<ElevateResponse>, AdminError> {
-    // TODO: Re-add MFA verification here once the MFA enrollment flow is implemented.
+    // NOTE: MFA verification for admin elevation is deferred — elevation
+    // currently relies on password-only re-authentication.
 
     // Find or create a session for this user
     // We need a valid session_id that references sessions table

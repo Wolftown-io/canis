@@ -615,7 +615,9 @@ pub async fn create_revision(
         }
     }
 
-    unreachable!("revision retry loop should always return before exhausting");
+    Err(sqlx::Error::Protocol(
+        "revision retry loop exhausted without returning".into(),
+    ))
 }
 
 async fn create_revision_with_executor<'e, E>(

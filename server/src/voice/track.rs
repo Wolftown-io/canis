@@ -797,13 +797,13 @@ mod simulcast_tests {
 
     #[test]
     fn test_hysteresis_prevents_immediate_upgrade() {
-        let recent = Instant::now() - Duration::from_secs(1);
+        let recent = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
         assert!(!should_upgrade(Layer::Medium, Layer::High, recent));
     }
 
     #[test]
     fn test_hysteresis_allows_upgrade_after_delay() {
-        let old = Instant::now() - Duration::from_secs(4);
+        let old = Instant::now().checked_sub(Duration::from_secs(4)).unwrap();
         assert!(should_upgrade(Layer::Medium, Layer::High, old));
     }
 

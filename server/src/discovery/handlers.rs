@@ -142,7 +142,7 @@ pub async fn browse_guilds(
 
     if has_search {
         builder.push(" AND g.search_vector @@ websearch_to_tsquery('english', ");
-        builder.push_bind(query.q.as_ref().unwrap().trim().to_string());
+        builder.push_bind(query.q.as_deref().unwrap_or_default().trim().to_string());
         builder.push(")");
     }
 
@@ -197,7 +197,7 @@ pub async fn browse_guilds(
         );
         if has_search {
             count_builder.push(" AND g.search_vector @@ websearch_to_tsquery('english', ");
-            count_builder.push_bind(query.q.as_ref().unwrap().trim().to_string());
+            count_builder.push_bind(query.q.as_deref().unwrap_or_default().trim().to_string());
             count_builder.push(")");
         }
         if has_tags {

@@ -1,6 +1,5 @@
 # Home Page Unread Aggregator — Implementation Plan v2
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Provide a centralized "Unread Activity" module on the Home page that shows all unread messages across every guild and DM, letting users quickly see what they missed and jump to the right channel.
 

@@ -1,6 +1,5 @@
 # Cross-Client Read Sync & Do Not Disturb - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Sync DM read status across devices in real-time and suppress notification sounds during DND/quiet hours.
 

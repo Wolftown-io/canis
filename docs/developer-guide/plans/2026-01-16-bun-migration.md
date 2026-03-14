@@ -1,6 +1,5 @@
 # Bun Migration Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace npm with Bun for package management and script running, add Fedora support to setup scripts.
 

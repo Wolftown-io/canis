@@ -1,6 +1,5 @@
 # Screen Sharing Phase 1: Foundation Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build the foundational data structures and permissions required for screen sharing.
 

@@ -1,6 +1,5 @@
 # User Connectivity Monitor - Design Document
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Provide real-time connection quality visibility during voice calls, with historical tracking for users.
 

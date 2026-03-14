@@ -448,7 +448,6 @@ The message's outer `<div>` needs `relative` added for absolute positioning:
   class={`group relative flex gap-4 px-4 py-0.5 hover:bg-white/3 transition-colors ${
     props.compact ? "mt-0" : "mt-4"
   }`}
->
 ```
 
 #### Edge Cases

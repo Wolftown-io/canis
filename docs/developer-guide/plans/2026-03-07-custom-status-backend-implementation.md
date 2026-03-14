@@ -1,6 +1,5 @@
 # Custom Status Backend Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add server-side custom status (text + emoji + expiry) to the presence system with real-time WebSocket broadcast and periodic expiry sweep.
 

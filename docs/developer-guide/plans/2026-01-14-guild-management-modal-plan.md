@@ -1,6 +1,5 @@
 # Guild Management Modal Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add guild invite system and member management modal accessible via gear icon in sidebar.
 
