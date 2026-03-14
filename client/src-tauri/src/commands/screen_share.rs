@@ -3,9 +3,9 @@
 //! Tauri commands for native screen capture and sharing via WebRTC.
 
 use serde::{Deserialize, Serialize};
+use std::sync::mpsc as std_mpsc;
 use tauri::{command, State};
 use tokio::sync::{mpsc, watch};
-use std::sync::mpsc as std_mpsc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -83,8 +83,7 @@ pub async fn start_screen_share(
     stream_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let stream_uuid = Uuid::parse_str(&stream_id)
-        .map_err(|e| format!("Invalid stream_id: {e}"))?;
+    let stream_uuid = Uuid::parse_str(&stream_id).map_err(|e| format!("Invalid stream_id: {e}"))?;
 
     info!(source_id = %source_id, quality = %quality, stream_id = %stream_id, "Starting screen share");
 
@@ -234,8 +233,7 @@ pub async fn stop_screen_share(
     stream_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let stream_uuid = Uuid::parse_str(&stream_id)
-        .map_err(|e| format!("Invalid stream_id: {e}"))?;
+    let stream_uuid = Uuid::parse_str(&stream_id).map_err(|e| format!("Invalid stream_id: {e}"))?;
 
     info!(stream_id = %stream_id, "Stopping screen share");
 

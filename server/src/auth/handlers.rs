@@ -18,14 +18,14 @@ use validator::Validate;
 
 use super::backup_codes::{find_matching_backup_code, generate_backup_codes, BACKUP_CODE_COUNT};
 use super::cookies;
-use super::geoip;
 use super::error::{AuthError, AuthResult};
-use super::ua_parser;
+use super::geoip;
 use super::jwt::{generate_token_pair, validate_refresh_token};
 use super::mfa_crypto::{decrypt_mfa_secret, encrypt_mfa_secret};
 use super::middleware::AuthUser;
 use super::oidc::{append_collision_suffix, generate_username_from_claims, OidcFlowState};
 use super::password::{hash_password, verify_password};
+use super::ua_parser;
 use crate::api::AppState;
 use crate::db::{
     self, count_all_mfa_backup_codes, count_unused_mfa_backup_codes, create_password_reset_token,
@@ -68,7 +68,10 @@ fn extract_refresh_token(body_token: Option<String>, jar: &CookieJar) -> AuthRes
 /// (e.g. Tauri) omit `Origin` and receive the token in the response body.
 fn should_return_refresh_token(headers: &HeaderMap) -> bool {
     let has_origin = headers.contains_key(ORIGIN);
-    tracing::debug!(has_origin_header = has_origin, "Refresh token delivery decision");
+    tracing::debug!(
+        has_origin_header = has_origin,
+        "Refresh token delivery decision"
+    );
     !has_origin
 }
 
@@ -577,8 +580,7 @@ pub async fn register(
     let user_agent = extract_user_agent(&headers);
 
     let geo =
-        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
-            .await;
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip()).await;
     let city = geo.as_ref().and_then(|g| g.city.as_deref());
     let country = geo.as_ref().and_then(|g| g.country.as_deref());
 
@@ -797,8 +799,7 @@ pub async fn login(
     let user_agent = extract_user_agent(&headers);
 
     let geo =
-        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
-            .await;
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip()).await;
     let city = geo.as_ref().and_then(|g| g.city.as_deref());
     let country = geo.as_ref().and_then(|g| g.country.as_deref());
 
@@ -935,8 +936,7 @@ pub async fn refresh_token(
     let user_agent = extract_user_agent(&headers);
 
     let geo =
-        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip())
-            .await;
+        geoip::resolve_location(&state.http_client, &state.config.geoip_api_url, &addr.ip()).await;
     let city = geo.as_ref().and_then(|g| g.city.as_deref());
     let country = geo.as_ref().and_then(|g| g.country.as_deref());
 
@@ -2312,7 +2312,17 @@ pub async fn oidc_callback(
     // Store session
     let token_hash = hash_token(&tokens.refresh_token);
     let expires_at = Utc::now() + Duration::seconds(state.config.jwt_refresh_expiry);
-    create_session(&state.db, user.id, &token_hash, expires_at, None, None, None, None).await?;
+    create_session(
+        &state.db,
+        user.id,
+        &token_hash,
+        expires_at,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await?;
 
     let setup_complete = is_setup_complete(&state.db).await?;
 

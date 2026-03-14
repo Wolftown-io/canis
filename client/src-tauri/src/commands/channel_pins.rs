@@ -64,11 +64,16 @@ pub async fn pin_message(
     let server_url = server_url.ok_or("Not authenticated")?;
     let token = token.ok_or("Not authenticated")?;
 
-    debug!("Pinning message: channel_id={}, message_id={}", channel_id, message_id);
+    debug!(
+        "Pinning message: channel_id={}, message_id={}",
+        channel_id, message_id
+    );
 
     let response = state
         .http
-        .put(format!("{server_url}/api/channels/{channel_id}/messages/{message_id}/pin"))
+        .put(format!(
+            "{server_url}/api/channels/{channel_id}/messages/{message_id}/pin"
+        ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
@@ -103,11 +108,16 @@ pub async fn unpin_message(
     let server_url = server_url.ok_or("Not authenticated")?;
     let token = token.ok_or("Not authenticated")?;
 
-    debug!("Unpinning message: channel_id={}, message_id={}", channel_id, message_id);
+    debug!(
+        "Unpinning message: channel_id={}, message_id={}",
+        channel_id, message_id
+    );
 
     let response = state
         .http
-        .delete(format!("{server_url}/api/channels/{channel_id}/messages/{message_id}/pin"))
+        .delete(format!(
+            "{server_url}/api/channels/{channel_id}/messages/{message_id}/pin"
+        ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await

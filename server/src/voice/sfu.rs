@@ -606,12 +606,16 @@ impl SfuServer {
 
                     let source_type = if is_secondary_simulcast {
                         // Find the source type from the High layer already stored.
-                        if let Some(st) = room.track_router.find_source_type_for_user(uid, Layer::High) {
+                        if let Some(st) = room
+                            .track_router
+                            .find_source_type_for_user(uid, Layer::High)
+                        {
                             st
                         } else {
                             // High layer hasn't arrived yet — stash and skip.
                             // When High arrives, store_simulcast_track will drain this.
-                            room.track_router.stash_pending_secondary(uid, layer, track.clone());
+                            room.track_router
+                                .stash_pending_secondary(uid, layer, track.clone());
                             return;
                         }
                     } else {
@@ -638,8 +642,12 @@ impl SfuServer {
                     // For video tracks with a valid RID, store in simulcast_tracks.
                     let is_simulcast = !rid.is_empty() && source_type.is_video();
                     if is_simulcast {
-                        room.track_router
-                            .store_simulcast_track(uid, source_type, layer, track.clone());
+                        room.track_router.store_simulcast_track(
+                            uid,
+                            source_type,
+                            layer,
+                            track.clone(),
+                        );
                         debug!(
                             source = %uid,
                             source_type = ?source_type,

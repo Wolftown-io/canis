@@ -271,9 +271,18 @@ mod postgres_tests {
 
         // Create valid session (1 hour future)
         let valid_time = Utc::now() + Duration::hours(1);
-        create_session(&pool, user.id, "valid_token", valid_time, None, None, None, None)
-            .await
-            .expect("Failed to create valid session");
+        create_session(
+            &pool,
+            user.id,
+            "valid_token",
+            valid_time,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("Failed to create valid session");
 
         // Cleanup expired sessions
         let cleaned = cleanup_expired_sessions(&pool)

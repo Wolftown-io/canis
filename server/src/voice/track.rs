@@ -300,10 +300,8 @@ impl TrackRouter {
                 if let Some((_, pending_track)) =
                     self.pending_secondary.remove(&(user_id, pending_layer))
                 {
-                    self.simulcast_tracks.insert(
-                        (user_id, source_type, pending_layer),
-                        pending_track,
-                    );
+                    self.simulcast_tracks
+                        .insert((user_id, source_type, pending_layer), pending_track);
                     debug!(
                         source = %user_id,
                         source_type = ?source_type,
@@ -316,12 +314,7 @@ impl TrackRouter {
     }
 
     /// Stash a secondary simulcast layer that arrived before the High layer.
-    pub fn stash_pending_secondary(
-        &self,
-        user_id: Uuid,
-        layer: Layer,
-        track: Arc<TrackRemote>,
-    ) {
+    pub fn stash_pending_secondary(&self, user_id: Uuid, layer: Layer, track: Arc<TrackRemote>) {
         self.pending_secondary.insert((user_id, layer), track);
         debug!(
             source = %user_id,
@@ -711,10 +704,7 @@ mod simulcast_tests {
 
     #[test]
     fn test_select_layer_auto_medium_bandwidth() {
-        assert_eq!(
-            select_layer(LayerPreference::Auto, 800_000),
-            Layer::Medium
-        );
+        assert_eq!(select_layer(LayerPreference::Auto, 800_000), Layer::Medium);
     }
 
     #[test]
@@ -732,10 +722,7 @@ mod simulcast_tests {
 
     #[test]
     fn test_select_layer_manual_drops_below_ceiling() {
-        assert_eq!(
-            select_layer(LayerPreference::High, 200_000),
-            Layer::Low
-        );
+        assert_eq!(select_layer(LayerPreference::High, 200_000), Layer::Low);
     }
 
     #[test]
