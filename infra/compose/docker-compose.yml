@@ -2,7 +2,8 @@
 #
 # Usage:
 #   1. Copy .env.example to .env and configure
-#   2. docker compose up -d
+#   2. docker compose up -d                             (core services)
+#      docker compose --profile monitoring up -d        (with monitoring)
 #
 # Required environment variables (see .env.example):
 #   - DOMAIN: Your domain (e.g., chat.example.com)
@@ -45,6 +46,12 @@ services:
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
       - RATE_LIMIT_TRUST_PROXY=${RATE_LIMIT_TRUST_PROXY:-true}
       - RATE_LIMIT_ALLOWLIST=${RATE_LIMIT_ALLOWLIST:-}
+      # Observability (enable with --profile monitoring)
+      - OBSERVABILITY_ENABLED=${OBSERVABILITY_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+      - OTEL_SERVICE_NAME=vc-server
+      - OTEL_TRACES_SAMPLER_ARG=${OTEL_TRACES_SAMPLER_ARG:-1.0}
+      - RUST_LOG=${RUST_LOG:-vc_server=info}
     ports:
       # WebRTC UDP ports for voice
       - "${RTP_PORT_MIN:-10000}-${RTP_PORT_MAX:-10100}:${RTP_PORT_MIN:-10000}-${RTP_PORT_MAX:-10100}/udp"
@@ -138,11 +145,94 @@ services:
     volumes:
       - ../monitoring/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-      - "8889:8889"   # Prometheus metrics scrape endpoint
+      - "127.0.0.1:4317:4317"   # OTLP gRPC (localhost only)
+      - "127.0.0.1:4318:4318"   # OTLP HTTP (localhost only)
+      - "127.0.0.1:8889:8889"   # Prometheus scrape endpoint
     networks:
       - voicechat
+
+  # ==========================================================================
+  # Prometheus (monitoring profile)
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: canis-prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=90d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ../monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ../monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - voicechat
+
+  # ==========================================================================
+  # Grafana Tempo — Trace Storage (monitoring profile)
+  # ==========================================================================
+  tempo:
+    image: grafana/tempo:2.4.0
+    container_name: canis-tempo
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ../monitoring/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks:
+      - voicechat
+
+  # ==========================================================================
+  # Grafana Loki — Log Aggregation (monitoring profile)
+  # ==========================================================================
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: canis-loki
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ../monitoring/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    networks:
+      - voicechat
+
+  # ==========================================================================
+  # Grafana — Dashboards (monitoring profile)
+  # Access via Netbird VPN at http://localhost:3000
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: canis-grafana
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - voicechat
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
 
 networks:
   voicechat:
@@ -152,3 +242,7 @@ volumes:
   postgres_data:
   valkey_data:
   letsencrypt:
+  prometheus_data:
+  tempo_data:
+  loki_data:
+  grafana_data:

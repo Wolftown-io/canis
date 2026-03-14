@@ -103,6 +103,47 @@ OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-client-secret
 ```
 
+## Monitoring (Optional)
+
+Start the full monitoring stack alongside core services:
+
+```bash
+cd infra/compose
+docker compose --profile monitoring up -d
+```
+
+This adds Grafana, Prometheus, Tempo, and Loki — all bound to `127.0.0.1` (localhost only). Access via VPN (e.g. Netbird) or SSH tunnel.
+
+**Access Grafana:** `http://localhost:3000` (default: admin / `GRAFANA_ADMIN_PASSWORD` from `.env`)
+
+The "Kaiku Overview" dashboard is auto-provisioned with:
+- Request rate, error rate, P95 latency (from OTel spanmetrics)
+- Request rate and latency by route
+- Server log stream (from Loki)
+
+Make sure `.env` has `OBSERVABILITY_ENABLED=true` (set by default in `.env.example`).
+
+## Database Backups
+
+Set up automated daily backups:
+
+```bash
+# Test the backup script
+./infra/scripts/backup.sh
+
+# Add to crontab (daily at 03:00)
+crontab -e
+# Add: 0 3 * * * /opt/kaiku/infra/scripts/backup.sh >> /var/log/kaiku-backup.log 2>&1
+```
+
+Backups are saved to `/var/lib/kaiku/backups/` with 7-day retention. Configure via environment variables — see the script header for options.
+
+**Restore from backup:**
+```bash
+gunzip -c /var/lib/kaiku/backups/kaiku-2026-03-15_030000.sql.gz | \
+  docker exec -i canis-postgres psql -U voicechat voicechat
+```
+
 ## Services
 
 | Service | Port | Description |
@@ -111,6 +152,11 @@ OIDC_CLIENT_SECRET=your-client-secret
 | Server | 8080 (internal) | Kaiku API + WebSocket |
 | PostgreSQL | 5432 (internal) | Database |
 | Valkey | 6379 (internal) | Cache + pub/sub |
+| Grafana | 127.0.0.1:3000 | Dashboards (monitoring profile) |
+| Prometheus | 127.0.0.1:9090 | Metrics (monitoring profile) |
+| Tempo | 127.0.0.1:3200 | Traces (monitoring profile) |
+| Loki | 127.0.0.1:3100 | Logs (monitoring profile) |
+| OTel Collector | 127.0.0.1:4317 | Telemetry receiver (monitoring profile) |
 
 ## Commands
 

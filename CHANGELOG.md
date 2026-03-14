@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Volume mute toggle now remembers pre-mute level and restores it on unmute
 
 ### Added
+- Monitoring stack — Grafana, Prometheus, Tempo, and Loki available via `docker compose --profile monitoring up -d`, with auto-provisioned datasources and Kaiku Overview dashboard (localhost-only, access via VPN)
+- Database backup script — daily pg_dump with 7-day retention (`infra/scripts/backup.sh`), configurable via environment variables
+- OpenTelemetry telemetry — server traces, metrics (RED via spanmetrics), and structured logs exported to the monitoring stack when `OBSERVABILITY_ENABLED=true`
 - QR code login — generate a QR code on desktop to instantly sign in on the Android app, no manual URL entry or credentials needed
 - Android app (Milestone 1) — native Jetpack Compose client with login/register (JWT + OIDC), guild navigation, text messaging with reactions, voice chat via WebRTC SFU, and screen share viewing with simulcast layer selection (#363)
 - Simulcast video — 3-layer adaptive quality (high/medium/low) for screen shares and webcam, with manual viewer override via right-click context menu, quality badge overlay on video tiles, and automatic REMB-based layer switching (SFU monitors viewer bandwidth and adjusts quality in real time with 3-second upgrade hysteresis)
