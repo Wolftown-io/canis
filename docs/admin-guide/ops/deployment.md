@@ -13,8 +13,8 @@ This guide covers deploying Kaiku on a self-hosted server.
 
 ```bash
 # Clone the repository
-git clone https://github.com/Wolftown-io/canis.git
-cd canis
+git clone https://github.com/Detair/kaiku.git
+cd kaiku
 
 # Copy and configure environment
 cp .env.example .env
@@ -26,6 +26,28 @@ docker compose up -d
 
 # Check logs
 docker compose logs -f server
+```
+
+### Beta Quick Start (kaiku.pmind.de)
+
+```bash
+cd infra/compose
+cp .env.beta .env
+nano .env  # Replace all CHANGEME values with generated secrets
+
+# Generate secrets:
+# POSTGRES_PASSWORD=$(openssl rand -base64 24)
+# JWT_SECRET=$(openssl rand -hex 32)
+# MFA_ENCRYPTION_KEY=$(openssl rand -hex 32)
+# VALKEY_PASSWORD=$(openssl rand -base64 16)
+# GRAFANA_ADMIN_PASSWORD=$(openssl rand -base64 16)
+
+# Start with monitoring
+docker compose --profile monitoring up -d
+
+# Set up daily backups
+crontab -e
+# Add: 0 3 * * * /opt/kaiku/infra/scripts/backup.sh >> /var/log/kaiku-backup.log 2>&1
 ```
 
 ## Configuration
