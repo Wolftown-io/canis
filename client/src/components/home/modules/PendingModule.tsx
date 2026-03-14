@@ -81,14 +81,14 @@ const PendingModule: Component = () => {
                 <div class="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => handleAccept(request)}
-                    class="p-1.5 rounded-full bg-status-success/20 text-status-success hover:bg-status-success/30 transition-colors"
+                    class="p-2 rounded-full bg-status-success/25 text-status-success hover:bg-status-success/40 transition-colors"
                     title="Accept"
                   >
                     <Check class="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDecline(request)}
-                    class="p-1.5 rounded-full bg-status-error/20 text-status-error hover:bg-status-error/30 transition-colors"
+                    class="p-2 rounded-full bg-status-error/25 text-status-error hover:bg-status-error/40 transition-colors"
                     title="Decline"
                   >
                     <X class="w-4 h-4" />

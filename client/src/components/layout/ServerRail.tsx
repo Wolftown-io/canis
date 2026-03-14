@@ -80,7 +80,7 @@ const ServerRail: Component = () => {
           data-testid="home-button"
           style={{
             "border-radius": getBorderRadius("home"),
-            opacity: isActive("home") || isHovered("home") ? 1 : 0.8,
+            opacity: isActive("home") || isHovered("home") ? 1 : 0.85,
           }}
           onMouseEnter={() => setHoveredServerId("home")}
           onMouseLeave={() => setHoveredServerId(null)}
@@ -121,7 +121,7 @@ const ServerRail: Component = () => {
                   style={{
                     "border-radius": getBorderRadius(guild.id),
                     opacity:
-                      isActive(guild.id) || isHovered(guild.id) ? 1 : 0.8,
+                      isActive(guild.id) || isHovered(guild.id) ? 1 : 0.85,
                   }}
                   onMouseEnter={() => setHoveredServerId(guild.id)}
                   onMouseLeave={() => setHoveredServerId(null)}

@@ -72,7 +72,7 @@ const UserPanel: Component = () => {
 
   return (
     <>
-      <div class="mt-auto p-3 bg-surface-base/50 border-t border-border-subtle relative">
+      <div class="mt-auto p-3 bg-surface-base/80 border-t border-border-subtle relative">
         <Show when={showStatusPicker()}>
           <div
             class="fixed inset-0 z-40 cursor-default"

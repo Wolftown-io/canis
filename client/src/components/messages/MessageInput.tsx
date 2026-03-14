@@ -556,16 +556,16 @@ const MessageInput: Component<MessageInputProps> = (props) => {
       <div class="relative flex flex-col rounded-xl border border-white/5 focus-within:border-accent-primary/30 transition-colors" style="background-color: var(--color-surface-layer2)">
         {/* Formatting toolbar */}
         <div class="flex items-center gap-1 px-2 py-1 border-b border-white/5">
-          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-secondary hover:text-text-primary transition-colors" title="Bold (Ctrl+B)" onClick={() => insertFormatting("**", "**")}>
+          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-primary/50 hover:text-text-primary transition-colors" title="Bold (Ctrl+B)" onClick={() => insertFormatting("**", "**")}>
             <Bold class="w-4 h-4" />
           </button>
-          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-secondary hover:text-text-primary transition-colors" title="Italic (Ctrl+I)" onClick={() => insertFormatting("*", "*")}>
+          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-primary/50 hover:text-text-primary transition-colors" title="Italic (Ctrl+I)" onClick={() => insertFormatting("*", "*")}>
             <Italic class="w-4 h-4" />
           </button>
-          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-secondary hover:text-text-primary transition-colors" title="Code (Ctrl+E)" onClick={() => insertFormatting("`", "`")}>
+          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-primary/50 hover:text-text-primary transition-colors" title="Code (Ctrl+E)" onClick={() => insertFormatting("`", "`")}>
             <Code class="w-4 h-4" />
           </button>
-          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-secondary hover:text-text-primary transition-colors" title="Spoiler" onClick={() => insertFormatting("||", "||")}>
+          <button type="button" class="p-1.5 rounded hover:bg-white/10 text-text-primary/50 hover:text-text-primary transition-colors" title="Spoiler" onClick={() => insertFormatting("||", "||")}>
             <EyeOff class="w-4 h-4" />
           </button>
         </div>

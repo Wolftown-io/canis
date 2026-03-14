@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Layout areas (ServerRail, Sidebar, Main Stage) now separated by solid border lines for clearer visual structure
 
 ### Fixed
+- Improved contrast and visibility of admin elevation badges, formatting toolbar icons, server rail icons, settings modal backdrop, and user panel across all 4 themes
+- Friend request accept/decline buttons enlarged with stronger backgrounds for better visibility
+- Search panel overlay no longer bleeds outside sidebar bounds
 - Screen share encoder no longer busy-waits, reducing idle CPU usage via `recv_timeout`
 - Theater mode screen share viewer now correctly aligns with sidebar instead of using hardcoded offset
 - Volume mute toggle now remembers pre-mute level and restores it on unmute
