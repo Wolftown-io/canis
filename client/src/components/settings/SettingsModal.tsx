@@ -136,7 +136,7 @@ const SettingsModal: Component<SettingsModalProps> = (props) => {
   return (
     <Portal>
       <div
-        class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
         onClick={handleBackdropClick}
         onKeyDown={handleKeyDown}
         tabIndex={-1}
@@ -168,7 +168,7 @@ const SettingsModal: Component<SettingsModalProps> = (props) => {
                       onClick={() => setActiveTab(tab.id)}
                       class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-1"
                       classList={{
-                        "bg-accent-primary/20 text-text-primary":
+                        "bg-accent-primary/25 text-text-primary":
                           activeTab() === tab.id,
                         "text-text-secondary hover:text-text-primary hover:bg-white/5":
                           activeTab() !== tab.id,
