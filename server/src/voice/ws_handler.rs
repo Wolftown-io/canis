@@ -113,7 +113,16 @@ pub async fn handle_voice_event(
             track_source,
             preferred_layer,
         } => {
-            handle_set_layer_preference(sfu, user_id, channel_id, target_user_id, track_source, preferred_layer, tx).await
+            handle_set_layer_preference(
+                sfu,
+                user_id,
+                channel_id,
+                target_user_id,
+                track_source,
+                preferred_layer,
+                tx,
+            )
+            .await
         }
         _ => Ok(()), // Non-voice events handled elsewhere
     }
@@ -612,7 +621,9 @@ async fn handle_screen_share_start(
         const MAX_STREAMS_PER_USER: usize = 3;
         let count = room.get_user_stream_count(params.user_id).await;
         if count >= MAX_STREAMS_PER_USER {
-            return Err(VoiceError::Signaling("Maximum 3 concurrent screen shares per user".to_string()));
+            return Err(VoiceError::Signaling(
+                "Maximum 3 concurrent screen shares per user".to_string(),
+            ));
         }
     }
 

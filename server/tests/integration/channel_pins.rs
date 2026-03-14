@@ -24,11 +24,13 @@ async fn pin_message(
     message_id: Uuid,
     token: &str,
 ) -> axum::http::Response<Body> {
-    let req =
-        TestApp::request(Method::PUT, &format!("/api/channels/{channel_id}/messages/{message_id}/pin"))
-            .header("Authorization", format!("Bearer {token}"))
-            .body(Body::empty())
-            .unwrap();
+    let req = TestApp::request(
+        Method::PUT,
+        &format!("/api/channels/{channel_id}/messages/{message_id}/pin"),
+    )
+    .header("Authorization", format!("Bearer {token}"))
+    .body(Body::empty())
+    .unwrap();
     app.oneshot(req).await
 }
 
@@ -50,11 +52,7 @@ async fn unpin_message(
 }
 
 /// List pinned messages in a channel.
-async fn list_pins(
-    app: &TestApp,
-    channel_id: Uuid,
-    token: &str,
-) -> serde_json::Value {
+async fn list_pins(app: &TestApp, channel_id: Uuid, token: &str) -> serde_json::Value {
     let req = TestApp::request(Method::GET, &format!("/api/channels/{channel_id}/pins"))
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
@@ -65,11 +63,7 @@ async fn list_pins(
 }
 
 /// List messages in a channel via the messages API.
-async fn list_messages(
-    app: &TestApp,
-    channel_id: Uuid,
-    token: &str,
-) -> serde_json::Value {
+async fn list_messages(app: &TestApp, channel_id: Uuid, token: &str) -> serde_json::Value {
     let req = TestApp::request(Method::GET, &format!("/api/messages/channel/{channel_id}"))
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
@@ -81,7 +75,9 @@ async fn list_messages(
 
 /// Default permissions for pin tests: view + send + pin.
 fn pin_perms() -> GuildPermissions {
-    GuildPermissions::VIEW_CHANNEL | GuildPermissions::SEND_MESSAGES | GuildPermissions::PIN_MESSAGES
+    GuildPermissions::VIEW_CHANNEL
+        | GuildPermissions::SEND_MESSAGES
+        | GuildPermissions::PIN_MESSAGES
 }
 
 // ============================================================================
@@ -198,14 +194,9 @@ async fn test_pin_limit_50() {
 
     // Create and pin 50 messages
     for i in 1..=50 {
-        let msg_id =
-            insert_message(&app.pool, channel_id, user_id, &format!("Message {i}")).await;
+        let msg_id = insert_message(&app.pool, channel_id, user_id, &format!("Message {i}")).await;
         let resp = pin_message(&app, channel_id, msg_id, &token).await;
-        assert_eq!(
-            resp.status(),
-            200,
-            "Pin #{i} should succeed (limit is 50)"
-        );
+        assert_eq!(resp.status(), 200, "Pin #{i} should succeed (limit is 50)");
     }
 
     // 51st pin should fail with 409 (PIN_LIMIT_REACHED)
@@ -334,7 +325,9 @@ async fn test_system_message_on_pin() {
     let msgs = list_messages(&app, channel_id, &token).await;
     let items = msgs["items"].as_array().expect("items should be an array");
 
-    let system_msg = items.iter().find(|m| m["message_type"].as_str() == Some("system"));
+    let system_msg = items
+        .iter()
+        .find(|m| m["message_type"].as_str() == Some("system"));
     assert!(
         system_msg.is_some(),
         "Should find a system message after pinning"
@@ -360,8 +353,7 @@ async fn test_pinned_field_in_message_list() {
     guard.add(move |pool| async move { delete_guild(&pool, guild_id).await });
     guard.delete_user(user_id);
 
-    let pinned_msg_id =
-        insert_message(&app.pool, channel_id, user_id, "I will be pinned").await;
+    let pinned_msg_id = insert_message(&app.pool, channel_id, user_id, "I will be pinned").await;
     let _unpinned_msg_id =
         insert_message(&app.pool, channel_id, user_id, "I will not be pinned").await;
 

@@ -260,7 +260,8 @@ pub async fn pin_message(
 
         // Broadcast system message as MessageNew
         let sys_responses =
-            crate::chat::messages::build_message_responses(&state.db, auth_user.id, vec![sys_msg]).await
+            crate::chat::messages::build_message_responses(&state.db, auth_user.id, vec![sys_msg])
+                .await
                 .unwrap_or_default();
         if let Some(sys_response) = sys_responses.into_iter().next() {
             let message_json = serde_json::to_value(&sys_response).unwrap_or_default();
@@ -332,12 +333,11 @@ pub async fn unpin_message(
     .map_err(|_| ChannelPinsError::Forbidden)?;
 
     // Delete the pin
-    let result =
-        sqlx::query("DELETE FROM channel_pins WHERE channel_id = $1 AND message_id = $2")
-            .bind(channel_id)
-            .bind(message_id)
-            .execute(&state.db)
-            .await?;
+    let result = sqlx::query("DELETE FROM channel_pins WHERE channel_id = $1 AND message_id = $2")
+        .bind(channel_id)
+        .bind(message_id)
+        .execute(&state.db)
+        .await?;
 
     // Only broadcast if a pin was actually removed
     if result.rows_affected() == 0 {

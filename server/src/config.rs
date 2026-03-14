@@ -413,9 +413,9 @@ impl Config {
             tempo_url: env::var("TEMPO_URL").ok(),
             loki_url: env::var("LOKI_URL").ok(),
             prometheus_url: env::var("PROMETHEUS_URL").ok(),
-            geoip_api_url: env::var("GEOIP_API_URL").ok().or_else(|| {
-                Some("http://ip-api.com/json/{ip}?fields=city,country".to_string())
-            }),
+            geoip_api_url: env::var("GEOIP_API_URL")
+                .ok()
+                .or_else(|| Some("http://ip-api.com/json/{ip}?fields=city,country".to_string())),
         };
 
         // SameSite=None requires the Secure flag — browsers reject the cookie otherwise

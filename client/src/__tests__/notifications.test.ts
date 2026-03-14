@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 // We only test the pure formatting function — no mocking needed
 import { formatNotificationContent } from "@/lib/notifications";

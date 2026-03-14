@@ -498,15 +498,39 @@ mod layer_tests {
     #[test]
     fn layer_preference_serde_round_trip() {
         // Verify wire format matches what client sends
-        assert_eq!(serde_json::to_string(&LayerPreference::Auto).unwrap(), "\"auto\"");
-        assert_eq!(serde_json::to_string(&LayerPreference::High).unwrap(), "\"high\"");
-        assert_eq!(serde_json::to_string(&LayerPreference::Medium).unwrap(), "\"medium\"");
-        assert_eq!(serde_json::to_string(&LayerPreference::Low).unwrap(), "\"low\"");
+        assert_eq!(
+            serde_json::to_string(&LayerPreference::Auto).unwrap(),
+            "\"auto\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LayerPreference::High).unwrap(),
+            "\"high\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LayerPreference::Medium).unwrap(),
+            "\"medium\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LayerPreference::Low).unwrap(),
+            "\"low\""
+        );
 
         // Verify deserialization from client-sent strings
-        assert_eq!(serde_json::from_str::<LayerPreference>("\"auto\"").unwrap(), LayerPreference::Auto);
-        assert_eq!(serde_json::from_str::<LayerPreference>("\"high\"").unwrap(), LayerPreference::High);
-        assert_eq!(serde_json::from_str::<LayerPreference>("\"medium\"").unwrap(), LayerPreference::Medium);
-        assert_eq!(serde_json::from_str::<LayerPreference>("\"low\"").unwrap(), LayerPreference::Low);
+        assert_eq!(
+            serde_json::from_str::<LayerPreference>("\"auto\"").unwrap(),
+            LayerPreference::Auto
+        );
+        assert_eq!(
+            serde_json::from_str::<LayerPreference>("\"high\"").unwrap(),
+            LayerPreference::High
+        );
+        assert_eq!(
+            serde_json::from_str::<LayerPreference>("\"medium\"").unwrap(),
+            LayerPreference::Medium
+        );
+        assert_eq!(
+            serde_json::from_str::<LayerPreference>("\"low\"").unwrap(),
+            LayerPreference::Low
+        );
     }
 }

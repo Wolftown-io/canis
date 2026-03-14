@@ -775,7 +775,10 @@ async fn test_global_search_channel_id_filter() {
     assert_eq!(resp.status(), 200);
 
     let json = body_to_json(resp).await;
-    assert_eq!(json["total"], 2, "Without filter, should find both messages");
+    assert_eq!(
+        json["total"], 2,
+        "Without filter, should find both messages"
+    );
 
     // With channel_id filter — should only find the one in ch_a
     let req = global_search_request(&format!("q=guava&channel_id={ch_a}"), &token);

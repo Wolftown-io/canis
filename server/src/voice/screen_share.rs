@@ -257,11 +257,7 @@ impl ScreenShareLimiter {
     }
 
     /// Check if a screen share slot is available (does not reserve it).
-    pub async fn check(
-        &self,
-        channel_id: Uuid,
-        max_shares: u32,
-    ) -> Result<(), ScreenShareError> {
+    pub async fn check(&self, channel_id: Uuid, max_shares: u32) -> Result<(), ScreenShareError> {
         let (allowed, _) = self.run_script(channel_id, max_shares, "check").await?;
         if allowed {
             Ok(())
@@ -271,11 +267,7 @@ impl ScreenShareLimiter {
     }
 
     /// Atomically reserve a screen share slot. Returns error if limit reached.
-    pub async fn start(
-        &self,
-        channel_id: Uuid,
-        max_shares: u32,
-    ) -> Result<(), ScreenShareError> {
+    pub async fn start(&self, channel_id: Uuid, max_shares: u32) -> Result<(), ScreenShareError> {
         let (allowed, _) = self.run_script(channel_id, max_shares, "start").await?;
         if allowed {
             Ok(())

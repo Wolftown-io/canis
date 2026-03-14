@@ -263,13 +263,31 @@ async fn test_session_revocation() {
     let token2_hash = vc_server::auth::hash_token("token2");
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
 
-    vc_server::db::create_session(&pool, user.id, &token1_hash, expires_at, None, None, None, None)
-        .await
-        .expect("Session 1 should be created");
+    vc_server::db::create_session(
+        &pool,
+        user.id,
+        &token1_hash,
+        expires_at,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("Session 1 should be created");
 
-    vc_server::db::create_session(&pool, user.id, &token2_hash, expires_at, None, None, None, None)
-        .await
-        .expect("Session 2 should be created");
+    vc_server::db::create_session(
+        &pool,
+        user.id,
+        &token2_hash,
+        expires_at,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("Session 2 should be created");
 
     // Revoke all sessions
     let revoked = vc_server::db::delete_all_user_sessions(&pool, user.id)

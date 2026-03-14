@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSetMute = vi.fn().mockResolvedValue(undefined);
 
-import { resolveState, PttConfig, PttController, PttFullConfig, mapCodeToTauriShortcut, keyCodeToLabel } from "@/lib/pttManager";
+import { resolveState, PttController, mapCodeToTauriShortcut, keyCodeToLabel } from "@/lib/pttManager";
 
 describe("resolveState", () => {
   it("returns muted when PTT enabled and no keys held", () => {

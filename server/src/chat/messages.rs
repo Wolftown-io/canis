@@ -1320,13 +1320,12 @@ pub async fn delete(
 
     if deleted {
         // Clean up channel pin if message was pinned
-        let pin_deleted = sqlx::query(
-            "DELETE FROM channel_pins WHERE channel_id = $1 AND message_id = $2",
-        )
-        .bind(channel_id)
-        .bind(id)
-        .execute(&state.db)
-        .await;
+        let pin_deleted =
+            sqlx::query("DELETE FROM channel_pins WHERE channel_id = $1 AND message_id = $2")
+                .bind(channel_id)
+                .bind(id)
+                .execute(&state.db)
+                .await;
 
         if let Ok(result) = pin_deleted {
             if result.rows_affected() > 0 {

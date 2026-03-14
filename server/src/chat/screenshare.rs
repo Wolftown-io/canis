@@ -31,7 +31,10 @@ impl IntoResponse for ScreenShareError {
             }
             Self::InternalError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal error"),
             Self::InvalidSourceLabel => (StatusCode::BAD_REQUEST, "Invalid source label"),
-            Self::AlreadySharing => (StatusCode::CONFLICT, "Maximum 3 concurrent screen shares per user"),
+            Self::AlreadySharing => (
+                StatusCode::CONFLICT,
+                "Maximum 3 concurrent screen shares per user",
+            ),
         };
         (status, Json(serde_json::json!({ "error": msg }))).into_response()
     }

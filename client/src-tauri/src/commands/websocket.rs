@@ -100,11 +100,7 @@ pub async fn ws_send_custom_status(
     custom_status: Option<serde_json::Value>,
 ) -> Result<(), String> {
     debug!("Sending custom status update: {:?}", custom_status);
-    send_event(
-        &state,
-        ClientEvent::SetCustomStatus { custom_status },
-    )
-    .await
+    send_event(&state, ClientEvent::SetCustomStatus { custom_status }).await
 }
 
 /// Helper to send an event.
