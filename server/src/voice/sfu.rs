@@ -25,7 +25,9 @@ use super::error::VoiceError;
 use super::peer::Peer;
 use super::rate_limit::VoiceStatsLimiter;
 use super::screen_share::ScreenShareInfo;
-use super::track::{spawn_rtcp_reader, spawn_rtp_forwarder, TrackRouter};
+use super::track::{
+    spawn_rtcp_reader, spawn_rtp_forwarder, spawn_subscriber_remb_reader, TrackRouter,
+};
 use super::track_types::{Layer, TrackSource};
 use super::webcam::WebcamInfo;
 use crate::config::Config;
@@ -690,23 +692,37 @@ impl SfuServer {
                             .create_subscriber_track(uid, source_type, &other_peer, &track)
                             .await
                         {
-                            if let Err(e) = other_peer
+                            match other_peer
                                 .add_outgoing_track(uid, source_type, local_track)
                                 .await
                             {
-                                warn!(
-                                    source = %uid,
-                                    subscriber = %other_peer.user_id,
-                                    error = %e,
-                                    "Failed to add outgoing track"
-                                );
-                            } else {
-                                // Renegotiate so subscriber receives updated SDP
-                                if let Err(e) = Self::renegotiate(&other_peer).await {
+                                Ok(sender) => {
+                                    if source_type.is_video() {
+                                        spawn_subscriber_remb_reader(
+                                            room.track_router.clone(),
+                                            other_peer.user_id,
+                                            uid,
+                                            source_type,
+                                            sender,
+                                            other_peer.signal_tx.clone(),
+                                            room.channel_id,
+                                        );
+                                    }
+                                    // Renegotiate so subscriber receives updated SDP
+                                    if let Err(e) = Self::renegotiate(&other_peer).await {
+                                        warn!(
+                                            subscriber = %other_peer.user_id,
+                                            error = %e,
+                                            "Renegotiation failed after track add"
+                                        );
+                                    }
+                                }
+                                Err(e) => {
                                     warn!(
+                                        source = %uid,
                                         subscriber = %other_peer.user_id,
                                         error = %e,
-                                        "Renegotiation failed after track add"
+                                        "Failed to add outgoing track"
                                     );
                                 }
                             }

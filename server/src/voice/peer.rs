@@ -14,6 +14,7 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 use webrtc::rtp_transceiver::rtp_transceiver_direction::RTCRtpTransceiverDirection;
+use webrtc::rtp_transceiver::rtp_sender::RTCRtpSender;
 use webrtc::rtp_transceiver::RTCRtpTransceiverInit;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 use webrtc::track::track_local::TrackLocal;
@@ -106,16 +107,18 @@ impl Peer {
     }
 
     /// Add an outgoing track to forward media from another user.
+    /// Returns the `RTCRtpSender` so callers can read RTCP feedback (e.g. REMB).
     pub async fn add_outgoing_track(
         &self,
         source_user_id: Uuid,
         source_type: TrackSource,
         track: Arc<TrackLocalStaticRTP>,
-    ) -> Result<(), VoiceError> {
+    ) -> Result<Arc<RTCRtpSender>, VoiceError> {
         // Add track to peer connection
-        self.peer_connection
+        let sender = self
+            .peer_connection
             .add_track(
-                track.clone() as Arc<dyn webrtc::track::track_local::TrackLocal + Send + Sync>
+                track.clone() as Arc<dyn webrtc::track::track_local::TrackLocal + Send + Sync>,
             )
             .await?;
 
@@ -123,7 +126,7 @@ impl Peer {
         let mut tracks = self.outgoing_tracks.write().await;
         tracks.insert((source_user_id, source_type), track);
 
-        Ok(())
+        Ok(sender)
     }
 
     /// Remove an outgoing track, also removing it from the peer connection.
