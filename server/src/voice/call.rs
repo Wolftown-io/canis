@@ -5,7 +5,7 @@
 //! This module provides:
 //! - Call event types for state reconstruction
 //! - Call state machine with transitions
-//! - Call capabilities for future extensibility (video, screen share)
+//! - Call capabilities (audio-only for DM calls; guild channels support video/screenshare via SFU)
 
 use std::collections::HashSet;
 
@@ -15,15 +15,15 @@ use uuid::Uuid;
 
 /// Capabilities for a voice call
 ///
-/// This struct allows future extensibility for video calls and screen sharing
-/// while maintaining backwards compatibility with existing audio-only calls.
+/// DM calls are currently audio-only. Video and screen sharing are supported
+/// in guild voice channels via the SFU (see voice/sfu.rs), not via DM calls.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CallCapabilities {
     /// Audio capability (always true for voice calls)
     pub audio: bool,
-    /// Video capability (future: video calls)
+    /// Video capability (reserved for future DM video calls)
     pub video: bool,
-    /// Screen share capability (future: screen sharing)
+    /// Screen share capability (reserved for future DM screen sharing)
     pub screenshare: bool,
 }
 
