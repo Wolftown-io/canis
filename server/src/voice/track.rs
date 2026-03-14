@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
+use tokio::sync::mpsc;
 use tracing::{debug, warn};
 use uuid::Uuid;
 use webrtc::rtp::packet::Packet as RtpPacket;
@@ -493,6 +494,75 @@ pub fn spawn_rtcp_reader(
             source_type = ?source_type,
             layer = ?layer,
             "RTCP reader stopped"
+        );
+    });
+}
+
+/// Spawn a task to read REMB feedback from a subscriber's outgoing sender.
+///
+/// When the subscriber's browser reports its available bandwidth via REMB,
+/// this updates the corresponding subscription in the track router and
+/// notifies the subscriber if the active layer changes.
+pub fn spawn_subscriber_remb_reader(
+    track_router: Arc<TrackRouter>,
+    subscriber_id: Uuid,
+    source_user_id: Uuid,
+    source_type: TrackSource,
+    sender: Arc<webrtc::rtp_transceiver::rtp_sender::RTCRtpSender>,
+    signal_tx: mpsc::Sender<crate::ws::ServerEvent>,
+    channel_id: Uuid,
+) {
+    tokio::spawn(async move {
+        use webrtc::rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
+
+        while let Ok((packets, _)) = sender.read_rtcp().await {
+            for pkt in &packets {
+                if let Some(remb) = pkt
+                    .as_any()
+                    .downcast_ref::<ReceiverEstimatedMaximumBitrate>()
+                {
+                    let bitrate = remb.bitrate as u64;
+                    tracing::trace!(
+                        subscriber = %subscriber_id,
+                        source = %source_user_id,
+                        source_type = ?source_type,
+                        bitrate,
+                        "Subscriber REMB received"
+                    );
+
+                    if let Some(new_layer) = track_router.update_remb(
+                        subscriber_id,
+                        source_user_id,
+                        source_type,
+                        bitrate,
+                    ) {
+                        tracing::info!(
+                            subscriber = %subscriber_id,
+                            source = %source_user_id,
+                            source_type = ?source_type,
+                            new_layer = ?new_layer,
+                            bitrate,
+                            "Auto-switched simulcast layer"
+                        );
+
+                        let _ = signal_tx
+                            .send(crate::ws::ServerEvent::VoiceLayerChanged {
+                                channel_id,
+                                source_user_id,
+                                track_source: source_type,
+                                active_layer: new_layer,
+                            })
+                            .await;
+                    }
+                }
+            }
+        }
+
+        tracing::debug!(
+            subscriber = %subscriber_id,
+            source = %source_user_id,
+            source_type = ?source_type,
+            "Subscriber REMB reader stopped"
         );
     });
 }

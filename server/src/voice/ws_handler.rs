@@ -18,6 +18,7 @@ use super::screen_share::{
 };
 use super::sfu::SfuServer;
 use super::stats::VoiceStats;
+use super::track::spawn_subscriber_remb_reader;
 use super::track_types::{LayerPreference, TrackSource};
 use super::webcam::WebcamInfo;
 use super::Quality;
@@ -188,25 +189,41 @@ async fn handle_join(
                 .create_subscriber_track(other_peer.user_id, *source_type, &peer, track)
                 .await
             {
-                if let Err(e) = peer
+                match peer
                     .add_outgoing_track(other_peer.user_id, *source_type, local_track)
                     .await
                 {
-                    warn!("Failed to add outgoing track: {}", e);
-                } else if matches!(source_type, TrackSource::ScreenVideo(_)) {
-                    // Send PLI to request keyframe for late joiners
-                    let pli = PictureLossIndication {
-                        sender_ssrc: 0,
-                        media_ssrc: track.ssrc(),
-                    };
-                    if let Err(e) = other_peer
-                        .peer_connection
-                        .write_rtcp(&[Box::new(pli)])
-                        .await
-                    {
-                        warn!("Failed to send PLI: {}", e);
-                    } else {
-                        debug!("Sent PLI to source {}", other_peer.user_id);
+                    Ok(sender) => {
+                        if source_type.is_video() {
+                            spawn_subscriber_remb_reader(
+                                room.track_router.clone(),
+                                peer.user_id,
+                                other_peer.user_id,
+                                *source_type,
+                                sender,
+                                peer.signal_tx.clone(),
+                                room.channel_id,
+                            );
+                        }
+                        if matches!(source_type, TrackSource::ScreenVideo(_)) {
+                            // Send PLI to request keyframe for late joiners
+                            let pli = PictureLossIndication {
+                                sender_ssrc: 0,
+                                media_ssrc: track.ssrc(),
+                            };
+                            if let Err(e) = other_peer
+                                .peer_connection
+                                .write_rtcp(&[Box::new(pli)])
+                                .await
+                            {
+                                warn!("Failed to send PLI: {}", e);
+                            } else {
+                                debug!("Sent PLI to source {}", other_peer.user_id);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to add outgoing track: {}", e);
                     }
                 }
             }
