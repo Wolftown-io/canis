@@ -43,7 +43,7 @@ Validates documentation governance guardrails:
 
 1. `docs/project/roadmap.md` metadata and plan links
 2. `CHANGELOG.md` roadmap-alignment block consistency
-3. `docs/plans/PLAN_LIFECYCLE.md` supersession integrity
+3. `docs/developer-guide/plans/PLAN_LIFECYCLE.md` supersession integrity
 4. `docs/project/RELEASE_NOTES_TEMPLATE.md` required headings
 
 **Usage**:

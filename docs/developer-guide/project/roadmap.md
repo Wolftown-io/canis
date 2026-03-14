@@ -205,14 +205,14 @@ This section is the canonical high-level roadmap view. Detailed implementation c
 - [x] **[Security] E2EE Key Backup Foundation** ✅ (PR #22)
   - OlmAccount, OlmSession, RecoveryKey, EncryptedBackup entities.
   - Database tables and API endpoints.
-  - **Design:** `docs/plans/2026-01-19-e2ee-key-backup-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-19-e2ee-key-backup-design.md`
 - [x] **[Voice] User Connectivity Monitor** ✅ (PR #23)
   - Real-time connection quality tracking (latency, packet loss, jitter).
   - WebRTC getStats() integration with 3-second sampling.
   - Connection history page with daily charts and session list.
   - TimescaleDB support with graceful fallback to PostgreSQL.
   - Rate-limited stats broadcasting to prevent spam.
-  - **Design:** `docs/plans/2026-01-19-user-connectivity-monitor-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-19-user-connectivity-monitor-design.md`
 - [x] **[Social] Rich Presence (Game Activity)** ✅
   - Automatic game detection via process scanning (sysinfo crate).
   - 15+ pre-configured games (Minecraft, Valorant, CS2, etc.).
@@ -220,14 +220,14 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - Privacy toggle in settings to disable activity sharing.
   - Real-time activity sync via WebSocket.
   - *Future:* "Ask to Join" logic for multiplayer games.
-  - **Design:** `docs/plans/2026-01-19-rich-presence-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-19-rich-presence-design.md`
 - [x] **[Security] E2EE Key Backup UI & Recovery** ✅ (PR #29)
   - Recovery key modal with copy/download and confirmation flow.
   - Security Settings tab showing backup status.
   - Post-login E2EE setup prompt (skippable or mandatory via server config).
   - Backup reminder banner for users without backup.
   - Server configuration option `REQUIRE_E2EE_SETUP` for mandatory setup.
-  - **Plan:** `docs/plans/2026-01-19-e2ee-implementation-phase-1.md`
+  - **Plan:** `docs/developer-guide/plans/2026-01-19-e2ee-implementation-phase-1.md`
 - [x] **[Security] E2EE DM Messaging** ✅ (PR #41)
   - End-to-end encryption for DM messages using vodozemac (Olm).
   - LocalKeyStore with encrypted SQLite storage for Olm sessions.
@@ -235,7 +235,7 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - E2EE setup modal with recovery key generation.
   - Encryption indicator in DM headers.
   - Graceful fallback to unencrypted when E2EE not available.
-  - **Plan:** `docs/plans/2026-01-23-e2ee-messages-implementation.md`
+  - **Plan:** `docs/developer-guide/plans/2026-01-23-e2ee-messages-implementation.md`
 - [x] **[UX] Sound Pack (Notification Sounds)** ✅
   - 5 notification sounds: Default, Subtle, Ping, Chime, Bell.
   - Global notification settings in Settings > Notifications tab.
@@ -243,36 +243,36 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - Volume control with test sound button.
   - Smart playback with cooldown, tab leader election, mention detection.
   - Native audio via rodio (Tauri), Web Audio API fallback (browser).
-  - **Design:** `docs/plans/2026-01-21-sound-pack-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-21-sound-pack-design.md`
 - [x] **[Chat] Cross-Client Read Sync** ✅
   - Sync read position across all user's devices/tabs.
   - Clear unread badges instantly when read on any client.
   - New `user:{user_id}` Redis channel for user-targeted events.
-  - **Design:** `docs/plans/2026-01-23-read-sync-dnd-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-23-read-sync-dnd-design.md`
 - [x] **[Settings] Server-Synced User Preferences** ✅
   - Theme, sound settings, quiet hours, and per-channel notifications sync across all devices
   - Real-time updates via WebSocket when preferences change on another device
   - Last-write-wins conflict resolution with timestamps
   - Migration from legacy localStorage keys
-  - **Design:** `docs/plans/2026-01-23-server-synced-preferences-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-23-server-synced-preferences-design.md`
 - [x] **[UX] Do Not Disturb Mode** ✅
   - Notification sounds suppressed when user status is "Busy" (DND).
   - Scheduled quiet hours with configurable start/end times.
   - Handles overnight ranges (e.g., 22:00 to 08:00).
   - Call ring sounds also suppressed during DND.
-  - **Design:** `docs/plans/2026-01-23-read-sync-dnd-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-23-read-sync-dnd-design.md`
 - [x] **[UX] Modular Home Sidebar** ✅
   - Collapsible module framework with server-synced state
   - Active Now module showing friends' game activity
   - Pending module for friend requests
   - Pins module for notes, links, and bookmarks
-  - **Design:** `docs/plans/2026-01-24-modular-home-sidebar-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-24-modular-home-sidebar-design.md`
 - [x] **[UX] Cross-Server Favorites** ✅ (PR #45)
   - Pin channels from different guilds into unified Favorites section
   - Star icon on channels to toggle favorites (appears on hover, filled when favorited)
   - Expandable Favorites section in Sidebar grouped by guild
   - Maximum 25 favorites per user with automatic cleanup
-  - **Design:** `docs/plans/2026-01-24-cross-server-favorites-design.md`
+  - **Design:** `docs/developer-guide/plans/2026-01-24-cross-server-favorites-design.md`
 - [x] **[Content] Custom Emojis (Guild Emoji Manager)** ✅ (PR #46)
   - Guild custom emoji database schema and API
   - Animated emoji support (GIF, WebP)
@@ -587,8 +587,8 @@ This section is the canonical high-level roadmap view. Detailed implementation c
   - Revoke individual sessions or bulk-revoke all other sessions. Current-session protection prevents accidental self-logout.
   - Password change flow with optional "log out all other devices" prompt.
   - Tauri clients identified via `X-Refresh-Token` header (browsers use HttpOnly cookies).
-  - **Design:** `docs/plans/2026-03-08-session-management-design.md`
-  - **Plan:** `docs/plans/2026-03-08-session-management-plan.md`
+  - **Design:** `docs/developer-guide/plans/2026-03-08-session-management-design.md`
+  - **Plan:** `docs/developer-guide/plans/2026-03-08-session-management-plan.md`
 - [x] **[SaaS] The Digital Library (Wiki Mastery)** ([Design](../plans/2026-02-15-phase-6-focus-library-design.md), [Implementation](../plans/2026-02-15-phase-6-focus-library-implementation.md)) ✅
   - **Context:** Transform "Information Pages" into a structured Knowledge Base.
   - **Strategy:** Enhance current Info Pages with version recovery, deep-linkable sections, and a "Library" view for long-term guild documentation.
