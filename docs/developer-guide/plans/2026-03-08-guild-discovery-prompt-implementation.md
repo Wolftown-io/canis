@@ -1,6 +1,5 @@
 # Guild Discovery Default Prompt — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a discovery setup step to guild creation and a dismissible discovery banner in guild settings for existing guilds.
 

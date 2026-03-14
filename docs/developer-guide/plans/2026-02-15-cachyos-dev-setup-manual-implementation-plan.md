@@ -1,6 +1,5 @@
 # CachyOS Dev Setup Manual Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a reusable Markdown manual and a consistent Makefile target contract for per-project isolated development environments on CachyOS.
 

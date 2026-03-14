@@ -1,6 +1,5 @@
 # Unified File Size Upload Limits — Implementation Plan (v2)
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Standardize file size restrictions across all upload types with explicit, configurable limits. Fix security issue where user avatars have no size validation.
 

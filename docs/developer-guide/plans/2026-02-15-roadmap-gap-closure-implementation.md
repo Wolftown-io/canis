@@ -1,6 +1,5 @@
 # Roadmap Gap Closure - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** close roadmap coverage gaps for items that currently have no linked design and/or no linked implementation plan, while implementing features with open standards whenever possible.
 

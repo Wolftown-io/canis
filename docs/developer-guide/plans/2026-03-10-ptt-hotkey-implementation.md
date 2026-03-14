@@ -1,6 +1,5 @@
 # Push-to-Talk / Push-to-Mute Hotkey Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add configurable push-to-talk (PTT) and push-to-mute (PTM) hotkeys that work system-wide in Tauri and window-scoped in browser.
 

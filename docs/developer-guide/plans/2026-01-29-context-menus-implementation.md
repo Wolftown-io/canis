@@ -1,6 +1,5 @@
 # Advanced Browser Context Menus — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a global right-click context menu system with menus for messages, channels, and users.
 

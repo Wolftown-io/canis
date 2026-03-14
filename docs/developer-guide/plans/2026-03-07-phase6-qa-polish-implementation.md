@@ -1,6 +1,5 @@
 # Phase 6 QA Polish Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add three independent UI polish features: keyboard shortcuts help dialog, message formatting toolbar, and improved friends tab empty states.
 

@@ -1,6 +1,5 @@
 # Rich Presence Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Display "Playing X" game activity status for users in Member Lists and User Popups
 

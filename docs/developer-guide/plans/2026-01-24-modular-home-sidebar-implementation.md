@@ -1,6 +1,5 @@
 # Modular Home Sidebar Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add collapsible modules (Pending & Suggestions, Global Pins) to the Home right panel with server-synced collapse state.
 

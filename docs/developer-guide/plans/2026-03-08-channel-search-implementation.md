@@ -1,6 +1,5 @@
 # Channel Message Search — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add channel-scoped search with a scope selector to the existing SearchPanel, triggered by Ctrl+F.
 
@@ -342,7 +341,6 @@ In the message row rendering, add a conditional highlight class:
 ```tsx
 <div
   class={`message-row ${highlightedId() === message.id ? "message-highlight" : ""}`}
->
 ```
 
 Add CSS (in the component or a global stylesheet):

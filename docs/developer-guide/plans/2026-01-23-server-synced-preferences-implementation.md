@@ -1,6 +1,5 @@
 # Server-Synced User Preferences - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Sync user preferences (theme, sound, quiet hours, per-channel notifications) across all devices in real-time.
 

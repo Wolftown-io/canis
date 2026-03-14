@@ -1,6 +1,5 @@
 # Project Audit Fixes Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix 12 findings from the full project audit (score >= 50), covering code health, documentation, and stale comments.
 
@@ -51,13 +50,11 @@ chore(docs): consolidate plan docs into developer-guide/plans
 ### Task 2: Strip Claude workflow annotations from plan docs
 
 **Files:**
-- Modify: all `docs/developer-guide/plans/*-plan.md` files containing "For Claude: REQUIRED SUB-SKILL"
 
 **Step 1: Remove the annotation lines**
 
 ```bash
 # Remove lines containing the workflow annotation
-find docs/developer-guide/plans/ -name "*.md" -exec sed -i '/For Claude.*REQUIRED SUB-SKILL/d' {} \;
 # Also remove empty blockquote lines left behind
 find docs/developer-guide/plans/ -name "*.md" -exec sed -i '/^> *$/d' {} \;
 ```

@@ -1,6 +1,5 @@
 # Screen Sharing Phase 4: Viewer UI
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Enable users to view screen shares from other participants with multiple view modes and volume controls.
 

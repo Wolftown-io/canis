@@ -1,6 +1,5 @@
 # Permission System Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement a two-tier permission system with System Admin (platform) and Guild roles (per-guild), including sudo-style elevation, privilege escalation prevention, and hardened break-glass emergency procedures.
 

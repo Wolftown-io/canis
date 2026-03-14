@@ -1,6 +1,5 @@
 # Session Expiry Notification — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Notify users when their session expires and provide a clean path to re-login.
 

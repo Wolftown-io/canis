@@ -1,6 +1,5 @@
 # Content Spoilers & Enhanced Mentions — Implementation Plan v2
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add `||spoiler||` syntax for hiding sensitive content behind a blur, and add `MENTION_EVERYONE` permission (bit 23) so guild admins can control who uses `@everyone`/`@here`. Also add visual highlighting of mentions in rendered messages.
 

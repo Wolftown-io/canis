@@ -1,6 +1,5 @@
 # Simulcast Review Fixes Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix 7 issues found in the PR #361 code review: serde mismatch, listener leak, CHANGELOG honesty, race condition, type safety, encapsulation, and workspace dep hygiene.
 

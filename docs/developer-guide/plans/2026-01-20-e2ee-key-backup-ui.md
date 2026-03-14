@@ -1,6 +1,5 @@
 # E2EE Key Backup UI Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement the UI for E2EE key backup - recovery key modal, security settings, and Tauri commands for key management.
 

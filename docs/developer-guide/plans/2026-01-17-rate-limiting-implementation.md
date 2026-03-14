@@ -1,6 +1,5 @@
 # Rate Limiting Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement Redis-based rate limiting to protect against brute-force attacks, spam, and resource abuse.
 

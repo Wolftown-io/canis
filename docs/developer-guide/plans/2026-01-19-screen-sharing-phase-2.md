@@ -1,6 +1,5 @@
 # Screen Sharing Phase 2: Server Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement the server-side signaling, track routing, and permission enforcement for screen sharing.
 

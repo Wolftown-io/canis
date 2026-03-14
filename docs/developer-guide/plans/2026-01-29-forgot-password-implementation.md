@@ -1,6 +1,5 @@
 # Forgot Password Workflow — Implementation Plan v2
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Email-based password reset with secure token generation, rate limiting, single-use tokens, and session invalidation.
 

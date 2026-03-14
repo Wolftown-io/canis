@@ -1,6 +1,5 @@
 # Home View Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a three-column Discord-style Home view with DM sidebar, content area (Friends/DM conversation), and context-aware right panel.
 

@@ -1,6 +1,5 @@
 # Information Pages Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement information pages at platform and guild level for ToS, rules, FAQ with markdown support, mermaid diagrams, and acceptance tracking.
 

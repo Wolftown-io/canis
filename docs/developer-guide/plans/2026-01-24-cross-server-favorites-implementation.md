@@ -1,6 +1,5 @@
 # Cross-Server Favorites - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Allow users to pin channels from different guilds into a unified "Favorites" section in the ServerRail.
 

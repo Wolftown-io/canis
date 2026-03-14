@@ -1,6 +1,5 @@
 # Code Review Fixes Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 > **Review Status:** ✅ Plan reviewed and updated on 2026-01-25
 > - Fixed base64 API usage (modern Engine-based API)

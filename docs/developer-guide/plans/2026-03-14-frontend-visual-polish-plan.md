@@ -1,6 +1,5 @@
 # Frontend Visual Polish Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix 9 visual issues (contrast, visibility, consistency, layout) identified from a 33-screen screenshot audit.
 

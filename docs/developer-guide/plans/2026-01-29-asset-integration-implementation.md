@@ -1,6 +1,5 @@
 # Asset Integration — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Integrate the generated Finnish Lapphund mascot and branding assets into the application — favicon, login/register hero logo, empty channel state illustration, and Tauri app icons. Theme-aware: standard assets for most themes, pixel variants for Pixel Cozy.
 

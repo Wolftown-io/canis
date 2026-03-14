@@ -1,6 +1,5 @@
 # Permission System UI Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement UI components for guild role management, channel permission overrides, and system admin dashboard.
 

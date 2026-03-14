@@ -1,6 +1,5 @@
 # QR Code Mobile Login Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Let a desktop user generate a QR code that an Android device can scan to instantly log in — server URL + one-time auth token in a single scan.
 

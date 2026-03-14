@@ -1,6 +1,5 @@
 # Production-Scale Polish Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Upgrade the virtualizer to TanStack, expand virtualization to member list / DM sidebar / search results, and audit toast usage for consistency.
 
@@ -273,7 +272,6 @@ With:
   ref={membersContainerRef}
   class="flex-1 overflow-y-auto"
   style={{ "max-height": "calc(100vh - 200px)" }}
->
   <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
     <For each={virtualizer.getVirtualItems()}>
       {(virtualItem) => {

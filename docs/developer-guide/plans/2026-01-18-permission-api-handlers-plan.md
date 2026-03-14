@@ -1,6 +1,5 @@
 # Permission API Handlers Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement API handlers for system admin and guild role management with permission checking, elevation flow, and audit logging.
 
